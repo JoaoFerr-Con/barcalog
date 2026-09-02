@@ -288,11 +288,11 @@ function EstruturaBase({
     return () => clearInterval(t);
   }, []);
   useEffect(() => {
-    if (!tourJaVisto()) {
+    if (usuario && !tourJaVisto(usuario.email)) {
       const t = setTimeout(() => setTourAtivo(true), 500);
       return () => clearTimeout(t);
     }
-  }, []);
+  }, [usuario?.email]);
   const {
     hora,
     dia
@@ -300,6 +300,7 @@ function EstruturaBase({
   const infoPagina = TITULOS_PAGINA[pagina];
   return /*#__PURE__*/React.createElement(React.Fragment, null, tourAtivo && /*#__PURE__*/React.createElement(Tour, {
     passos: PASSOS_TOUR,
+    chaveUsuario: usuario?.email,
     aoTerminar: () => setTourAtivo(false)
   }), /*#__PURE__*/React.createElement("div", {
     className: `app-shell ${recolhida ? "recolhida" : ""}`
