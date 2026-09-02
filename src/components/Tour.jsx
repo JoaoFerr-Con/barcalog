@@ -2,19 +2,36 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 
 const CHAVE_VISTO = "barcalog:tour:visto";
 
-export function tourJaVisto() {
-  try { return localStorage.getItem(CHAVE_VISTO) === "1"; } catch { return true; }
+// O tour agora é "visto" por usuário, não pro navegador inteiro — cada
+// e-mail novo que loga no BarcaLog vê a demonstração de novo, mesmo que
+// outra pessoa já tenha visto antes no mesmo computador.
+function lerVistos() {
+  try {
+    const bruto = localStorage.getItem(CHAVE_VISTO);
+    return bruto ? JSON.parse(bruto) : [];
+  } catch {
+    return [];
+  }
 }
 
-function marcarTourVisto() {
-  try { localStorage.setItem(CHAVE_VISTO, "1"); } catch { /* ignora */ }
+export function tourJaVisto(chaveUsuario) {
+  if (!chaveUsuario) return true;
+  return lerVistos().includes(chaveUsuario);
+}
+
+function marcarTourVisto(chaveUsuario) {
+  if (!chaveUsuario) return;
+  try {
+    const vistos = lerVistos();
+    if (!vistos.includes(chaveUsuario)) localStorage.setItem(CHAVE_VISTO, JSON.stringify([...vistos, chaveUsuario]));
+  } catch { /* ignora */ }
 }
 
 // Tour guiado com spotlight: destaca um elemento por vez (via atributo
 // data-tour="<chave>") com uma "janela" recortada no overlay escuro, e um
 // cartão explicando o que aquilo faz. Substitui o antigo botão estático
 // "Guia de navegação" por algo que efetivamente mostra onde cada coisa fica.
-export default function Tour({ passos, aoTerminar }) {
+export default function Tour({ passos, chaveUsuario, aoTerminar }) {
   const [indice, setIndice] = useState(0);
   const [retangulo, setRetangulo] = useState(null);
   const passo = passos[indice];
@@ -32,7 +49,7 @@ export default function Tour({ passos, aoTerminar }) {
   }, [medir]);
 
   function encerrar() {
-    marcarTourVisto();
+    marcarTourVisto(chaveUsuario);
     aoTerminar();
   }
 
