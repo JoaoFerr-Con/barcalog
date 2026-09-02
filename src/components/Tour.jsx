@@ -59,23 +59,42 @@ export default function Tour({ passos, aoTerminar }) {
     };
   }, [retangulo]);
 
-  // Cartão fica à direita do alvo se houver espaço, senão abaixo.
+  // Cartão fica ao lado do alvo quando cabe, senão acima/abaixo — sempre
+  // "clampado" dentro da viewport, pra nunca nascer com os botões fora da
+  // tela (era o que acontecia com o último passo, perto do rodapé).
+  const LARGURA_CARTAO = 300;
+  const ALTURA_ESTIMADA = 280;
+  const MARGEM = 16;
+
+  function clamp(valor, min, max) {
+    return Math.min(Math.max(valor, min), Math.max(min, max));
+  }
+
   const estiloCartao = useMemo(() => {
     if (!retangulo) {
       return { position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
     }
     const espacoDireita = window.innerWidth - retangulo.right;
-    if (espacoDireita > 340) {
-      return { position: "fixed", top: retangulo.top, left: retangulo.right + 20 };
+    let top, left;
+    if (espacoDireita > LARGURA_CARTAO + 40) {
+      left = retangulo.right + 20;
+      top = retangulo.top;
+    } else {
+      left = retangulo.left;
+      // Prefere abaixo do alvo; se não couber, tenta acima.
+      const cabeAbaixo = retangulo.bottom + 16 + ALTURA_ESTIMADA <= window.innerHeight - MARGEM;
+      top = cabeAbaixo ? retangulo.bottom + 16 : retangulo.top - ALTURA_ESTIMADA - 16;
     }
-    return { position: "fixed", top: Math.min(retangulo.bottom + 16, window.innerHeight - 200), left: Math.max(20, retangulo.left) };
+    top = clamp(top, MARGEM, window.innerHeight - ALTURA_ESTIMADA - MARGEM);
+    left = clamp(left, MARGEM, window.innerWidth - LARGURA_CARTAO - MARGEM);
+    return { position: "fixed", top, left };
   }, [retangulo]);
 
   return (
     <>
       {estiloSpotlight && <div style={estiloSpotlight} />}
       <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: retangulo ? "transparent" : "rgba(15, 23, 42, 0.62)" }} />
-      <div className="cartao" style={{ ...estiloCartao, zIndex: 1002, width: 300, animation: "barcalog-toast-in 0.2s ease-out" }}>
+      <div className="cartao" style={{ ...estiloCartao, zIndex: 1002, width: LARGURA_CARTAO, maxHeight: `calc(100vh - ${MARGEM * 2}px)`, overflowY: "auto", animation: "barcalog-toast-in 0.2s ease-out" }}>
         <div className="cartao__corpo" style={{ paddingTop: 18 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ambar-600)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>
             {indice + 1} de {passos.length}
