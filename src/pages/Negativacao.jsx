@@ -10,8 +10,8 @@ import {
   registrarOcorrencia,
   responderContestacao,
   reincidenciasN2,
-  negativarTransportadora,
-  desnegativarTransportadora
+  negativarVeiculo,
+  desnegativarVeiculo
 } from "../data/negativacaoStore.js";
 
 const NIVEIS = [
@@ -37,7 +37,7 @@ function FormularioOcorrencia() {
     if (!form.placa || !form.transportadora || !form.descricao) return;
     registrarOcorrencia(form);
     if (form.nivel === "N3") {
-      notificar(`${form.transportadora} foi negativada automaticamente (ocorrência N3).`, "erro");
+      notificar(`Carreta ${form.placa} foi negativada automaticamente (ocorrência N3).`, "erro");
     } else {
       notificar(`Ocorrência ${form.nivel} registrada para ${form.placa}.`, "sucesso");
     }
@@ -48,7 +48,7 @@ function FormularioOcorrencia() {
     <form onSubmit={enviar} className="cartao">
       <div className="cartao__cabecalho">
         <h3>Registrar Ocorrência</h3>
-        <p>N3 bloqueia a transportadora automaticamente e imediatamente</p>
+        <p>N3 bloqueia a carreta (e o condutor, se identificado) automaticamente e imediatamente</p>
       </div>
       <div className="cartao__corpo" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <label style={{ fontSize: 12, fontWeight: 600 }}>
@@ -106,6 +106,11 @@ export default function Negativacao() {
   const ocorrencias = listarOcorrencias();
   const contestacoesPendentes = listarContestacoes().filter(c => c.status === "pendente");
   const negativadas = transportadoras.filter(t => t.status === "negativada");
+  const [expandidas, setExpandidas] = useState({});
+
+  function alternarExpandida(id) {
+    setExpandidas(e => ({ ...e, [id]: !e[id] }));
+  }
 
   return (
     <>
@@ -173,51 +178,83 @@ export default function Negativacao() {
           <div className="cartao">
             <div className="cartao__cabecalho">
               <h3>Status das Transportadoras</h3>
-              <p>Regular ou negativada, com sinal de reincidência N2</p>
+              <p>Não é a empresa que é negativada — são as carretas dela. O status aqui é a soma das carretas de cada uma.</p>
             </div>
             <div className="cartao__corpo">
-              {transportadoras.map(t => (
-                <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--superficie-alt)", gap: 8, flexWrap: "wrap" }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{t.nome}</div>
-                    {reincidenciasN2(t.nome) >= 2 && (
-                      <div style={{ fontSize: 11, color: "var(--ambar-600)" }}>{reincidenciasN2(t.nome)} ocorrências N2 nos últimos 30 dias</div>
+              {transportadoras.map(t => {
+                const frota = listarVeiculos(t.nome);
+                const aberta = !!expandidas[t.id];
+                return (
+                  <div key={t.id} style={{ borderBottom: "1px solid var(--superficie-alt)" }}>
+                    <button
+                      onClick={() => alternarExpandida(t.id)}
+                      style={{
+                        width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
+                        padding: "10px 0", gap: 8, flexWrap: "wrap", background: "none", border: "none", cursor: "pointer", textAlign: "left"
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--tinta-fraca)", transform: aberta ? "rotate(90deg)" : "none", transition: "transform .15s" }}>
+                          chevron_right
+                        </span>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 13 }}>{t.nome}</div>
+                          {reincidenciasN2(t.nome) >= 2 && (
+                            <div style={{ fontSize: 11, color: "var(--ambar-600)" }}>{reincidenciasN2(t.nome)} ocorrências N2 nos últimos 30 dias</div>
+                          )}
+                        </div>
+                      </div>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 20,
+                        background: t.carretasNegativadas > 0 ? "var(--vermelho-100)" : "var(--verde-100)",
+                        color: t.carretasNegativadas > 0 ? "var(--vermelho-500)" : "var(--verde-500)"
+                      }}>
+                        {t.carretasNegativadas} de {t.carretasTotal} carretas negativadas
+                      </span>
+                    </button>
+
+                    {aberta && (
+                      <div style={{ paddingBottom: 10 }}>
+                        {frota.length === 0 && <p style={{ fontSize: 12.5, color: "var(--tinta-suave)", margin: "0 0 8px 26px" }}>Nenhuma carreta cadastrada pra essa transportadora.</p>}
+                        {frota.map(v => (
+                          <div key={v.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0 6px 26px", gap: 8, flexWrap: "wrap" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span className="placa-chip" style={{ fontSize: 12 }}>{v.placa}</span>
+                              <span style={{ fontSize: 12, color: "var(--tinta-suave)" }}>{v.modelo}</span>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{
+                                fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 20,
+                                background: v.statusNegativacao === "negativada" ? "var(--vermelho-100)" : "var(--verde-100)",
+                                color: v.statusNegativacao === "negativada" ? "var(--vermelho-500)" : "var(--verde-500)"
+                              }}>
+                                {v.statusNegativacao === "negativada" ? "Negativada" : "Regular"}
+                              </span>
+                              {v.statusNegativacao === "negativada" ? (
+                                <button
+                                  className="botao botao--fantasma"
+                                  style={{ fontSize: 11.5, padding: "4px 8px" }}
+                                  onClick={() => { desnegativarVeiculo(v.id); notificar(`Carreta ${v.placa} foi desnegativada.`, "sucesso"); }}
+                                >
+                                  Desnegativar
+                                </button>
+                              ) : (
+                                <button
+                                  className="botao botao--fantasma"
+                                  style={{ fontSize: 11.5, padding: "4px 8px", color: "var(--vermelho-500)" }}
+                                  onClick={() => { negativarVeiculo(v.id, "Negativação manual aplicada pela equipe do porto."); notificar(`Carreta ${v.placa} foi negativada manualmente.`, "aviso"); }}
+                                >
+                                  Negativar
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{
-                      fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 20,
-                      background: t.status === "negativada" ? "var(--vermelho-100)" : "var(--verde-100)",
-                      color: t.status === "negativada" ? "var(--vermelho-500)" : "var(--verde-500)"
-                    }}>
-                      {t.status === "negativada" ? "Negativada" : "Regular"}
-                    </span>
-                    {t.status === "negativada" ? (
-                      <button
-                        className="botao botao--fantasma"
-                        style={{ fontSize: 12, padding: "5px 10px" }}
-                        onClick={() => {
-                          desnegativarTransportadora(t.nome, "Desnegativação manual pela equipe do porto.");
-                          notificar(`${t.nome} foi desnegativada.`, "sucesso");
-                        }}
-                      >
-                        Desnegativar
-                      </button>
-                    ) : (
-                      <button
-                        className="botao botao--fantasma"
-                        style={{ fontSize: 12, padding: "5px 10px", color: "var(--vermelho-500)" }}
-                        onClick={() => {
-                          negativarTransportadora(t.nome, "Negativação manual aplicada pela equipe do porto.");
-                          notificar(`${t.nome} foi negativada manualmente.`, "aviso");
-                        }}
-                      >
-                        Negativar
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
