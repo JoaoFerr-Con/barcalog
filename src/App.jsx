@@ -18,11 +18,11 @@ import CartaoIndicador from "./components/CartaoIndicador.jsx";
 import Tour, { tourJaVisto } from "./components/Tour.jsx";
 import Negativacao from "./pages/Negativacao.jsx";
 import GestaoFrotas from "./pages/GestaoFrotas.jsx";
-import { useNegativacao } from "./hooks/useNegativacao.js";
-import { buscarVeiculoPorPlaca, atualizarStatusPortaria, listarVeiculos } from "./data/negativacaoStore.js";
-import { notificar } from "./components/toast.js";
+import Portaria from "./pages/Portaria.jsx";
+import { definirSessao } from "./data/sessao.js";
 const VisaoGeral = lazy(() => import("./pages/VisaoGeral.jsx"));
 const MapaOperacional = lazy(() => import("./pages/MapaOperacional.jsx"));
+const Auditoria = lazy(() => import("./pages/Auditoria.jsx"));
 
 /* =========================================================
    DADOS SIMULADOS (mock) — usados só na fila mock de "Carretas".
@@ -44,6 +44,7 @@ function ProvedorAutenticacao({
   });
   useEffect(() => {
     if (usuario) localStorage.setItem("barcalog_usuario", JSON.stringify(usuario));else localStorage.removeItem("barcalog_usuario");
+    definirSessao(usuario ? { tipo: "interno", nome: usuario.nome } : null);
   }, [usuario]);
   function entrar(email, senha) {
     if (!email || !senha) return {
@@ -218,6 +219,11 @@ const ITENS_NAV = [{
   rotulo: "Negativação",
   icone: "gpp_maybe",
   descricao: "Núcleo do BarcaLog: registra ocorrências (N1/N2/N3), aplica bloqueio automático em infrações graves e analisa contestações no GED."
+}, {
+  chave: "auditoria",
+  rotulo: "Auditoria",
+  icone: "history",
+  descricao: "Log de quem fez o quê e quando — toda mudança de status, cadastro e negativação fica registrada aqui."
 }];
 function relogioFormatado(data) {
   const hora = data.toLocaleTimeString("pt-BR", {
@@ -259,6 +265,10 @@ const TITULOS_PAGINA = {
   "negativacao": {
     titulo: "Sistema de Negativação",
     sub: "Ocorrências, bloqueios automáticos N3 e contestações (GED)"
+  },
+  "auditoria": {
+    titulo: "Auditoria",
+    sub: "Log de alterações — quem fez o quê e quando"
   }
 };
 const PASSOS_TOUR = ITENS_NAV.map(item => ({
@@ -620,194 +630,6 @@ function PaginaCarretas() {
 }
 
 /* =========================================================
-   PÁGINA — Portaria
-   ========================================================= */
-const ACOES_PORTARIA = [{
-  chave: "No Pátio",
-  rotulo: "Registrar entrada no pátio",
-  icone: "login",
-  cor: "var(--ambar-600)",
-  fundo: "#FBEBD1",
-  borda: "#F2D8A5"
-}, {
-  chave: "Aguardando",
-  rotulo: "Registrar saída do pátio",
-  icone: "logout",
-  cor: "var(--tinta-suave)",
-  fundo: "var(--superficie-alt)",
-  borda: "var(--borda)"
-}, {
-  chave: "No Porto",
-  rotulo: "Registrar entrada no porto",
-  icone: "directions_boat",
-  cor: "var(--azul-500)",
-  fundo: "var(--azul-100)",
-  borda: "#C3D6F5"
-}, {
-  chave: "Descarga Finalizada",
-  rotulo: "Finalizar descarga",
-  icone: "download_done",
-  cor: "var(--verde-500)",
-  fundo: "var(--verde-100)",
-  borda: "#BEE7D2"
-}];
-function Portaria() {
-  useNegativacao();
-  const [consulta, setConsulta] = useState("");
-  const [resultado, setResultado] = useState(null);
-  const [naoEncontrado, setNaoEncontrado] = useState(false);
-  const veiculos = listarVeiculos();
-  function aoBuscar(e) {
-    e.preventDefault();
-    const encontrado = buscarVeiculoPorPlaca(consulta);
-    setResultado(encontrado);
-    setNaoEncontrado(!encontrado);
-  }
-  function selecionar(v) {
-    setResultado(v);
-    setNaoEncontrado(false);
-    setConsulta(v.placa);
-  }
-  function aoAcionar(status) {
-    if (!resultado) return;
-    atualizarStatusPortaria(resultado.id, status);
-    setResultado(r => ({ ...r, statusPortaria: status }));
-    notificar(`${resultado.placa} — status atualizado para "${status}".`, "sucesso");
-  }
-  return /*#__PURE__*/React.createElement("div", {
-    className: "cartao"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "cartao__corpo",
-    style: {
-      maxWidth: 760,
-      margin: "0 auto",
-      paddingTop: 24
-    }
-  }, /*#__PURE__*/React.createElement("form", {
-    onSubmit: aoBuscar,
-    style: {
-      marginBottom: 24
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "campo-icone"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "material-symbols-outlined",
-    style: {
-      fontSize: 22
-    }
-  }, "search"), /*#__PURE__*/React.createElement("input", {
-    value: consulta,
-    onChange: e => setConsulta(e.target.value),
-    placeholder: "Digite a placa do veículo (ex: ENM-1001, NGL-3021)",
-    style: {
-      width: "100%",
-      padding: "16px 16px 16px 42px",
-      fontSize: 18,
-      textAlign: "center",
-      textTransform: "uppercase",
-      border: "1px solid var(--borda)",
-      borderRadius: 12
-    }
-  }))), naoEncontrado && /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "center",
-      color: "var(--tinta-suave)",
-      marginBottom: 20,
-      padding: "16px 12px"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "material-symbols-outlined",
-    style: { fontSize: 28, color: "var(--tinta-fraca)" }
-  }, "search_off"), /*#__PURE__*/React.createElement("p", {
-    style: { margin: "8px 0 0", fontSize: 13.5 }
-  }, "Nenhum veículo encontrado com essa placa. Cadastre em \"Frotas & Condutores\".")), resultado && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: "var(--superficie-alt)",
-      border: "1px solid var(--borda)",
-      borderRadius: 12,
-      padding: 16,
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      flexWrap: "wrap",
-      gap: 12,
-      marginBottom: 16
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
-    style: {
-      fontSize: 17
-    }
-  }, resultado.transportadora), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 8,
-      marginTop: 8,
-      flexWrap: "wrap"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "selo",
-    style: {
-      background: "#fff",
-      color: "var(--tinta-suave)"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "material-symbols-outlined"
-  }, "local_shipping"), " ", resultado.modelo || "Veículo"), /*#__PURE__*/React.createElement("span", {
-    className: "selo",
-    style: {
-      background: "#fff",
-      color: "var(--tinta-suave)"
-    }
-  }, "Status atual: ", resultado.statusPortaria))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "right"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "placa-chip",
-    style: {
-      fontSize: 16,
-      padding: "6px 12px"
-    }
-  }, resultado.placa))), /*#__PURE__*/React.createElement("div", {
-    className: "grade-acoes"
-  }, ACOES_PORTARIA.map(acao => /*#__PURE__*/React.createElement("button", {
-    key: acao.chave,
-    onClick: () => aoAcionar(acao.chave),
-    className: "acao-portaria",
-    style: {
-      background: acao.fundo,
-      color: acao.cor,
-      borderColor: acao.borda
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "material-symbols-outlined"
-  }, acao.icone), /*#__PURE__*/React.createElement("span", {
-    className: "rotulo"
-  }, acao.rotulo))))), !resultado && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
-    style: { fontSize: 12.5, fontWeight: 700, color: "var(--tinta-suave)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }
-  }, "Veículos cadastrados — clique pra selecionar"), /*#__PURE__*/React.createElement("div", {
-    style: { display: "flex", flexDirection: "column", gap: 8 }
-  }, veiculos.map(v => /*#__PURE__*/React.createElement("button", {
-    key: v.id,
-    onClick: () => selecionar(v),
-    style: {
-      display: "flex", justifyContent: "space-between", alignItems: "center",
-      padding: "10px 14px", borderRadius: 10, border: "1px solid var(--borda)",
-      background: "#fff", cursor: "pointer", textAlign: "left"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: { display: "flex", alignItems: "center", gap: 10 }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "placa-chip",
-    style: { fontSize: 13 }
-  }, v.placa), /*#__PURE__*/React.createElement("span", {
-    style: { fontSize: 13, color: "var(--tinta-suave)" }
-  }, v.transportadora)), /*#__PURE__*/React.createElement("span", {
-    className: "selo",
-    style: { background: "var(--superficie-alt)", color: "var(--tinta-suave)", fontSize: 11.5 }
-  }, v.statusPortaria)))))));
-}
-/* =========================================================
    RAIZ DO APLICATIVO
    ========================================================= */
 function EstruturaApp({ aoAbrirPortal }) {
@@ -825,7 +647,8 @@ function EstruturaApp({ aoAbrirPortal }) {
     "mapa": /*#__PURE__*/React.createElement(Suspense, { fallback: carregando }, /*#__PURE__*/React.createElement(MapaOperacional, null)),
     "frotas": /*#__PURE__*/React.createElement(GestaoFrotas, null),
     "portaria": /*#__PURE__*/React.createElement(Portaria, null),
-    "negativacao": /*#__PURE__*/React.createElement(Negativacao, null)
+    "negativacao": /*#__PURE__*/React.createElement(Negativacao, null),
+    "auditoria": /*#__PURE__*/React.createElement(Suspense, { fallback: carregando }, /*#__PURE__*/React.createElement(Auditoria, null))
   };
   return /*#__PURE__*/React.createElement(ProvedorDados, null, /*#__PURE__*/React.createElement(EstruturaBase, {
     pagina: pagina,
