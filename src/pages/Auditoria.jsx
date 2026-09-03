@@ -1,66 +1,82 @@
-import { useState, useMemo } from "react";
-import { useAuditoria } from "../hooks/useAuditoria.js";
-import { listarLogs } from "../data/auditoriaStore.js";
-import { exportarCSV } from "../utils/exportar.js";
+import { obterAutorAtual } from "./sessao.js";
 
-export default function Auditoria() {
-  useAuditoria();
-  const [busca, setBusca] = useState("");
-  const logs = useMemo(() => listarLogs(busca), [busca]);
+// Log de auditoria — "quem fez o quê e quando", conforme a documentação
+// oficial do BarcaLog ("Auditoria e Segurança Total: todos os registros
+// possuem logs de alteração e controle de acesso"). Persistido em
+// localStorage (mesma limitação de todo o resto do app nesta fase sem
+// backend): cada evento fica registrado com autor, ação e detalhes.
+//
+// Toda leitura/escrita aqui é defensiva de propósito: se o localStorage
+// falhar (aba anônima, cota estourada, storage bloqueado) ou algum
+// registro vier malformado, isso NUNCA pode derrubar a tela de Auditoria —
+// só significa que aquele log específico não fica salvo.
 
-  function exportar() {
-    exportarCSV(
-      logs,
-      [
-        { rotulo: "Data/Hora", valor: l => new Date(l.quando).toLocaleString("pt-BR") },
-        { rotulo: "Autor", chave: "autor" },
-        { rotulo: "Ação", chave: "acao" },
-        { rotulo: "Detalhes", chave: "detalhes" }
-      ],
-      "auditoria_barcalog"
-    );
+const CHAVE = "barcalog:auditoria:v1";
+const EVENTO = "barcalog:auditoria:mudou";
+const LIMITE_REGISTROS = 500; // evita o log crescer sem limite no localStorage
+
+function carregar() {
+  try {
+    const bruto = localStorage.getItem(CHAVE);
+    const dados = bruto ? JSON.parse(bruto) : [];
+    return Array.isArray(dados) ? dados : [];
+  } catch {
+    return [];
   }
+}
 
-  return (
-    <div className="cartao">
-      <div className="cartao__cabecalho" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <h3>Log de Auditoria</h3>
-          <p>{logs.length.toLocaleString("pt-BR")} registro(s) — quem fez o quê e quando, em toda a aplicação</p>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input
-            value={busca}
-            onChange={e => setBusca(e.target.value)}
-            placeholder="Buscar por autor, ação ou detalhe..."
-            style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid var(--borda)", fontSize: 13, minWidth: 220 }}
-          />
-          <button className="botao botao--fantasma botao-exportar" onClick={exportar}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>download</span> Exportar CSV
-          </button>
-        </div>
-      </div>
-      <div className="cartao__corpo" style={{ overflowX: "auto" }}>
-        {logs.length === 0 ? (
-          <p style={{ fontSize: 13, color: "var(--tinta-suave)" }}>Nenhum registro de auditoria ainda.</p>
-        ) : (
-          <table>
-            <thead>
-              <tr><th>Data/Hora</th><th>Autor</th><th>Ação</th><th>Detalhes</th></tr>
-            </thead>
-            <tbody>
-              {logs.map(l => (
-                <tr key={l.id}>
-                  <td className="mono">{new Date(l.quando).toLocaleString("pt-BR")}</td>
-                  <td>{l.autor}</td>
-                  <td>{l.acao}</td>
-                  <td style={{ maxWidth: 360 }}>{l.detalhes}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
+let logs = carregar();
+
+function salvar() {
+  if (logs.length > LIMITE_REGISTROS) logs = logs.slice(0, LIMITE_REGISTROS);
+  try {
+    localStorage.setItem(CHAVE, JSON.stringify(logs));
+  } catch {
+    // localStorage indisponível ou cota estourada — o log continua
+    // valendo em memória nesta sessão, só não persiste entre recargas.
+  }
+  try {
+    window.dispatchEvent(new CustomEvent(EVENTO));
+  } catch {
+    // ambiente sem CustomEvent (não deveria acontecer em navegador, mas
+    // não é motivo pra quebrar a ação que disparou o log).
+  }
+}
+
+export function assinarAuditoria(callback) {
+  window.addEventListener(EVENTO, callback);
+  return () => window.removeEventListener(EVENTO, callback);
+}
+
+export function registrarLog(acao, detalhes) {
+  try {
+    logs = [{
+      id: `log${Date.now()}${Math.floor(Math.random() * 1000)}`,
+      autor: String(obterAutorAtual() ?? "Sistema"),
+      acao: String(acao ?? ""),
+      detalhes: String(detalhes ?? ""),
+      quando: new Date().toISOString()
+    }, ...logs];
+    salvar();
+  } catch {
+    // Nunca deixa uma falha ao registrar auditoria quebrar a ação real
+    // (registrar ocorrência, mudar status etc) que disparou esse log.
+  }
+}
+
+// Coage qualquer campo pra string antes de comparar — um registro antigo
+// ou malformado (campo undefined/nulo/objeto) não pode derrubar a busca.
+function paraTexto(valor) {
+  return String(valor ?? "").toLowerCase();
+}
+
+export function listarLogs(filtro) {
+  const base = Array.isArray(logs) ? logs : [];
+  if (!filtro) return base;
+  const termo = filtro.toLowerCase();
+  return base.filter(l =>
+    paraTexto(l?.autor).includes(termo) ||
+    paraTexto(l?.acao).includes(termo) ||
+    paraTexto(l?.detalhes).includes(termo)
   );
 }
