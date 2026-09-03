@@ -293,7 +293,7 @@ export default function VisaoGeral() {
             <div className="cartao">
               <div className="cartao__cabecalho">
                 <h3>Projeção de Volume</h3>
-                <p>Tendência estatística simples (regressão linear) sobre o histórico — não é IA, é projeção de tendência.</p>
+                <p>Tendência estatística simples sobre o histórico. </p>
               </div>
               <div className="cartao__corpo">
                 {!projecao ? (
