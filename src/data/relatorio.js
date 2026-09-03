@@ -240,3 +240,21 @@ export function formatarHoras(horas) {
   const min = Math.round((horas - h) * 60);
   return `${h}h${min > 0 ? ` ${String(min).padStart(2, "0")}min` : ""}`;
 }
+
+// ---------- Ciclo ----------
+// "ciclo" vem direto da planilha original e nunca tinha sido usado em
+// nenhuma tela — indica quantas vezes aquela senha/ticket já circulou pelo
+// terminal. Agrupamos em baldes (1, 2, 3, 4, 5+) pra ver se repetição alta
+// vem acompanhada de mais ou menos espera.
+export function distribuicaoPorCiclo(registros) {
+  const baldes = { "1": [], "2": [], "3": [], "4": [], "5+": [] };
+  registros.forEach(m => {
+    const chave = m.ciclo >= 5 ? "5+" : String(m.ciclo);
+    if (baldes[chave]) baldes[chave].push(m.esperaHoras);
+  });
+  return Object.entries(baldes).map(([balde, esperas]) => ({
+    balde,
+    total: esperas.length,
+    esperaMedia: esperas.length ? esperas.reduce((a, b) => a + b, 0) / esperas.length : 0
+  }));
+}
