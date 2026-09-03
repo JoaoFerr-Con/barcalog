@@ -14,6 +14,7 @@ import {
 } from "../data/negativacaoStore.js";
 import { gerarMetricasMock } from "../data/metricasPortalMock.js";
 import { notificar } from "../components/toast.js";
+import { definirSessao } from "../data/sessao.js";
 import CartaoIndicador from "../components/CartaoIndicador.jsx";
 
 const estiloInput = {
@@ -35,6 +36,7 @@ function TelaLogin({ aoEntrar, aoVoltarParaInterno }) {
       notificar("Não foi possível entrar — confira o nome e a senha.", "erro");
       return;
     }
+    definirSessao({ tipo: "portal", nome: t.nome });
     notificar(`Bem-vindo(a), ${t.nome}.`, "sucesso");
     aoEntrar(t);
   }
@@ -42,6 +44,7 @@ function TelaLogin({ aoEntrar, aoVoltarParaInterno }) {
   function entrarComo(t) {
     setNome(t.nome);
     setSenha(SENHA_PADRAO_DEMO);
+    definirSessao({ tipo: "portal", nome: t.nome });
     notificar(`Bem-vindo(a), ${t.nome}.`, "sucesso");
     aoEntrar(t);
   }
@@ -457,5 +460,5 @@ export default function PortalTransportadora({ aoVoltarParaInterno }) {
   useNegativacao();
 
   if (!logada) return <TelaLogin aoEntrar={setLogada} aoVoltarParaInterno={aoVoltarParaInterno} />;
-  return <Dashboard transportadora={logada} sair={() => setLogada(null)} />;
+  return <Dashboard transportadora={logada} sair={() => { definirSessao(null); setLogada(null); }} />;
 }
