@@ -18,8 +18,14 @@
 // navegador. Quando a API real existir, só trocar as funções abaixo por
 // chamadas fetch; nenhuma tela precisa mudar de contrato.
 
-const CHAVE = "barcalog:negativacao:v3";
+import { registrarLog } from "./auditoriaStore.js";
+
+const CHAVE = "barcalog:negativacao:v4";
 const EVENTO = "barcalog:negativacao:mudou";
+
+// Limiar pra disparar o alerta de congestionamento na Portaria — quantidade
+// de carretas "No Pátio" ao mesmo tempo a partir da qual vale sinalizar.
+export const LIMIAR_CONGESTIONAMENTO = 3;
 
 // Senha padrão pra todas as transportadoras nesta fase de demonstração —
 // ainda não existe autenticação real (ver aviso no Portal do Transportador).
@@ -79,13 +85,20 @@ const SEED = {
   // statusNegativacao é o campo que decide se a carreta pode rodar:
   // "regular" ou "negativada". statusPortaria é uma coisa totalmente
   // diferente (posição física no pátio/porto).
+  // statusNegativacao é o campo que decide se a carreta pode rodar:
+  // "regular" ou "negativada". statusPortaria é uma coisa totalmente
+  // diferente (posição física no pátio/porto). terminal aponta pra um dos
+  // 3 terminais reais (mesmo id usado em src/data/registry.js), usado só
+  // pra estimar tempo de espera com base na média histórica real daquele
+  // terminal — não inventamos um número, usamos o dado real disponível.
   veiculos: [
-    { id: "v1", placa: "ENM-1001", transportadora: "Rota Amazônia Cargas", modelo: "Carreta graneleira", statusPortaria: "No Porto", statusNegativacao: "regular" },
-    { id: "v2", placa: "NGL-3021", transportadora: "Norte Grãos Logística", modelo: "Carreta graneleira", statusPortaria: "No Pátio", statusNegativacao: "negativada" },
-    { id: "v3", placa: "ATS-4410", transportadora: "AgroTransportes Sul", modelo: "Bitrem graneleiro", statusPortaria: "Aguardando", statusNegativacao: "regular" },
-    { id: "v4", placa: "TNC-2290", transportadora: "TransNorte Cargas", modelo: "Carreta graneleira", statusPortaria: "Descarga Finalizada", statusNegativacao: "regular" },
-    { id: "v5", placa: "BCT-7715", transportadora: "Barcarena Transportes", modelo: "Rodotrem", statusPortaria: "No Pátio", statusNegativacao: "regular" },
-    { id: "v6", placa: "RAC-5502", transportadora: "Rota Amazônia Cargas", modelo: "Carreta graneleira", statusPortaria: "Aguardando", statusNegativacao: "regular" }
+    { id: "v1", placa: "ENM-1001", transportadora: "Rota Amazônia Cargas", modelo: "Carreta graneleira", statusPortaria: "No Porto", statusPortariaDesde: new Date(Date.now() - 40 * 60000).toISOString(), terminal: "unitapajos", statusNegativacao: "regular" },
+    { id: "v2", placa: "NGL-3021", transportadora: "Norte Grãos Logística", modelo: "Carreta graneleira", statusPortaria: "No Pátio", statusPortariaDesde: new Date(Date.now() - 3 * 3600000).toISOString(), terminal: "unitapajos", statusNegativacao: "negativada" },
+    { id: "v3", placa: "ATS-4410", transportadora: "AgroTransportes Sul", modelo: "Bitrem graneleiro", statusPortaria: "Aguardando", statusPortariaDesde: new Date(Date.now() - 90 * 60000).toISOString(), terminal: "tgpm", statusNegativacao: "regular" },
+    { id: "v4", placa: "TNC-2290", transportadora: "TransNorte Cargas", modelo: "Carreta graneleira", statusPortaria: "Descarga Finalizada", statusPortariaDesde: new Date(Date.now() - 6 * 3600000).toISOString(), terminal: "hidrovias", statusNegativacao: "regular" },
+    { id: "v5", placa: "BCT-7715", transportadora: "Barcarena Transportes", modelo: "Rodotrem", statusPortaria: "No Pátio", statusPortariaDesde: new Date(Date.now() - 5 * 3600000).toISOString(), terminal: "hidrovias", statusNegativacao: "regular" },
+    { id: "v6", placa: "RAC-5502", transportadora: "Rota Amazônia Cargas", modelo: "Carreta graneleira", statusPortaria: "Aguardando", statusPortariaDesde: new Date(Date.now() - 20 * 60000).toISOString(), terminal: "tgpm", statusNegativacao: "regular" },
+    { id: "v7", placa: "ATS-9091", transportadora: "AgroTransportes Sul", modelo: "Carreta graneleira", statusPortaria: "No Pátio", statusPortariaDesde: new Date(Date.now() - 2 * 3600000).toISOString(), terminal: "unitapajos", statusNegativacao: "regular" }
   ],
   condutores: [
     { id: "c1", nome: "José Ribeiro", cpf: "123.456.789-00", transportadora: "Norte Grãos Logística", placaVinculada: "NGL-3021", statusNegativacao: "negativada" },
@@ -197,6 +210,10 @@ export function registrarOcorrencia({ nivel, placa, cpfMotorista, transportadora
     }
   }
   salvar();
+  registrarLog(
+    nivel === "N3" ? "Ocorrência N3 registrada (bloqueio automático)" : `Ocorrência ${nivel} registrada`,
+    `Placa ${placa} — ${transportadora} — ${descricao}`
+  );
   return ocorrencia;
 }
 
@@ -216,6 +233,7 @@ export function abrirContestacao({ ocorrenciaId, transportadora, justificativa, 
   const oc = estado.ocorrencias.find(o => o.id === ocorrenciaId);
   if (oc) oc.status = "contestada";
   salvar();
+  registrarLog("Contestação aberta (GED)", `${transportadora} — ocorrência ${ocorrenciaId}`);
   return contestacao;
 }
 
@@ -240,6 +258,10 @@ export function responderContestacao(contestacaoId, aprovado, respostaOperador) 
     }
   }
   salvar();
+  registrarLog(
+    aprovado ? "Contestação aprovada (negativação retirada)" : "Contestação rejeitada",
+    `${c.transportadora} — ${respostaOperador || ""}`
+  );
 }
 
 // Controle manual, direto na carreta — a equipe do porto pode negativar ou
@@ -263,6 +285,7 @@ export function negativarVeiculo(veiculoId, motivo) {
     criadoEm: new Date().toISOString()
   }, ...estado.ocorrencias];
   salvar();
+  registrarLog("Negativação manual", `Carreta ${v.placa} — ${motivo || "sem motivo informado"}`);
 }
 
 export function desnegativarVeiculo(veiculoId) {
@@ -273,6 +296,7 @@ export function desnegativarVeiculo(veiculoId) {
     o.placa === v.placa && o.status !== "resolvida" ? { ...o, status: "resolvida" } : o
   );
   salvar();
+  registrarLog("Desnegativação manual", `Carreta ${v.placa}`);
 }
 
 // Elegibilidade pra operar no município — a transportadora só é considerada
@@ -290,10 +314,15 @@ export function listarVeiculos(filtroTransportadora) {
   return estado.veiculos.filter(v => v.transportadora === filtroTransportadora);
 }
 
-export function cadastrarVeiculo({ placa, transportadora, modelo }) {
-  const veiculo = { id: `v${Date.now()}`, placa, transportadora, modelo, statusPortaria: "Aguardando", statusNegativacao: "regular" };
+export function cadastrarVeiculo({ placa, transportadora, modelo, terminal }) {
+  const veiculo = {
+    id: `v${Date.now()}`, placa, transportadora, modelo,
+    statusPortaria: "Aguardando", statusPortariaDesde: new Date().toISOString(),
+    terminal: terminal || "unitapajos", statusNegativacao: "regular"
+  };
   estado.veiculos = [veiculo, ...estado.veiculos];
   salvar();
+  registrarLog("Veículo cadastrado", `Placa ${placa} — ${transportadora}`);
   return veiculo;
 }
 
@@ -303,16 +332,34 @@ export function buscarVeiculoPorPlaca(placa) {
   return estado.veiculos.find(v => v.placa.toUpperCase() === consulta) || null;
 }
 
+// Fila virtual — veículos parados agora (No Pátio / Aguardando), na ordem
+// em que entraram nesse status (quem chegou primeiro é atendido primeiro).
+export function listarFilaAtual() {
+  return estado.veiculos
+    .filter(v => v.statusPortaria === "No Pátio" || v.statusPortaria === "Aguardando")
+    .sort((a, b) => new Date(a.statusPortariaDesde) - new Date(b.statusPortariaDesde));
+}
+
+export function contarNoPatio() {
+  return estado.veiculos.filter(v => v.statusPortaria === "No Pátio").length;
+}
+
 export function atualizarStatusPortaria(id, statusPortaria) {
   const v = estado.veiculos.find(v => v.id === id);
-  if (v) v.statusPortaria = statusPortaria;
+  if (v) {
+    v.statusPortaria = statusPortaria;
+    v.statusPortariaDesde = new Date().toISOString();
+  }
   salvar();
+  registrarLog("Status de portaria atualizado", v ? `Placa ${v.placa} — ${statusPortaria}` : "");
   return v;
 }
 
 export function removerVeiculo(id) {
+  const v = estado.veiculos.find(v => v.id === id);
   estado.veiculos = estado.veiculos.filter(v => v.id !== id);
   salvar();
+  registrarLog("Veículo removido", v ? `Placa ${v.placa}` : "");
 }
 
 export function listarCondutores(filtroTransportadora) {
@@ -324,12 +371,15 @@ export function cadastrarCondutor({ nome, cpf, transportadora, placaVinculada })
   const condutor = { id: `c${Date.now()}`, nome, cpf, transportadora, placaVinculada, statusNegativacao: "regular" };
   estado.condutores = [condutor, ...estado.condutores];
   salvar();
+  registrarLog("Condutor cadastrado", `${nome} — ${transportadora}`);
   return condutor;
 }
 
 export function removerCondutor(id) {
+  const c = estado.condutores.find(c => c.id === id);
   estado.condutores = estado.condutores.filter(c => c.id !== id);
   salvar();
+  registrarLog("Condutor removido", c ? c.nome : "");
 }
 
 export { EVENTO as EVENTO_MUDANCA };
