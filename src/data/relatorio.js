@@ -91,6 +91,150 @@ export function marcacoesDoMes(registros, chaveMesAlvo) {
   return registros.filter(m => chaveMes(m.marcadoEm) === chaveMesAlvo);
 }
 
+// ---------- Projeção de volume ----------
+// Regressão linear simples (mínimos quadrados) sobre o histórico mensal.
+// É uma projeção estatística de tendência, não um modelo de IA — deixamos
+// isso explícito na tela pra não prometer mais do que é.
+export function projetarVolume(porMes, mesesAFrente = 2) {
+  const n = porMes.length;
+  if (n < 3) return [];
+  const xs = porMes.map((_, i) => i);
+  const ys = porMes.map(m => m.total);
+  const mediaX = xs.reduce((a, b) => a + b, 0) / n;
+  const mediaY = ys.reduce((a, b) => a + b, 0) / n;
+  let numerador = 0, denominador = 0;
+  for (let i = 0; i < n; i++) {
+    numerador += (xs[i] - mediaX) * (ys[i] - mediaY);
+    denominador += (xs[i] - mediaX) ** 2;
+  }
+  const inclinacao = denominador === 0 ? 0 : numerador / denominador;
+  const intercepto = mediaY - inclinacao * mediaX;
+
+  const ultimaChave = porMes[n - 1].chave;
+  const [anoUlt, mesUlt] = ultimaChave.split("-").map(Number);
+
+  const projecao = [];
+  for (let p = 1; p <= mesesAFrente; p++) {
+    const totalPrevisto = Math.max(0, Math.round(intercepto + inclinacao * (n - 1 + p)));
+    let mes = mesUlt + p, ano = anoUlt;
+    while (mes > 12) { mes -= 12; ano += 1; }
+    projecao.push({
+      chave: `${ano}-${String(mes).padStart(2, "0")}`,
+      rotulo: `${NOMES_MES[mes - 1]}/${String(ano).slice(2)}`,
+      total: totalPrevisto,
+      projetado: true
+    });
+  }
+  return { tendencia: inclinacao >= 0 ? "alta" : "queda", pontos: projecao };
+}
+
+// ---------- Horário de pico ----------
+export function porHoraDoDia(registros) {
+  const baldes = Array.from({ length: 24 }, (_, h) => ({ hora: h, total: 0 }));
+  registros.forEach(m => {
+    const hora = new Date(m.marcadoEm).getHours();
+    baldes[hora].total += 1;
+  });
+  return baldes;
+}
+
+const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+export function porDiaDaSemana(registros) {
+  const baldes = DIAS_SEMANA.map(rotulo => ({ rotulo, total: 0 }));
+  registros.forEach(m => {
+    const dia = new Date(m.marcadoEm).getDay();
+    baldes[dia].total += 1;
+  });
+  return baldes;
+}
+
+// ---------- Alerta de tendência de SLA ----------
+// Compara a espera média do último mês com dados contra a média dos 3
+// meses anteriores. Não classifica "bom/ruim" em termos absolutos — só
+// mostra a direção da variação, que é o que dá pra afirmar com esse dado.
+export function tendenciaSLA(registros) {
+  const porMes = agruparPorMes(registros);
+  if (porMes.length < 2) return null;
+  const mapaEspera = {};
+  registros.forEach(m => {
+    const chave = chaveMes(m.marcadoEm);
+    if (!mapaEspera[chave]) mapaEspera[chave] = { soma: 0, n: 0 };
+    mapaEspera[chave].soma += m.esperaHoras;
+    mapaEspera[chave].n += 1;
+  });
+  const chavesOrdenadas = porMes.map(m => m.chave);
+  const ultimaChave = chavesOrdenadas[chavesOrdenadas.length - 1];
+  const anteriores = chavesOrdenadas.slice(Math.max(0, chavesOrdenadas.length - 4), chavesOrdenadas.length - 1);
+  if (anteriores.length === 0) return null;
+
+  const esperaUltimoMes = mapaEspera[ultimaChave].soma / mapaEspera[ultimaChave].n;
+  const somaAnteriores = anteriores.reduce((s, c) => s + mapaEspera[c].soma, 0);
+  const nAnteriores = anteriores.reduce((s, c) => s + mapaEspera[c].n, 0);
+  const esperaMediaAnterior = somaAnteriores / nAnteriores;
+
+  const variacaoPct = esperaMediaAnterior === 0 ? 0 : ((esperaUltimoMes - esperaMediaAnterior) / esperaMediaAnterior) * 100;
+  return {
+    ultimoMesRotulo: porMes[porMes.length - 1].rotulo,
+    esperaUltimoMes,
+    esperaMediaAnterior,
+    variacaoPct,
+    piorou: variacaoPct > 2,
+    melhorou: variacaoPct < -2
+  };
+}
+
+// ---------- Score de eficiência por operador ----------
+// Combina volume (maior = melhor), espera média (menor = melhor) e
+// consistência/desvio padrão da espera (menor = melhor) num índice 0–100.
+// É um índice comparativo entre os operadores do próprio recorte, não uma
+// nota absoluta.
+export function scoreEficienciaPorOperador(registros) {
+  const porOperador = {};
+  registros.forEach(m => {
+    if (!porOperador[m.operador]) porOperador[m.operador] = [];
+    porOperador[m.operador].push(m.esperaHoras);
+  });
+  const operadores = Object.entries(porOperador).map(([operador, esperas]) => {
+    const total = esperas.length;
+    const media = esperas.reduce((a, b) => a + b, 0) / total;
+    const variancia = esperas.reduce((s, e) => s + (e - media) ** 2, 0) / total;
+    const desvio = Math.sqrt(variancia);
+    return { operador, total, esperaMedia: media, desvio };
+  });
+  if (operadores.length === 0) return [];
+
+  const maiorVolume = Math.max(...operadores.map(o => o.total));
+  const maiorEspera = Math.max(...operadores.map(o => o.esperaMedia));
+  const maiorDesvio = Math.max(...operadores.map(o => o.desvio), 1);
+
+  return operadores.map(o => {
+    const notaVolume = maiorVolume === 0 ? 0 : (o.total / maiorVolume) * 100;
+    const notaEspera = maiorEspera === 0 ? 100 : (1 - o.esperaMedia / maiorEspera) * 100;
+    const notaConsistencia = (1 - o.desvio / maiorDesvio) * 100;
+    const score = notaVolume * 0.4 + notaEspera * 0.4 + notaConsistencia * 0.2;
+    return { ...o, score: Math.round(Math.max(0, Math.min(100, score))) };
+  }).sort((a, b) => b.score - a.score);
+}
+
+// ---------- Atrasos recorrentes ----------
+// Diferente do ranking de "maiores esperas" (que pega os piores casos
+// isolados), isto agrupa por convênio e conta quantas vezes ele ultrapassou
+// o limite — sinaliza um padrão recorrente, não um outlier de uma vez só.
+export function atrasosRecorrentes(registros, limiteHoras = 24, minOcorrencias = 3) {
+  const mapa = {};
+  registros.forEach(m => {
+    if (m.esperaHoras < limiteHoras) return;
+    if (!mapa[m.convenio]) mapa[m.convenio] = { convenio: m.convenio, empresaNome: m.empresaNome, ocorrencias: 0, somaEspera: 0 };
+    mapa[m.convenio].ocorrencias += 1;
+    mapa[m.convenio].somaEspera += m.esperaHoras;
+  });
+  return Object.values(mapa)
+    .filter(c => c.ocorrencias >= minOcorrencias)
+    .map(c => ({ ...c, esperaMedia: c.somaEspera / c.ocorrencias }))
+    .sort((a, b) => b.ocorrencias - a.ocorrencias);
+}
+
 export function formatarHoras(horas) {
   const h = Math.floor(horas);
   const min = Math.round((horas - h) * 60);
