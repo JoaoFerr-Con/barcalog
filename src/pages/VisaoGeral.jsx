@@ -15,12 +15,14 @@ import {
   tendenciaSLA,
   scoreEficienciaPorOperador,
   atrasosRecorrentes,
+  distribuicaoPorCiclo,
   formatarHoras
 } from "../data/relatorio.js";
+import { exportarCSV, exportarPDF } from "../utils/exportar.js";
 
 const ABAS = [
   { chave: "resumo", rotulo: "Resumo" },
-  { chave: "detalhes", rotulo: "Detalhes" },
+  { chave: "detalhes", rotulo: "Ranking & Detalhes" },
   { chave: "analises", rotulo: "Análises" }
 ];
 
@@ -54,6 +56,7 @@ export default function VisaoGeral() {
   const sla = useMemo(() => tendenciaSLA(registros), [registros]);
   const scoreOperadores = useMemo(() => scoreEficienciaPorOperador(registros), [registros]);
   const recorrentes = useMemo(() => atrasosRecorrentes(registros, 24, 3), [registros]);
+  const porCiclo = useMemo(() => distribuicaoPorCiclo(registros), [registros]);
 
   if (carregando) {
     return <p style={{ color: "var(--tinta-suave)", fontSize: 13 }}>Carregando dados reais…</p>;
@@ -70,6 +73,26 @@ export default function VisaoGeral() {
   const maiorDiaSemana = Math.max(...diaDaSemana.map(d => d.total), 1);
   const pontosProjecao = projecao?.pontos || [];
   const maiorComProjecao = Math.max(maiorMes, ...pontosProjecao.map(p => p.total), 1);
+  const maiorCiclo = Math.max(...porCiclo.map(c => c.total), 1);
+
+  function exportarRegistrosCSV() {
+    exportarCSV(
+      registros,
+      [
+        { rotulo: "Movimento", chave: "id" },
+        { rotulo: "Senha", chave: "senha" },
+        { rotulo: "Convênio", chave: "convenio" },
+        { rotulo: "Empresa", chave: "empresaNome" },
+        { rotulo: "Operador", chave: "operador" },
+        { rotulo: "Carga", chave: "carga" },
+        { rotulo: "Ciclo", chave: "ciclo" },
+        { rotulo: "Marcação", valor: r => new Date(r.marcadoEm).toLocaleString("pt-BR") },
+        { rotulo: "Liberação", valor: r => new Date(r.liberadoEm).toLocaleString("pt-BR") },
+        { rotulo: "Espera (h)", chave: "esperaHoras" }
+      ],
+      `marcacoes_${empresaId}`
+    );
+  }
 
   return (
     <>
@@ -85,7 +108,15 @@ export default function VisaoGeral() {
             </button>
           ))}
         </div>
-        <SeletorEmpresa valor={empresaId} aoMudar={setEmpresaId} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <SeletorEmpresa valor={empresaId} aoMudar={setEmpresaId} />
+          <button className="botao botao--fantasma botao-exportar" onClick={exportarRegistrosCSV} title="Exportar os registros do recorte atual em CSV">
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>download</span> CSV
+          </button>
+          <button className="botao botao--fantasma botao-exportar" onClick={exportarPDF} title="Abrir a caixa de impressão do navegador (permite salvar como PDF)">
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>picture_as_pdf</span> PDF
+          </button>
+        </div>
       </div>
 
       <div className="grade-kpi">
@@ -293,7 +324,7 @@ export default function VisaoGeral() {
             <div className="cartao">
               <div className="cartao__cabecalho">
                 <h3>Projeção de Volume</h3>
-                <p>Tendência estatística simples sobre o histórico. </p>
+                <p>Tendência estatística simples (regressão linear) sobre o histórico — não é IA, é projeção de tendência.</p>
               </div>
               <div className="cartao__corpo">
                 {!projecao ? (
@@ -455,6 +486,26 @@ export default function VisaoGeral() {
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+
+            <div className="cartao">
+              <div className="cartao__cabecalho">
+                <h3>Distribuição por Ciclo</h3>
+                <p>Quantas vezes a mesma senha/ticket circulou pelo terminal, e a espera média em cada faixa</p>
+              </div>
+              <div className="cartao__corpo">
+                {porCiclo.map(c => (
+                  <div key={c.balde} style={{ marginBottom: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
+                      <span>Ciclo {c.balde}</span>
+                      <b>{c.total.toLocaleString("pt-BR")} · espera média {c.total > 0 ? formatarHoras(c.esperaMedia) : "—"}</b>
+                    </div>
+                    <div style={{ background: "var(--superficie-alt)", borderRadius: 6, height: 8 }}>
+                      <div style={{ width: `${(c.total / maiorCiclo) * 100}%`, background: "var(--navio-700)", height: "100%", borderRadius: 6 }} />
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
