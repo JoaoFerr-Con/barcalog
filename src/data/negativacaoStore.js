@@ -4,8 +4,13 @@
 //   N1 (leve)     -> registro histórico e advertência, não bloqueia.
 //   N2 (moderada) -> registro de reincidência e monitoramento.
 //   N3 (grave)    -> BLOQUEIO AUTOMÁTICO IMEDIATO para novos carregamentos.
-// Além do bloqueio automático por N3, a equipe do porto também pode
-// negativar/desnegativar manualmente (ver negativarTransportadora abaixo).
+//
+// IMPORTANTE sobre o modelo de dados: quem é negativado é o VEÍCULO (placa)
+// — e, quando o motorista está identificado, o CONDUTOR (CPF) — nunca a
+// transportadora como um todo. O status da transportadora mostrado nas
+// telas é sempre CALCULADO a partir das carretas dela (negativada se tiver
+// pelo menos 1 veículo negativado); não existe mais um campo de status
+// gravado direto na transportadora.
 //
 // Ainda não existe backend/banco (ver README do projeto), então este store
 // persiste em localStorage — é o mesmo dado tanto pro Portal do
@@ -13,7 +18,7 @@
 // navegador. Quando a API real existir, só trocar as funções abaixo por
 // chamadas fetch; nenhuma tela precisa mudar de contrato.
 
-const CHAVE = "barcalog:negativacao:v2";
+const CHAVE = "barcalog:negativacao:v3";
 const EVENTO = "barcalog:negativacao:mudou";
 
 // Senha padrão pra todas as transportadoras nesta fase de demonstração —
@@ -22,11 +27,11 @@ export const SENHA_PADRAO_DEMO = "1234";
 
 const SEED = {
   transportadoras: [
-    { id: "t1", nome: "Rota Amazônia Cargas", cnpj: "07.123.456/0001-10", senha: SENHA_PADRAO_DEMO, status: "regular" },
-    { id: "t2", nome: "AgroTransportes Sul", cnpj: "09.234.567/0001-21", senha: SENHA_PADRAO_DEMO, status: "regular" },
-    { id: "t3", nome: "Norte Grãos Logística", cnpj: "11.345.678/0001-32", senha: SENHA_PADRAO_DEMO, status: "negativada" },
-    { id: "t4", nome: "TransNorte Cargas", cnpj: "13.456.789/0001-43", senha: SENHA_PADRAO_DEMO, status: "regular" },
-    { id: "t5", nome: "Barcarena Transportes", cnpj: "15.567.890/0001-54", senha: SENHA_PADRAO_DEMO, status: "regular" }
+    { id: "t1", nome: "Rota Amazônia Cargas", cnpj: "07.123.456/0001-10", senha: SENHA_PADRAO_DEMO },
+    { id: "t2", nome: "AgroTransportes Sul", cnpj: "09.234.567/0001-21", senha: SENHA_PADRAO_DEMO },
+    { id: "t3", nome: "Norte Grãos Logística", cnpj: "11.345.678/0001-32", senha: SENHA_PADRAO_DEMO },
+    { id: "t4", nome: "TransNorte Cargas", cnpj: "13.456.789/0001-43", senha: SENHA_PADRAO_DEMO },
+    { id: "t5", nome: "Barcarena Transportes", cnpj: "15.567.890/0001-54", senha: SENHA_PADRAO_DEMO }
   ],
   ocorrencias: [
     {
@@ -71,18 +76,21 @@ const SEED = {
       respostaOperador: null
     }
   ],
+  // statusNegativacao é o campo que decide se a carreta pode rodar:
+  // "regular" ou "negativada". statusPortaria é uma coisa totalmente
+  // diferente (posição física no pátio/porto).
   veiculos: [
-    { id: "v1", placa: "ENM-1001", transportadora: "Rota Amazônia Cargas", modelo: "Carreta graneleira", statusPortaria: "No Porto" },
-    { id: "v2", placa: "NGL-3021", transportadora: "Norte Grãos Logística", modelo: "Carreta graneleira", statusPortaria: "No Pátio" },
-    { id: "v3", placa: "ATS-4410", transportadora: "AgroTransportes Sul", modelo: "Bitrem graneleiro", statusPortaria: "Aguardando" },
-    { id: "v4", placa: "TNC-2290", transportadora: "TransNorte Cargas", modelo: "Carreta graneleira", statusPortaria: "Descarga Finalizada" },
-    { id: "v5", placa: "BCT-7715", transportadora: "Barcarena Transportes", modelo: "Rodotrem", statusPortaria: "No Pátio" },
-    { id: "v6", placa: "RAC-5502", transportadora: "Rota Amazônia Cargas", modelo: "Carreta graneleira", statusPortaria: "Aguardando" }
+    { id: "v1", placa: "ENM-1001", transportadora: "Rota Amazônia Cargas", modelo: "Carreta graneleira", statusPortaria: "No Porto", statusNegativacao: "regular" },
+    { id: "v2", placa: "NGL-3021", transportadora: "Norte Grãos Logística", modelo: "Carreta graneleira", statusPortaria: "No Pátio", statusNegativacao: "negativada" },
+    { id: "v3", placa: "ATS-4410", transportadora: "AgroTransportes Sul", modelo: "Bitrem graneleiro", statusPortaria: "Aguardando", statusNegativacao: "regular" },
+    { id: "v4", placa: "TNC-2290", transportadora: "TransNorte Cargas", modelo: "Carreta graneleira", statusPortaria: "Descarga Finalizada", statusNegativacao: "regular" },
+    { id: "v5", placa: "BCT-7715", transportadora: "Barcarena Transportes", modelo: "Rodotrem", statusPortaria: "No Pátio", statusNegativacao: "regular" },
+    { id: "v6", placa: "RAC-5502", transportadora: "Rota Amazônia Cargas", modelo: "Carreta graneleira", statusPortaria: "Aguardando", statusNegativacao: "regular" }
   ],
   condutores: [
-    { id: "c1", nome: "José Ribeiro", cpf: "123.456.789-00", transportadora: "Norte Grãos Logística", placaVinculada: "NGL-3021" },
-    { id: "c2", nome: "Marcos Andrade", cpf: "234.567.890-11", transportadora: "AgroTransportes Sul", placaVinculada: "ATS-4410" },
-    { id: "c3", nome: "Elias Farias", cpf: "345.678.901-22", transportadora: "Rota Amazônia Cargas", placaVinculada: "ENM-1001" }
+    { id: "c1", nome: "José Ribeiro", cpf: "123.456.789-00", transportadora: "Norte Grãos Logística", placaVinculada: "NGL-3021", statusNegativacao: "negativada" },
+    { id: "c2", nome: "Marcos Andrade", cpf: "234.567.890-11", transportadora: "AgroTransportes Sul", placaVinculada: "ATS-4410", statusNegativacao: "regular" },
+    { id: "c3", nome: "Elias Farias", cpf: "345.678.901-22", transportadora: "Rota Amazônia Cargas", placaVinculada: "ENM-1001", statusNegativacao: "regular" }
   ]
 };
 
@@ -112,12 +120,24 @@ export function assinarMudancas(callback) {
   return () => window.removeEventListener(EVENTO, callback);
 }
 
+// listarTransportadoras() devolve cada transportadora com um `status`
+// CALCULADO ("negativada" se tiver ≥1 carreta negativada) e uma contagem
+// pronta pra exibir — não existe mais status gravado na própria empresa.
 export function listarTransportadoras() {
-  return estado.transportadoras;
+  return estado.transportadoras.map(t => {
+    const frota = estado.veiculos.filter(v => v.transportadora === t.nome);
+    const negativados = frota.filter(v => v.statusNegativacao === "negativada").length;
+    return {
+      ...t,
+      status: negativados > 0 ? "negativada" : "regular",
+      carretasNegativadas: negativados,
+      carretasTotal: frota.length
+    };
+  });
 }
 
 export function obterTransportadora(nomeOuId) {
-  return estado.transportadoras.find(t => t.id === nomeOuId || t.nome === nomeOuId);
+  return listarTransportadoras().find(t => t.id === nomeOuId || t.nome === nomeOuId);
 }
 
 export function autenticarTransportadora(nome, senha) {
@@ -126,7 +146,7 @@ export function autenticarTransportadora(nome, senha) {
   const t = estado.transportadoras.find(
     t => t.nome.trim().toLowerCase() === nomeNormalizado && t.senha === senhaNormalizada
   );
-  return t || null;
+  return t ? obterTransportadora(t.nome) : null;
 }
 
 export function listarOcorrencias(filtroTransportadora) {
@@ -166,10 +186,15 @@ export function registrarOcorrencia({ nivel, placa, cpfMotorista, transportadora
   };
   estado.ocorrencias = [ocorrencia, ...estado.ocorrencias];
 
-  // Regra oficial: N3 gera bloqueio automático imediato.
+  // Regra oficial: N3 bloqueia automaticamente a CARRETA (e o CONDUTOR,
+  // quando identificado) — nunca a transportadora inteira de uma vez.
   if (nivel === "N3") {
-    const t = estado.transportadoras.find(t => t.nome === transportadora);
-    if (t) t.status = "negativada";
+    const veiculo = estado.veiculos.find(v => v.placa.toUpperCase() === (placa || "").toUpperCase());
+    if (veiculo) veiculo.statusNegativacao = "negativada";
+    if (cpfMotorista) {
+      const condutor = estado.condutores.find(c => c.cpf === cpfMotorista);
+      if (condutor) condutor.statusNegativacao = "negativada";
+    }
   }
   salvar();
   return ocorrencia;
@@ -204,31 +229,32 @@ export function responderContestacao(contestacaoId, aprovado, respostaOperador) 
   const oc = estado.ocorrencias.find(o => o.id === c.ocorrenciaId);
   if (oc) oc.status = aprovado ? "resolvida" : "ativa";
 
-  if (aprovado) {
-    const t = estado.transportadoras.find(t => t.nome === c.transportadora);
-    // Só regulariza se não houver outra ocorrência N3 ainda ativa/contestada.
-    const outrasN3Ativas = estado.ocorrencias.some(
-      o => o.transportadora === c.transportadora && o.nivel === "N3" && o.status !== "resolvida" && o.id !== oc?.id
-    );
-    if (t && !outrasN3Ativas) t.status = "regular";
+  if (aprovado && oc) {
+    // Aprovar a contestação regulariza a carreta (e o condutor) daquela
+    // ocorrência específica — não mexe em outras carretas da transportadora.
+    const veiculo = estado.veiculos.find(v => v.placa.toUpperCase() === (oc.placa || "").toUpperCase());
+    if (veiculo) veiculo.statusNegativacao = "regular";
+    if (oc.cpfMotorista) {
+      const condutor = estado.condutores.find(c2 => c2.cpf === oc.cpfMotorista);
+      if (condutor) condutor.statusNegativacao = "regular";
+    }
   }
   salvar();
 }
 
-// Controle manual de negativação — a equipe do porto pode negativar ou
-// desnegativar uma transportadora diretamente, além do bloqueio automático
-// por ocorrência N3. Fica registrado como uma ocorrência N3 "administrativa"
-// pra manter o histórico consistente com o resto do sistema.
-export function negativarTransportadora(nome, motivo) {
-  const t = estado.transportadoras.find(t => t.nome === nome);
-  if (!t) return;
-  t.status = "negativada";
+// Controle manual, direto na carreta — a equipe do porto pode negativar ou
+// desnegativar um veículo específico sem precisar passar pelo fluxo de
+// ocorrência/contestação completo.
+export function negativarVeiculo(veiculoId, motivo) {
+  const v = estado.veiculos.find(v => v.id === veiculoId);
+  if (!v) return;
+  v.statusNegativacao = "negativada";
   estado.ocorrencias = [{
     id: `oc${Date.now()}`,
     nivel: "N3",
-    placa: "—",
+    placa: v.placa,
     cpfMotorista: "",
-    transportadora: nome,
+    transportadora: v.transportadora,
     descricao: motivo || "Negativação manual aplicada pela equipe do porto.",
     local: "Administrativo",
     responsavel: "Admin Teste",
@@ -239,21 +265,20 @@ export function negativarTransportadora(nome, motivo) {
   salvar();
 }
 
-export function desnegativarTransportadora(nome, motivo) {
-  const t = estado.transportadoras.find(t => t.nome === nome);
-  if (!t) return;
-  t.status = "regular";
+export function desnegativarVeiculo(veiculoId) {
+  const v = estado.veiculos.find(v => v.id === veiculoId);
+  if (!v) return;
+  v.statusNegativacao = "regular";
   estado.ocorrencias = estado.ocorrencias.map(o =>
-    o.transportadora === nome && o.status !== "resolvida" ? { ...o, status: "resolvida" } : o
+    o.placa === v.placa && o.status !== "resolvida" ? { ...o, status: "resolvida" } : o
   );
   salvar();
 }
 
-// Elegibilidade pra operar no município — hoje é só o espelho do status,
-// mas fica centralizado aqui porque é a regra que decide se a
-// transportadora pode ou não continuar rodando.
+// Elegibilidade pra operar no município — a transportadora só é considerada
+// apta se NENHUMA carreta dela estiver negativada.
 export function estaAptaParaOperar(nome) {
-  const t = estado.transportadoras.find(t => t.nome === nome);
+  const t = obterTransportadora(nome);
   return t ? t.status !== "negativada" : true;
 }
 
@@ -266,7 +291,7 @@ export function listarVeiculos(filtroTransportadora) {
 }
 
 export function cadastrarVeiculo({ placa, transportadora, modelo }) {
-  const veiculo = { id: `v${Date.now()}`, placa, transportadora, modelo, statusPortaria: "Aguardando" };
+  const veiculo = { id: `v${Date.now()}`, placa, transportadora, modelo, statusPortaria: "Aguardando", statusNegativacao: "regular" };
   estado.veiculos = [veiculo, ...estado.veiculos];
   salvar();
   return veiculo;
@@ -296,7 +321,7 @@ export function listarCondutores(filtroTransportadora) {
 }
 
 export function cadastrarCondutor({ nome, cpf, transportadora, placaVinculada }) {
-  const condutor = { id: `c${Date.now()}`, nome, cpf, transportadora, placaVinculada };
+  const condutor = { id: `c${Date.now()}`, nome, cpf, transportadora, placaVinculada, statusNegativacao: "regular" };
   estado.condutores = [condutor, ...estado.condutores];
   salvar();
   return condutor;
