@@ -338,3 +338,13 @@
   .app-shell.recolhida .nav-item { justify-content: center; padding: 12px; }
   .app-shell.recolhida .cartao-usuario { justify-content: center; padding: 8px 0; }
   .barra-lateral, .conteudo { transition: width .18s ease, margin-left .18s ease; }
+
+  /* ---------- Impressão / Exportar PDF ---------- */
+  @media print {
+    .barra-lateral, .nav-mobile, .topo__direita, .abas, .botao-exportar,
+    .grade-acoes, form, .kpi__nota { display: none !important; }
+    .conteudo { margin-left: 0 !important; }
+    .app-shell { display: block !important; }
+    .cartao { break-inside: avoid; box-shadow: none !important; border: 1px solid #ccc !important; }
+    body { background: #fff !important; }
+  }
