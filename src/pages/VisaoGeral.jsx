@@ -20,7 +20,7 @@ import {
 
 const ABAS = [
   { chave: "resumo", rotulo: "Resumo" },
-  { chave: "detalhes", rotulo: "Ranking & Detalhes" },
+  { chave: "detalhes", rotulo: "Detalhes" },
   { chave: "analises", rotulo: "Análises" }
 ];
 
