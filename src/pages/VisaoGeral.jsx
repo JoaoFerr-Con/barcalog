@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import CartaoIndicador from "../components/CartaoIndicador.jsx";
 import SeletorEmpresa from "../components/SeletorEmpresa.jsx";
+import RelatorioImprimivel from "../components/RelatorioImprimivel.jsx";
 import { useRegistrosReais } from "../hooks/useRegistrosReais.js";
 import {
   obterKpisGerais,
@@ -19,10 +20,11 @@ import {
   formatarHoras
 } from "../data/relatorio.js";
 import { exportarCSV, exportarPDF } from "../utils/exportar.js";
+import { EMPRESAS } from "../data/registry.js";
 
 const ABAS = [
   { chave: "resumo", rotulo: "Resumo" },
-  { chave: "detalhes", rotulo: "Detalhes" },
+  { chave: "detalhes", rotulo: "Ranking & Detalhes" },
   { chave: "analises", rotulo: "Análises" }
 ];
 
@@ -324,7 +326,7 @@ export default function VisaoGeral() {
             <div className="cartao">
               <div className="cartao__cabecalho">
                 <h3>Projeção de Volume</h3>
-                <p>Tendência estatística simples e projeção de tendência.</p>
+                <p>Tendência estatística simples (regressão linear) sobre o histórico — não é IA, é projeção de tendência.</p>
               </div>
               <div className="cartao__corpo">
                 {!projecao ? (
@@ -511,6 +513,11 @@ export default function VisaoGeral() {
           </div>
         </div>
       )}
+
+      <RelatorioImprimivel
+        registros={registros}
+        nomeRecorte={empresaId === "todas" ? "Todas as Empresas" : (EMPRESAS.find(e => e.id === empresaId)?.nome || empresaId)}
+      />
     </>
   );
 }
