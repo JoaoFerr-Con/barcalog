@@ -48,6 +48,30 @@ export function agruparPorMes(registros) {
     });
 }
 
+// Igual a agruparPorMes, mas com as colunas extras do relatório de
+// impressão (representatividade %, dias operados, média diária) — mantido
+// separado pra não pesar quem só precisa do total por mês.
+export function agruparPorMesDetalhado(registros) {
+  const porMes = agruparPorMes(registros);
+  const totalGeral = registros.length;
+  const diasPorMes = {};
+  registros.forEach(m => {
+    const chave = chaveMes(m.marcadoEm);
+    const dia = m.marcadoEm.slice(0, 10);
+    if (!diasPorMes[chave]) diasPorMes[chave] = new Set();
+    diasPorMes[chave].add(dia);
+  });
+  return porMes.map(m => {
+    const diasOperados = diasPorMes[m.chave] ? diasPorMes[m.chave].size : 0;
+    return {
+      ...m,
+      representatividade: totalGeral ? (m.total / totalGeral) * 100 : 0,
+      diasOperados,
+      mediaDiaria: diasOperados ? m.total / diasOperados : 0
+    };
+  });
+}
+
 export function rankingMaioresEsperas(registros, limite = 10) {
   return [...registros]
     .sort((a, b) => b.esperaHoras - a.esperaHoras)
@@ -257,4 +281,34 @@ export function distribuicaoPorCiclo(registros) {
     total: esperas.length,
     esperaMedia: esperas.length ? esperas.reduce((a, b) => a + b, 0) / esperas.length : 0
   }));
+}
+
+// ---------- Volume por dia (base do relatório de impressão) ----------
+// Cada registro é um movimento = uma carreta. Agrupamos por dia real
+// (não por mês) e por empresa/terminal, já que "capacidade diária" e
+// "dia de maior fluxo" só fazem sentido nesse nível de detalhe.
+export function agruparPorDiaEmpresa(registros) {
+  const mapa = {};
+  registros.forEach(m => {
+    const data = m.marcadoEm.slice(0, 10); // "2026-05-15"
+    const empresa = m.empresaNome || m.empresaId || "—";
+    const chave = `${data}|${empresa}`;
+    if (!mapa[chave]) mapa[chave] = { data, empresa, total: 0 };
+    mapa[chave].total += 1;
+  });
+  return Object.values(mapa).sort((a, b) => b.total - a.total);
+}
+
+export function formatarDataPtBR(dataISO) {
+  const [ano, mes, dia] = dataISO.split("-");
+  return `${dia}/${mes}/${ano}`;
+}
+
+// ---------- Capacidade operacional ----------
+// Limite de referência informado: 1.000 carretas/dia por terminal. Dias
+// que passam disso entram na lista de excedentes.
+export const CAPACIDADE_DIARIA_CARRETAS = 1000;
+
+export function diasQueExcederamCapacidade(registros, capacidade = CAPACIDADE_DIARIA_CARRETAS) {
+  return agruparPorDiaEmpresa(registros).filter(d => d.total > capacidade);
 }
