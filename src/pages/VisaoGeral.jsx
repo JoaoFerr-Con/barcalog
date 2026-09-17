@@ -503,8 +503,7 @@ export default function VisaoGeral() {
           <div className="pilha">
             <div className="cartao">
               <div className="cartao__cabecalho">
-                <h3>Análise de Volume — Histórico e Projeção Mensal</h3>
-                <p>Tendência dos últimos meses (regressão linear) — {preditiva.tendencia === "alta" ? "tendência de alta" : preditiva.tendencia === "queda" ? "tendência de queda" : "tendência estável"}. Com menos de um ano de histórico, ainda não dá pra detectar sazonalidade de calendário real.</p>
+                <h3>Análise de Volume — Histórico</h3>
               </div>
               <div className="cartao__corpo">
                 <ResponsiveContainer width="100%" height={220}>
