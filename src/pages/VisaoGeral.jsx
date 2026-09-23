@@ -138,7 +138,7 @@ export default function VisaoGeral() {
 
       {alertas.some(a => a.nivel === "critico" || a.nivel === "alto") && (
         <div className="cartao" style={{ marginBottom: 16 }}>
-          <div className="cartao__cabecalho"><h3>Alertas Operacionais</h3><p>Gerados a partir do padrão histórico — detalhamento completo no módulo Previsão de Gargalos</p></div>
+          <div className="cartao__cabecalho"><h3>Alertas Operacionais</h3><p>Gerados a partir do padrão histórico. </p></div>
           <div className="cartao__corpo">
             {alertas.filter(a => a.nivel === "critico" || a.nivel === "alto").slice(0, 3).map((a, i) => {
               const cores = { critico: { bg: "var(--vermelho-100)", cor: "var(--vermelho-500)", e: "🔴" }, alto: { bg: "#FFE4CC", cor: "#C2650B", e: "🟠" } };
@@ -157,33 +157,6 @@ export default function VisaoGeral() {
         </div>
       )}
 
-      <div className="cartao" style={{ marginBottom: 16 }}>
-        <div className="cartao__cabecalho" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div>
-            <h3>Operação Agora</h3>
-            <p>Estado atual da frota cadastrada — dado de demonstração, não vem de GPS/sensor real</p>
-          </div>
-          <span className="material-symbols-outlined" title="Dados de demonstração" style={{ fontSize: 18, color: "var(--ambar-600)" }}>info</span>
-        </div>
-        <div className="cartao__corpo">
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            {[
-              { rotulo: "No Pátio", valor: agora.noPatio, cor: "var(--ambar-600)", fundo: "#FBEBD1" },
-              { rotulo: "Em Operação (No Porto)", valor: agora.emOperacao, cor: "var(--azul-500)", fundo: "var(--azul-100)" },
-              { rotulo: "Aguardando", valor: agora.aguardando, cor: "var(--tinta-suave)", fundo: "var(--superficie-alt)" },
-              { rotulo: "Descarga Finalizada", valor: agora.finalizados, cor: "var(--verde-500)", fundo: "var(--verde-100)" }
-            ].map(c => (
-              <div key={c.rotulo} style={{ flex: "1 1 140px", padding: "12px 14px", borderRadius: 12, background: c.fundo }}>
-                <div style={{ fontSize: 24, fontWeight: 700, color: c.cor, fontFamily: "'Space Grotesk', sans-serif" }}>{c.valor}</div>
-                <div style={{ fontSize: 11, color: "var(--tinta-suave)" }}>{c.rotulo}</div>
-              </div>
-            ))}
-          </div>
-          <p style={{ fontSize: 10.5, color: "var(--tinta-fraca)", marginTop: 10 }}>
-            Frota de {agora.total} veículos do cadastro de exemplo (Sistema de Negativação). Detalhe completo em Portaria.
-          </p>
-        </div>
-      </div>
 
       <div className="cartao" style={{ marginBottom: 16 }}>
         <div className="cartao__cabecalho"><h3>Visão por Terminal</h3><p>Volume, espera média e ocupação vs. capacidade nominal (1.000 carretas/dia)</p></div>
