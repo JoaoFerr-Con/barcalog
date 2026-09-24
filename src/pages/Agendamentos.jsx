@@ -20,7 +20,7 @@ const CORES_STATUS = {
   "Atrasado": { bg: "var(--vermelho-100)", cor: "var(--vermelho-500)" },
   "Cancelado": { bg: "var(--superficie-alt)", cor: "var(--tinta-fraca)" }
 };
-const CARGAS = ["Soja", "Milho", "Caçamba", "Soja Segregado", "Outro"];
+const CARGAS = ["Soja", "Milho", "Outro"];
 const JANELAS_CONFORMIDADE = [
   { valor: "D0", rotulo: "D0 — até 24h", cor: "var(--verde-500)", bg: "var(--verde-100)" },
   { valor: "D1", rotulo: "D1 — 24 a 48h", cor: "var(--ambar-600)", bg: "#FEF3C7" },
