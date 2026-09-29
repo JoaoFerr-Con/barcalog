@@ -114,6 +114,7 @@ export function mensagemErro(erro) {
     case 409: return erro.detalhe || "Outra pessoa alterou este registro ao mesmo tempo. Recarregue e tente de novo.";
     case 413: return "Arquivo ou conteúdo grande demais.";
     case 429: return `Muitas tentativas. Aguarde ${erro.retryAfter || "alguns"} segundos e tente de novo.`;
+    case 503: return erro.detalhe || "Serviço temporariamente indisponível. Tente de novo em instantes.";
     case 504: return "O servidor demorou demais para responder. Tente de novo.";
     default:
       if (erro.status >= 500) return `Erro no servidor. Se persistir, informe o código ${erro.traceId || "exibido"} ao suporte.`;
@@ -176,6 +177,14 @@ export async function requisicao(metodo, caminho, opcoes = {}) {
   } catch (e) {
     if (e?.name === "AbortError") throw e;
     throw new ErroApi({ status: 0, titulo: "Sem conexão" });
+  }
+
+  // Resposta que não é da API (ex.: o site devolveu index.html porque a API
+  // não está configurada / publicada): erro explícito em vez de JSON inválido.
+  const tipo = resposta.headers.get("Content-Type") || "";
+  const semJson = !tipo.includes("json");
+  if (tipo.includes("text/html") || (semJson && (resposta.status === 404 || resposta.status === 405))) {
+    throw new ErroApi({ status: 503, titulo: "API indisponível", detalhe: "Servidor da API não encontrado. Avise o suporte." });
   }
 
   if (!resposta.ok) {

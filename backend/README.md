@@ -263,13 +263,26 @@ Usuários de desenvolvimento (senha `BarcaLog@2026`, **só no seed de Developmen
 | `src/hooks/useApi.js`, `useAcao.js` | Leitura com cancelamento/carregando/erro; gravação sem clique duplo, com toast |
 | `src/data/metricsEngine.js`, `relatorio.js` | **Não usados pelas telas** — especificação de referência para `tools/verificar-fidelidade.mjs` |
 
-**Deploy (Vercel)**
+**Deploy (Vercel)** — a API ainda não está publicada; quando estiver:
 
-- `VITE_API_URL` = URL pública da API (sem barra no fim). Sem ela, o build de
-  produção chama a API **na mesma origem** (`/api/...`), nunca `localhost`.
-- CSP: `vercel.json` tem `connect-src 'self'`. Ou (a) adicione um rewrite
-  `/api/(.*)` → API e deixe `VITE_API_URL` vazio (mesma origem, CSP intacta),
-  ou (b) acrescente o domínio da API ao `connect-src`. Sem um dos dois o
-  navegador bloqueia as chamadas.
-- `Cors:Origens` da API precisa conter o domínio exato do frontend.
+1. Publique a API com HTTPS (ex.: `https://api.barcalog.com.br`) e anote o
+   domínio exato.
+2. Em `vercel.json`, acrescente esse domínio ao `connect-src` da CSP:
+   `connect-src 'self' https://api.barcalog.com.br;` (só o domínio, sem caminho).
+3. Na Vercel (Settings → Environment Variables), defina
+   `VITE_API_URL=https://api.barcalog.com.br` (sem barra no fim) para
+   Production e Preview, e faça um novo deploy (a variável entra no build).
+4. Na API, `Cors__Origens__0=https://barcalog.vercel.app` (domínio exato do
+   site; previews da Vercel usam outros domínios e só funcionam se forem
+   adicionados também).
+
+Por que não um rewrite `/api/*` → API na Vercel (mesma origem): todo acesso
+chegaria à API com IPs da Vercel, e o limite de tentativas de login por IP
+passaria a valer para todos os usuários juntos (a Vercel não publica faixas
+fixas de IP para configurar `Proxy:KnownNetworks`).
+
+Enquanto a API não existir, o site mostra "API indisponível" no login (o
+`vercel.json` não devolve `index.html` para `/api/*`, e o cliente trata
+resposta HTML como API ausente).
+
 - Vite 7 exige Node ≥ 20.19; use `npm ci`. Nunca `npm audit fix --force` sem avaliar (salta versões maiores).
