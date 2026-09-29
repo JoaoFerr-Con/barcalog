@@ -17,8 +17,8 @@ public class VeiculoServico(
     IUsuarioAtual usuario,
     RelogioOperacional relogio)
 {
-    public async Task<List<VeiculoDto>> ListarAsync(FiltroVeiculos filtro, CancellationToken ct = default) =>
-        (await veiculos.ListarAsync(filtro, ct)).Select(v => v.ParaDto()).ToList();
+    public async Task<Pagina<VeiculoDto>> ListarAsync(FiltroVeiculos filtro, CancellationToken ct = default) =>
+        (await veiculos.ListarAsync(filtro, ct)).Mapear(v => v.ParaDto());
 
     public async Task<VeiculoDto> ObterAsync(int id, CancellationToken ct = default) =>
         (await ObterEntidadeAsync(id, ct)).ParaDto();

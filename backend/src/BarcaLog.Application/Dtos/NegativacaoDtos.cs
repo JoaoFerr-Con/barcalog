@@ -3,12 +3,12 @@ using BarcaLog.Domain.Enums;
 
 namespace BarcaLog.Application.Dtos;
 
-public class FiltroOcorrencias
+public class FiltroOcorrencias : FiltroPaginado
 {
     public int? TransportadoraId { get; set; }
     public NivelOcorrencia? Nivel { get; set; }
     public StatusOcorrencia? Status { get; set; }
-    public string? Placa { get; set; }
+    [StringLength(10)] public string? Placa { get; set; }
 }
 
 public sealed record OcorrenciaDto(
@@ -30,17 +30,17 @@ public sealed record OcorrenciaRegistradaDto(OcorrenciaDto Ocorrencia, bool Veic
 public class RegistrarOcorrenciaRequest
 {
     [Required] public NivelOcorrencia Nivel { get; set; }
-    [Required, StringLength(10, MinimumLength = 7)] public string Placa { get; set; } = null!;
+    [Required, StringLength(10, MinimumLength = 7), PlacaValida] public string Placa { get; set; } = null!;
     [Required] public int TransportadoraId { get; set; }
     /// <summary>Condutor identificado (opcional). Em N3, também é bloqueado.</summary>
     public int? CondutorId { get; set; }
-    [Required, StringLength(2000, MinimumLength = 3)] public string Descricao { get; set; } = null!;
-    [StringLength(150)] public string? Local { get; set; }
+    [Required, StringLength(2000, MinimumLength = 3), TextoSimples] public string Descricao { get; set; } = null!;
+    [StringLength(150), TextoSimples] public string? Local { get; set; }
     /// <summary>Padrão: nome do usuário autenticado.</summary>
-    [StringLength(150)] public string? Responsavel { get; set; }
+    [StringLength(150), TextoSimples] public string? Responsavel { get; set; }
 }
 
-public class FiltroContestacoes
+public class FiltroContestacoes : FiltroPaginado
 {
     public int? TransportadoraId { get; set; }
     public int? OcorrenciaId { get; set; }
@@ -65,22 +65,28 @@ public class AbrirContestacaoRequest
     [Required] public int OcorrenciaId { get; set; }
     /// <summary>Opcional — se informado, precisa ser a transportadora da ocorrência.</summary>
     public int? TransportadoraId { get; set; }
-    [Required, StringLength(4000, MinimumLength = 10)] public string Justificativa { get; set; } = null!;
+    [Required, StringLength(4000, MinimumLength = 10), TextoSimples] public string Justificativa { get; set; } = null!;
 }
 
 public class ResponderContestacaoRequest
 {
-    [StringLength(2000)] public string? RespostaOperador { get; set; }
+    [StringLength(2000), TextoSimples] public string? RespostaOperador { get; set; }
 }
 
-public class FiltroAuditoria : FiltroPaginado
+public class FiltroAuditoria : FiltroPaginado, IValidatableObject
 {
-    public string? Autor { get; set; }
-    public string? Acao { get; set; }
-    /// <summary>Busca livre em autor, ação e detalhes.</summary>
-    public string? Texto { get; set; }
+    [StringLength(100)] public string? Autor { get; set; }
+    [StringLength(100)] public string? Acao { get; set; }
+    /// <summary>Busca livre em autor, ação e detalhes (3 a 100 caracteres — a busca em detalhes varre a tabela).</summary>
+    [StringLength(100, MinimumLength = 3)] public string? Texto { get; set; }
     public DateTime? De { get; set; }
     public DateTime? Ate { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (De is { } d && Ate is { } a && d > a)
+            yield return new ValidationResult("'de' não pode ser maior que 'ate'.", [nameof(De), nameof(Ate)]);
+    }
 }
 
 public sealed record LogAuditoriaDto(long Id, string Autor, string Acao, string Detalhes, DateTime Quando);

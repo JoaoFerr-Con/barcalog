@@ -22,8 +22,8 @@ public class AgendamentoServico(
         StatusAgendamento.EmOperacao, StatusAgendamento.Finalizado
     ];
 
-    public async Task<List<AgendamentoDto>> ListarAsync(FiltroAgendamentos filtro, CancellationToken ct = default) =>
-        (await agendamentos.ListarAsync(filtro, ct)).Select(a => a.ParaDto()).ToList();
+    public async Task<Pagina<AgendamentoDto>> ListarAsync(FiltroAgendamentos filtro, CancellationToken ct = default) =>
+        (await agendamentos.ListarAsync(filtro, ct)).Mapear(a => a.ParaDto());
 
     public async Task<AgendamentoDto> ObterAsync(int id, CancellationToken ct = default) =>
         (await ObterEntidadeAsync(id, ct)).ParaDto();
@@ -31,7 +31,7 @@ public class AgendamentoServico(
     public async Task<ResumoAgendamentosDto> ResumoAsync(DateOnly? data, string? terminalId, CancellationToken ct = default)
     {
         var dia = data ?? relogio.HojeLocalPorto;
-        var lista = await agendamentos.ListarAsync(new FiltroAgendamentos { Data = dia, TerminalId = terminalId }, ct);
+        var lista = await agendamentos.ListarDoDiaAsync(dia, terminalId, ct);
         var porHora = lista
             .GroupBy(a => a.Hora)
             .OrderBy(g => g.Key)
@@ -49,10 +49,13 @@ public class AgendamentoServico(
     public async Task<AgendamentoDto> CriarAsync(CriarAgendamentoRequest req, CancellationToken ct = default)
     {
         var placa = Veiculo.NormalizarPlaca(req.Placa);
+        var data = req.Data ?? relogio.HojeLocalPorto;
+        if (data < relogio.HojeLocalPorto) throw new RegraNegocioException("Não é possível criar agendamento em data passada.");
         await ValidarAsync(placa, req.TransportadoraId, req.TerminalId, ct);
+        await ValidarConflitoAsync(placa, data, req.Hora, null, ct);
         var agendamento = new Agendamento
         {
-            Data = req.Data ?? relogio.HojeLocalPorto,
+            Data = data,
             Hora = req.Hora,
             Placa = placa,
             TransportadoraId = req.TransportadoraId,
@@ -74,6 +77,8 @@ public class AgendamentoServico(
         var placa = Veiculo.NormalizarPlaca(req.Placa);
         var mudouVeiculo = placa != agendamento.Placa;
         await ValidarAsync(placa, req.TransportadoraId, req.TerminalId, ct, exigirVeiculoRegular: mudouVeiculo);
+        if (req.Status != StatusAgendamento.Cancelado)
+            await ValidarConflitoAsync(placa, req.Data ?? agendamento.Data, req.Hora, id, ct);
         agendamento.Data = req.Data ?? agendamento.Data;
         agendamento.Hora = req.Hora;
         agendamento.Placa = placa;
@@ -111,6 +116,13 @@ public class AgendamentoServico(
             throw new RegraNegocioException($"A placa {placa} está cadastrada em outra transportadora.");
         if (exigirVeiculoRegular && veiculo is { EstaNegativado: true })
             throw new RegraNegocioException($"Carreta {placa} está negativada (bloqueio N3) e não pode ser agendada.");
+    }
+
+    /// <summary>A mesma carreta não pode ter dois agendamentos ativos no mesmo dia e horário (também garantido por índice único).</summary>
+    private async Task ValidarConflitoAsync(string placa, DateOnly data, TimeOnly hora, int? ignorarId, CancellationToken ct)
+    {
+        if (await agendamentos.ExisteConflitoAsync(placa, data, hora, ignorarId, ct))
+            throw new RegraNegocioException($"A carreta {placa} já tem agendamento ativo em {data:dd/MM/yyyy} às {hora:HH\\:mm}.");
     }
 
     private async Task<Agendamento> ObterEntidadeAsync(int id, CancellationToken ct) =>

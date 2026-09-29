@@ -21,4 +21,12 @@ internal static class ConversoresUtc
     public static PropertyBuilder<DateTime> EmUtc(this PropertyBuilder<DateTime> p) => p.HasConversion(Utc);
 
     public static PropertyBuilder<DateTime?> EmUtc(this PropertyBuilder<DateTime?> p) => p.HasConversion(UtcNulavel);
+
+    /// <summary>
+    /// Concorrência otimista: coluna rowversion (shadow, fora do Domain). Se
+    /// duas requisições alteram o mesmo registro ao mesmo tempo, a segunda
+    /// recebe DbUpdateConcurrencyException (→ HTTP 409) em vez de sobrescrever.
+    /// </summary>
+    public static void VersaoLinha<T>(this EntityTypeBuilder<T> b) where T : class =>
+        b.Property<byte[]>("VersaoLinha").IsRowVersion();
 }

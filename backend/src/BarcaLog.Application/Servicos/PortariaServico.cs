@@ -21,7 +21,7 @@ public class PortariaServico(
     public async Task<FilaVirtualDto> FilaVirtualAsync(CancellationToken ct = default)
     {
         var fila = await veiculos.ListarFilaAsync(ct);
-        var todos = await veiculos.ListarTodosAsync(ct);
+        var porStatus = await veiculos.ContarPorStatusPortariaAsync(ct);
         var contexto = await metricas.CarregarAsync(new FiltroMetricas(), ct);
         var esperaMediaPorTerminal = contexto.Registros
             .GroupBy(r => r.TerminalId)
@@ -38,7 +38,7 @@ public class PortariaServico(
                 v.StatusPortariaDesde, decorrido, media, restante, restante == 0);
         }).ToList();
 
-        var noPatio = todos.Count(v => v.StatusPortaria == StatusPortaria.NoPatio);
+        var noPatio = porStatus.GetValueOrDefault(StatusPortaria.NoPatio);
         var limiar = opcoes.Value.LimiarCongestionamento;
         return new FilaVirtualDto(
             noPatio,
@@ -51,12 +51,12 @@ public class PortariaServico(
     /// <summary>Painel "Operação agora" — contagem da frota cadastrada por status de portaria.</summary>
     public async Task<OperacaoAgoraDto> OperacaoAgoraAsync(CancellationToken ct = default)
     {
-        var todos = await veiculos.ListarTodosAsync(ct);
+        var c = await veiculos.ContarPorStatusPortariaAsync(ct);
         return new OperacaoAgoraDto(
-            todos.Count(v => v.StatusPortaria == StatusPortaria.NoPatio),
-            todos.Count(v => v.StatusPortaria == StatusPortaria.NoPorto),
-            todos.Count(v => v.StatusPortaria == StatusPortaria.Aguardando),
-            todos.Count(v => v.StatusPortaria == StatusPortaria.DescargaFinalizada),
-            todos.Count);
+            c.GetValueOrDefault(StatusPortaria.NoPatio),
+            c.GetValueOrDefault(StatusPortaria.NoPorto),
+            c.GetValueOrDefault(StatusPortaria.Aguardando),
+            c.GetValueOrDefault(StatusPortaria.DescargaFinalizada),
+            c.Values.Sum());
     }
 }

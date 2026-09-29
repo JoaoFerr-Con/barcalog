@@ -27,7 +27,11 @@ public class MarcacaoConfiguracao : IEntityTypeConfiguration<Marcacao>
 {
     public void Configure(EntityTypeBuilder<Marcacao> b)
     {
-        b.ToTable("Marcacoes", t => t.HasCheckConstraint("CK_Marcacoes_Liberacao", "[DataLiberacao] IS NULL OR [DataLiberacao] >= [DataMarcacao]"));
+        b.ToTable("Marcacoes", t =>
+        {
+            t.HasCheckConstraint("CK_Marcacoes_Liberacao", "[DataLiberacao] IS NULL OR [DataLiberacao] >= [DataMarcacao]");
+            t.HasCheckConstraint("CK_Marcacoes_Ciclo", "[Ciclo] >= 0");
+        });
         b.HasKey(x => x.MovimentoId);
         b.Property(x => x.MovimentoId).HasMaxLength(32);
         b.Property(x => x.Senha).HasMaxLength(32).IsRequired();
@@ -61,6 +65,7 @@ public class TransportadoraConfiguracao : IEntityTypeConfiguration<Transportador
     public void Configure(EntityTypeBuilder<Transportadora> b)
     {
         b.ToTable("Transportadoras");
+        b.VersaoLinha();
         b.Property(x => x.Nome).HasMaxLength(150).IsRequired();
         b.Property(x => x.Cnpj).HasMaxLength(18).IsRequired();
         b.HasIndex(x => x.Nome).IsUnique();
@@ -73,6 +78,7 @@ public class VeiculoConfiguracao : IEntityTypeConfiguration<Veiculo>
     public void Configure(EntityTypeBuilder<Veiculo> b)
     {
         b.ToTable("Veiculos");
+        b.VersaoLinha();
         b.Property(x => x.Placa).HasMaxLength(10).IsRequired();
         b.Property(x => x.Modelo).HasMaxLength(100);
         b.Property(x => x.TerminalId).HasMaxLength(32).IsRequired();
@@ -91,6 +97,7 @@ public class CondutorConfiguracao : IEntityTypeConfiguration<Condutor>
     public void Configure(EntityTypeBuilder<Condutor> b)
     {
         b.ToTable("Condutores");
+        b.VersaoLinha();
         b.Property(x => x.Nome).HasMaxLength(150).IsRequired();
         b.Property(x => x.PlacaVinculada).HasMaxLength(10);
         b.HasIndex(x => x.PlacaVinculada);
@@ -103,6 +110,7 @@ public class OcorrenciaConfiguracao : IEntityTypeConfiguration<Ocorrencia>
     public void Configure(EntityTypeBuilder<Ocorrencia> b)
     {
         b.ToTable("Ocorrencias");
+        b.VersaoLinha();
         b.Property(x => x.Placa).HasMaxLength(10).IsRequired();
         b.Property(x => x.Descricao).HasMaxLength(2000).IsRequired();
         b.Property(x => x.Local).HasMaxLength(150);
@@ -122,11 +130,14 @@ public class ContestacaoConfiguracao : IEntityTypeConfiguration<Contestacao>
     public void Configure(EntityTypeBuilder<Contestacao> b)
     {
         b.ToTable("Contestacoes");
+        b.VersaoLinha();
         b.Property(x => x.Justificativa).HasMaxLength(4000).IsRequired();
         b.Property(x => x.RespostaOperador).HasMaxLength(2000);
         b.Property(x => x.CriadoEm).EmUtc();
         b.Property(x => x.RespondidoEm).EmUtc();
         b.HasIndex(x => new { x.OcorrenciaId, x.Status });
+        // No máximo UMA contestação pendente por ocorrência, mesmo com requisições simultâneas.
+        b.HasIndex(x => x.OcorrenciaId).IsUnique().HasFilter("[Status] = N'Pendente'").HasDatabaseName("UX_Contestacoes_OcorrenciaPendente");
         b.HasIndex(x => x.TransportadoraId);
         b.HasOne(x => x.Ocorrencia).WithMany().HasForeignKey(x => x.OcorrenciaId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(x => x.Transportadora).WithMany().HasForeignKey(x => x.TransportadoraId).OnDelete(DeleteBehavior.Restrict);
@@ -153,6 +164,7 @@ public class AgendamentoConfiguracao : IEntityTypeConfiguration<Agendamento>
     public void Configure(EntityTypeBuilder<Agendamento> b)
     {
         b.ToTable("Agendamentos");
+        b.VersaoLinha();
         b.Property(x => x.Placa).HasMaxLength(10).IsRequired();
         b.Property(x => x.TerminalId).HasMaxLength(32).IsRequired();
         b.Property(x => x.Carga).HasMaxLength(50).IsRequired();
@@ -161,6 +173,9 @@ public class AgendamentoConfiguracao : IEntityTypeConfiguration<Agendamento>
         b.HasIndex(x => new { x.Data, x.Hora });
         b.HasIndex(x => x.Placa);
         b.HasIndex(x => new { x.TerminalId, x.Data });
+        b.HasIndex(x => x.TransportadoraId);
+        // A mesma carreta não pode ter dois agendamentos ativos no mesmo horário.
+        b.HasIndex(x => new { x.Placa, x.Data, x.Hora }).IsUnique().HasFilter("[Status] <> N'Cancelado'").HasDatabaseName("UX_Agendamentos_PlacaHorarioAtivo");
         b.HasOne(x => x.Transportadora).WithMany().HasForeignKey(x => x.TransportadoraId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(x => x.Terminal).WithMany().HasForeignKey(x => x.TerminalId).OnDelete(DeleteBehavior.Restrict);
     }
@@ -170,10 +185,30 @@ public class UsuarioConfiguracao : IEntityTypeConfiguration<Usuario>
 {
     public void Configure(EntityTypeBuilder<Usuario> b)
     {
-        b.ToTable("Usuarios");
+        b.ToTable("Usuarios", t => t.HasCheckConstraint("CK_Usuarios_Falhas", "[FalhasLoginConsecutivas] >= 0"));
+        b.VersaoLinha();
         b.Property(x => x.Nome).HasMaxLength(150).IsRequired();
         b.Property(x => x.Email).HasMaxLength(200).IsRequired();
         b.Property(x => x.SenhaHash).HasMaxLength(500).IsRequired();
+        b.Property(x => x.MfaSegredoCifrado).HasMaxLength(500);
+        b.Property(x => x.VersaoToken).HasDefaultValue(1);
+        b.Property(x => x.BloqueadoAte).EmUtc();
+        b.Property(x => x.UltimoLoginEm).EmUtc();
         b.HasIndex(x => x.Email).IsUnique();
+    }
+}
+
+public class ChaveIdempotenciaConfiguracao : IEntityTypeConfiguration<Idempotencia.ChaveIdempotencia>
+{
+    public void Configure(EntityTypeBuilder<Idempotencia.ChaveIdempotencia> b)
+    {
+        b.ToTable("ChavesIdempotencia");
+        b.Property(x => x.Escopo).HasMaxLength(300).IsRequired();
+        b.Property(x => x.Chave).HasMaxLength(100).IsRequired();
+        b.Property(x => x.HashRequisicao).HasMaxLength(64).IsRequired();
+        b.Property(x => x.Location).HasMaxLength(500);
+        b.Property(x => x.CriadaEm).EmUtc();
+        b.HasIndex(x => new { x.Escopo, x.Chave }).IsUnique();
+        b.HasIndex(x => x.CriadaEm);
     }
 }

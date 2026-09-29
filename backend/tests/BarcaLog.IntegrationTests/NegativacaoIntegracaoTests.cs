@@ -9,18 +9,14 @@ namespace BarcaLog.IntegrationTests;
 [Collection(ColecaoApi.Nome)]
 public class NegativacaoIntegracaoTests(ApiFixture api)
 {
-    private static int _seq;
-
-    /// <summary>Cria transportadora + veículo novos (placa única) pra cada teste não depender dos outros.</summary>
-    private static async Task<(TransportadoraDto T, VeiculoDto V)> CriarFrotaAsync(HttpClient cliente)
+    /// <summary>Cria transportadora + veículo novos pra cada teste não depender dos outros.</summary>
+    public static async Task<(TransportadoraDto T, VeiculoDto V)> CriarFrotaAsync(HttpClient cliente)
     {
-        var n = Interlocked.Increment(ref _seq) * 10_000 + Random.Shared.Next(0, 9999);
-        var criada = await cliente.PostAsJsonAsync("/api/transportadoras",
-            new { nome = $"Transportes Teste {n}", cnpj = $"{n / 1_000_000 % 100:D2}.{n / 1000 % 1000:D3}.{n % 1000:D3}/0001-{Random.Shared.Next(0, 99):D2}" });
+        var criada = await cliente.PostAsJsonAsync("/api/v1/transportadoras", new { nome = $"Transportes Teste {Dados.Proximo()}", cnpj = Dados.Cnpj() });
         Assert.Equal(HttpStatusCode.Created, criada.StatusCode);
         var t = await criada.Content.ReadFromJsonAsync<TransportadoraDto>(Json.Opcoes);
-        var resposta = await cliente.PostAsJsonAsync("/api/veiculos",
-            new { placa = $"T{n % 100:D2}-{n / 100 % 10000:D4}", transportadoraId = t!.Id, modelo = "Carreta graneleira", terminalId = "tgpm" });
+        var resposta = await cliente.PostAsJsonAsync("/api/v1/veiculos",
+            new { placa = Dados.Placa(), transportadoraId = t!.Id, modelo = "Carreta graneleira", terminalId = "tgpm" });
         Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
         return (t, (await resposta.Content.ReadFromJsonAsync<VeiculoDto>(Json.Opcoes))!);
     }
@@ -33,10 +29,10 @@ public class NegativacaoIntegracaoTests(ApiFixture api)
         var (transportadora, veiculo) = await CriarFrotaAsync(cliente);
         Assert.Equal(StatusNegativacao.Regular, veiculo.StatusNegativacao);
 
-        var resposta = await cliente.PostAsJsonAsync("/api/ocorrencias", new
+        var resposta = await cliente.PostAsJsonAsync("/api/v1/ocorrencias", new
         {
             nivel = "N3",
-            placa = veiculo.Placa.ToLowerInvariant(), // placa é normalizada
+            placa = veiculo.Placa.ToLowerInvariant().Replace("-", ""), // placa é normalizada
             transportadoraId = transportadora.Id,
             descricao = "Carga liberada fora da janela sem autorização",
             local = "Pátio de Triagem"
@@ -47,26 +43,21 @@ public class NegativacaoIntegracaoTests(ApiFixture api)
         Assert.True(registrada!.VeiculoBloqueado);
         Assert.Equal(NivelOcorrencia.N3, registrada.Ocorrencia.Nivel);
 
-        // Pela API…
-        var depois = await cliente.GetFromJsonAsync<VeiculoDto>($"/api/veiculos/{veiculo.Id}", Json.Opcoes);
+        var depois = await cliente.GetFromJsonAsync<VeiculoDto>($"/api/v1/veiculos/{veiculo.Id}", Json.Opcoes);
         Assert.Equal(StatusNegativacao.Negativada, depois!.StatusNegativacao);
 
-        // …e direto no SQL Server.
         var statusNoBanco = await api.NoBancoAsync(db => db.Veiculos.Where(v => v.Id == veiculo.Id).Select(v => v.StatusNegativacao).SingleAsync());
         Assert.Equal(StatusNegativacao.Negativada, statusNoBanco);
 
-        // Status da transportadora é derivado da frota.
-        var t = await cliente.GetFromJsonAsync<TransportadoraDto>($"/api/transportadoras/{transportadora.Id}", Json.Opcoes);
+        var t = await cliente.GetFromJsonAsync<TransportadoraDto>($"/api/v1/transportadoras/{transportadora.Id}", Json.Opcoes);
         Assert.Equal(StatusNegativacao.Negativada, t!.Status);
         Assert.Equal(1, t.CarretasNegativadas);
         Assert.False(t.AptaParaOperar);
 
-        // Auditoria automática, com o usuário autenticado como autor.
-        var logs = await cliente.GetFromJsonAsync<Pagina<LogAuditoriaDto>>($"/api/auditoria?texto={veiculo.Placa}", Json.Opcoes);
+        var logs = await cliente.GetFromJsonAsync<Pagina<LogAuditoriaDto>>($"/api/v1/auditoria?texto={veiculo.Placa}", Json.Opcoes);
         Assert.Contains(logs!.Itens, l => l.Acao == "Ocorrência N3 registrada (bloqueio automático)" && l.Autor.Contains("operador@testes.local"));
 
-        // Carreta negativada não pode ser agendada.
-        var agendamento = await cliente.PostAsJsonAsync("/api/agendamentos",
+        var agendamento = await cliente.PostAsJsonAsync("/api/v1/agendamentos",
             new { hora = "10:00", placa = veiculo.Placa, transportadoraId = transportadora.Id, terminalId = "tgpm", carga = "Soja" });
         Assert.Equal(HttpStatusCode.UnprocessableEntity, agendamento.StatusCode);
     }
@@ -80,11 +71,11 @@ public class NegativacaoIntegracaoTests(ApiFixture api)
         var cliente = await api.ClienteAsync("Operador");
         var (transportadora, veiculo) = await CriarFrotaAsync(cliente);
 
-        var resposta = await cliente.PostAsJsonAsync("/api/ocorrencias",
+        var resposta = await cliente.PostAsJsonAsync("/api/v1/ocorrencias",
             new { nivel, placa = veiculo.Placa, transportadoraId = transportadora.Id, descricao = "Atraso sem comunicação prévia" });
 
         Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
-        var depois = await cliente.GetFromJsonAsync<VeiculoDto>($"/api/veiculos/{veiculo.Id}", Json.Opcoes);
+        var depois = await cliente.GetFromJsonAsync<VeiculoDto>($"/api/v1/veiculos/{veiculo.Id}", Json.Opcoes);
         Assert.Equal(StatusNegativacao.Regular, depois!.StatusNegativacao);
     }
 
@@ -94,29 +85,32 @@ public class NegativacaoIntegracaoTests(ApiFixture api)
         Skip.IfNot(api.BancoDisponivel, api.MotivoIndisponivel);
         var cliente = await api.ClienteAsync("Operador");
         var (transportadora, veiculo) = await CriarFrotaAsync(cliente);
-        var outro = await (await cliente.PostAsJsonAsync("/api/veiculos",
-            new { placa = $"OUT-{Random.Shared.Next(1000, 9999)}", transportadoraId = transportadora.Id, terminalId = "tgpm" })).Content.ReadFromJsonAsync<VeiculoDto>(Json.Opcoes);
+        var outro = await (await cliente.PostAsJsonAsync("/api/v1/veiculos",
+            new { placa = Dados.Placa(), transportadoraId = transportadora.Id, terminalId = "tgpm" })).Content.ReadFromJsonAsync<VeiculoDto>(Json.Opcoes);
 
-        async Task<OcorrenciaDto> N3(string placa) =>
-            (await (await cliente.PostAsJsonAsync("/api/ocorrencias", new { nivel = "N3", placa, transportadoraId = transportadora.Id, descricao = "Divergência de peso" }))
-                .Content.ReadFromJsonAsync<OcorrenciaRegistradaDto>(Json.Opcoes))!.Ocorrencia;
-        var ocorrencia = await N3(veiculo.Placa);
-        await N3(outro!.Placa);
+        var ocorrencia = await RegistrarN3Async(cliente, veiculo.Placa, transportadora.Id);
+        await RegistrarN3Async(cliente, outro!.Placa, transportadora.Id);
 
-        var contestacao = await (await cliente.PostAsJsonAsync("/api/contestacoes",
+        var contestacao = await (await cliente.PostAsJsonAsync("/api/v1/contestacoes",
             new { ocorrenciaId = ocorrencia.Id, justificativa = "Pane mecânica documentada com laudo." })).Content.ReadFromJsonAsync<ContestacaoDto>(Json.Opcoes);
         Assert.Equal(StatusContestacao.Pendente, contestacao!.Status);
-        Assert.Equal(StatusOcorrencia.Contestada, (await cliente.GetFromJsonAsync<OcorrenciaDto>($"/api/ocorrencias/{ocorrencia.Id}", Json.Opcoes))!.Status);
+        Assert.Equal(StatusOcorrencia.Contestada, (await cliente.GetFromJsonAsync<OcorrenciaDto>($"/api/v1/ocorrencias/{ocorrencia.Id}", Json.Opcoes))!.Status);
 
-        var aprovada = await (await cliente.PostAsJsonAsync($"/api/contestacoes/{contestacao.Id}/aprovar", new { respostaOperador = "Laudo aceito" }))
+        var aprovada = await (await cliente.PostAsJsonAsync($"/api/v1/contestacoes/{contestacao.Id}/aprovar", new { respostaOperador = "Laudo aceito" }))
             .Content.ReadFromJsonAsync<ContestacaoDto>(Json.Opcoes);
 
         Assert.Equal(StatusContestacao.Aprovada, aprovada!.Status);
-        Assert.Equal(StatusNegativacao.Regular, (await cliente.GetFromJsonAsync<VeiculoDto>($"/api/veiculos/{veiculo.Id}", Json.Opcoes))!.StatusNegativacao);
-        Assert.Equal(StatusNegativacao.Negativada, (await cliente.GetFromJsonAsync<VeiculoDto>($"/api/veiculos/{outro.Id}", Json.Opcoes))!.StatusNegativacao);
-        Assert.Equal(StatusOcorrencia.Resolvida, (await cliente.GetFromJsonAsync<OcorrenciaDto>($"/api/ocorrencias/{ocorrencia.Id}", Json.Opcoes))!.Status);
-        // Ainda tem outra carreta negativada → transportadora continua negativada.
-        Assert.Equal(StatusNegativacao.Negativada, (await cliente.GetFromJsonAsync<TransportadoraDto>($"/api/transportadoras/{transportadora.Id}", Json.Opcoes))!.Status);
+        Assert.Equal(StatusNegativacao.Regular, (await cliente.GetFromJsonAsync<VeiculoDto>($"/api/v1/veiculos/{veiculo.Id}", Json.Opcoes))!.StatusNegativacao);
+        Assert.Equal(StatusNegativacao.Negativada, (await cliente.GetFromJsonAsync<VeiculoDto>($"/api/v1/veiculos/{outro.Id}", Json.Opcoes))!.StatusNegativacao);
+        Assert.Equal(StatusOcorrencia.Resolvida, (await cliente.GetFromJsonAsync<OcorrenciaDto>($"/api/v1/ocorrencias/{ocorrencia.Id}", Json.Opcoes))!.Status);
+        Assert.Equal(StatusNegativacao.Negativada, (await cliente.GetFromJsonAsync<TransportadoraDto>($"/api/v1/transportadoras/{transportadora.Id}", Json.Opcoes))!.Status);
+    }
+
+    public static async Task<OcorrenciaDto> RegistrarN3Async(HttpClient cliente, string placa, int transportadoraId)
+    {
+        var r = await cliente.PostAsJsonAsync("/api/v1/ocorrencias", new { nivel = "N3", placa, transportadoraId, descricao = "Divergência de peso" });
+        Assert.Equal(HttpStatusCode.Created, r.StatusCode);
+        return (await r.Content.ReadFromJsonAsync<OcorrenciaRegistradaDto>(Json.Opcoes))!.Ocorrencia;
     }
 
     [SkippableFact]
@@ -125,12 +119,13 @@ public class NegativacaoIntegracaoTests(ApiFixture api)
         Skip.IfNot(api.BancoDisponivel, api.MotivoIndisponivel);
         var cliente = await api.ClienteAsync("Auditor");
 
-        var transportadoras = await cliente.GetFromJsonAsync<List<TransportadoraDto>>("/api/transportadoras", Json.Opcoes);
+        var transportadoras = await cliente.GetFromJsonAsync<List<TransportadoraDto>>("/api/v1/transportadoras", Json.Opcoes);
         var norte = Assert.Single(transportadoras!, t => t.Nome == "Norte Grãos Logística");
         Assert.Equal(StatusNegativacao.Negativada, norte.Status);
-        var placa = await cliente.GetFromJsonAsync<VeiculoDto>("/api/veiculos/placa/NGL-3021", Json.Opcoes);
+        Assert.True(BarcaLog.Domain.Regras.Cnpj.EhValido(norte.Cnpj));
+        var placa = await cliente.GetFromJsonAsync<VeiculoDto>("/api/v1/veiculos/placa/NGL-3021", Json.Opcoes);
         Assert.Equal(StatusNegativacao.Negativada, placa!.StatusNegativacao);
-        var pendentes = await cliente.GetFromJsonAsync<List<ContestacaoDto>>("/api/contestacoes?status=Pendente", Json.Opcoes);
-        Assert.Contains(pendentes!, c => c.Placa == "NGL-3021");
+        var pendentes = await cliente.GetFromJsonAsync<Pagina<ContestacaoDto>>("/api/v1/contestacoes?status=Pendente", Json.Opcoes);
+        Assert.Contains(pendentes!.Itens, c => c.Placa == "NGL-3021");
     }
 }

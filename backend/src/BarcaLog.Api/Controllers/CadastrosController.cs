@@ -1,4 +1,6 @@
+using BarcaLog.Api.Infra;
 using BarcaLog.Api.Seguranca;
+using Microsoft.AspNetCore.RateLimiting;
 using BarcaLog.Application.Dtos;
 using BarcaLog.Application.Servicos;
 using Microsoft.AspNetCore.Authorization;
@@ -8,7 +10,7 @@ namespace BarcaLog.Api.Controllers;
 
 /// <summary>Transportadoras. O status de negativação é sempre calculado a partir da frota.</summary>
 [ApiController]
-[Route("api/transportadoras")]
+[Route("api/v1/transportadoras")]
 [Authorize(Policy = Politicas.Leitura)]
 [Produces("application/json")]
 public class TransportadorasController(TransportadoraServico servico) : ControllerBase
@@ -21,9 +23,10 @@ public class TransportadorasController(TransportadoraServico servico) : Controll
     [HttpGet("{id:int}")]
     public Task<TransportadoraDto> Obter(int id, CancellationToken ct) => servico.ObterAsync(id, ct);
 
-    /// <summary>Cadastra transportadora.</summary>
+    /// <summary>Cadastra transportadora (CNPJ numérico ou alfanumérico, com DV).</summary>
     [HttpPost]
     [Authorize(Policy = Politicas.Escrita)]
+    [Idempotente]
     [ProducesResponseType<TransportadoraDto>(StatusCodes.Status201Created)]
     public async Task<ActionResult<TransportadoraDto>> Criar(SalvarTransportadoraRequest req, CancellationToken ct)
     {
@@ -49,14 +52,14 @@ public class TransportadorasController(TransportadoraServico servico) : Controll
 
 /// <summary>Frota (carretas). É o veículo que é negativado.</summary>
 [ApiController]
-[Route("api/veiculos")]
+[Route("api/v1/veiculos")]
 [Authorize(Policy = Politicas.Leitura)]
 [Produces("application/json")]
 public class VeiculosController(VeiculoServico servico) : ControllerBase
 {
     /// <summary>Lista veículos (filtros: transportadora, terminal, status de portaria/negativação, placa).</summary>
     [HttpGet]
-    public Task<List<VeiculoDto>> Listar([FromQuery] FiltroVeiculos filtro, CancellationToken ct) => servico.ListarAsync(filtro, ct);
+    public Task<Pagina<VeiculoDto>> Listar([FromQuery] FiltroVeiculos filtro, CancellationToken ct) => servico.ListarAsync(filtro, ct);
 
     /// <summary>Um veículo.</summary>
     [HttpGet("{id:int}")]
@@ -66,12 +69,13 @@ public class VeiculosController(VeiculoServico servico) : ControllerBase
     [HttpGet("placa/{placa}")]
     [ProducesResponseType<VeiculoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> ObterPorPlaca(string placa, CancellationToken ct) =>
+    public async Task<IActionResult> ObterPorPlaca([PlacaValida] string placa, CancellationToken ct) =>
         await servico.BuscarPorPlacaAsync(placa, ct) is { } v ? Ok(v) : NotFound();
 
-    /// <summary>Cadastra veículo (entra como Aguardando e Regular).</summary>
+    /// <summary>Cadastra veículo (entra como Aguardando e Regular). Placa ABC-1234 ou Mercosul ABC1D23.</summary>
     [HttpPost]
     [Authorize(Policy = Politicas.Escrita)]
+    [Idempotente]
     [ProducesResponseType<VeiculoDto>(StatusCodes.Status201Created)]
     public async Task<ActionResult<VeiculoDto>> Criar(CriarVeiculoRequest req, CancellationToken ct)
     {
@@ -103,24 +107,26 @@ public class VeiculosController(VeiculoServico servico) : ControllerBase
     /// <summary>Negativação manual: registra ocorrência N3 administrativa e bloqueia a carreta.</summary>
     [HttpPost("{id:int}/negativar")]
     [Authorize(Policy = Politicas.Escrita)]
+    [Idempotente]
     public Task<VeiculoDto> Negativar(int id, NegativarVeiculoRequest req, CancellationToken ct) => servico.NegativarAsync(id, req.Motivo, ct);
 
     /// <summary>Desnegativação manual: regulariza a carreta e resolve as ocorrências em aberto dessa placa.</summary>
     [HttpPost("{id:int}/desnegativar")]
     [Authorize(Policy = Politicas.Escrita)]
+    [Idempotente]
     public Task<VeiculoDto> Desnegativar(int id, CancellationToken ct) => servico.DesnegativarAsync(id, ct);
 }
 
 /// <summary>Condutores (motoristas). Sem CPF.</summary>
 [ApiController]
-[Route("api/condutores")]
+[Route("api/v1/condutores")]
 [Authorize(Policy = Politicas.Leitura)]
 [Produces("application/json")]
 public class CondutoresController(CondutorServico servico) : ControllerBase
 {
     /// <summary>Lista condutores (filtro opcional por transportadora).</summary>
     [HttpGet]
-    public Task<List<CondutorDto>> Listar([FromQuery] int? transportadoraId, CancellationToken ct) => servico.ListarAsync(transportadoraId, ct);
+    public Task<Pagina<CondutorDto>> Listar([FromQuery] FiltroCondutores filtro, CancellationToken ct) => servico.ListarAsync(filtro, ct);
 
     /// <summary>Um condutor.</summary>
     [HttpGet("{id:int}")]
@@ -129,6 +135,7 @@ public class CondutoresController(CondutorServico servico) : ControllerBase
     /// <summary>Cadastra condutor.</summary>
     [HttpPost]
     [Authorize(Policy = Politicas.Escrita)]
+    [Idempotente]
     [ProducesResponseType<CondutorDto>(StatusCodes.Status201Created)]
     public async Task<ActionResult<CondutorDto>> Criar(SalvarCondutorRequest req, CancellationToken ct)
     {
@@ -150,4 +157,20 @@ public class CondutoresController(CondutorServico servico) : ControllerBase
         await servico.RemoverAsync(id, ct);
         return NoContent();
     }
+
+    /// <summary>LGPD — relatório de todos os dados pessoais do condutor (cadastro, ocorrências, agendamentos). Somente Gestor.</summary>
+    [HttpGet("{id:int}/dados-pessoais")]
+    [Authorize(Policy = Politicas.Gestao)]
+    public async Task<DadosPessoaisCondutorDto> DadosPessoais(int id, [FromServices] ILogger<CondutoresController> logger, CancellationToken ct)
+    {
+        // Acesso a dados pessoais fica registrado (quem, quando), sem copiar os dados pro log.
+        logger.LogInformation("LGPD: exportação de dados pessoais do condutor {CondutorId} por {Usuario}", id, User.FindFirst("sub")?.Value);
+        return await servico.ExportarDadosPessoaisAsync(id, ct);
+    }
+
+    /// <summary>LGPD — anonimiza o condutor (nome vira pseudônimo, placa desvinculada), preservando o histórico operacional. Irreversível. Somente Gestor.</summary>
+    [HttpPost("{id:int}/anonimizar")]
+    [Authorize(Policy = Politicas.Gestao)]
+    [Idempotente]
+    public Task<CondutorDto> Anonimizar(int id, CancellationToken ct) => servico.AnonimizarAsync(id, ct);
 }

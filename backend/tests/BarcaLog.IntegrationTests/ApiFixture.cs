@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using BarcaLog.Api.Seguranca;
 using BarcaLog.Application.Dtos;
 using BarcaLog.Infrastructure.Persistencia;
 using Microsoft.AspNetCore.Hosting;
@@ -19,12 +20,13 @@ namespace BarcaLog.IntegrationTests;
 /// </summary>
 public sealed class ApiFixture : IAsyncLifetime
 {
-    public const string SenhaUsuarios = "Teste@12345";
+    public const string SenhaUsuarios = "Teste@12345-Seguro";
     public const string ApiKey = "chave-integracao-testes-0001";
 
     private readonly string? _servidor = Environment.GetEnvironmentVariable("BARCALOG_TESTES_SQL")
         ?? (OperatingSystem.IsWindows() ? @"Server=(localdb)\mssqllocaldb;Trusted_Connection=True;TrustServerCertificate=True" : null);
     private readonly string _banco = $"BarcaLog_Testes_{Guid.NewGuid():N}";
+    private readonly List<WebApplicationFactory<Program>> _factories = [];
     private WebApplicationFactory<Program>? _factory;
 
     public bool BancoDisponivel { get; private set; }
@@ -51,15 +53,29 @@ public sealed class ApiFixture : IAsyncLifetime
             MotivoIndisponivel = $"SQL Server indisponível ({ex.Message}).";
             return;
         }
+        _factory = CriarFactory();
+        _ = _factory.Server; // força o startup (migrations + seed)
+        BancoDisponivel = true;
+    }
 
-        _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
+    /// <summary>Nova instância da API sobre o MESMO banco, com configurações extras (ex.: limite de login baixo).</summary>
+    public WebApplicationFactory<Program> CriarFactory(IDictionary<string, string?>? extras = null, string ambiente = "Testes")
+    {
+        var f = new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
         {
-            b.UseEnvironment("Testes");
+            b.UseEnvironment(ambiente);
             // UseSetting entra na configuração antes do Program.cs ler Jwt/ConnectionStrings.
             b.UseSetting("ConnectionStrings:BarcaLog", ConnectionString);
             b.UseSetting("Jwt:Chave", "chave-jwt-somente-para-testes-de-integracao-0123456789");
+            b.UseSetting("Seguranca:ChaveCriptografia", Convert.ToBase64String("chave-aes-somente-testes-32bytes"u8.ToArray()));
+            b.UseSetting("Seguranca:ExigirMfaParaGestor", "false");
             b.UseSetting("Integracao:ApiKeys:0:Sistema", "Testes");
-            b.UseSetting("Integracao:ApiKeys:0:Chave", ApiKey);
+            b.UseSetting("Integracao:ApiKeys:0:ChaveSha256", ApiKeyAuthenticationHandler.Hash(ApiKey));
+            b.UseSetting("LimitesRequisicao:LoginPorMinutoPorIp", "100000");
+            b.UseSetting("LimitesRequisicao:GeralPorMinuto", "100000");
+            b.UseSetting("LimitesRequisicao:IntegracaoPorMinuto", "100000");
+            b.UseSetting("LimitesRequisicao:ImportacaoPorHora", "1000");
+            b.UseSetting("Operacao:IntervaloMinimoRecargaSegundos", "0");
             b.UseSetting("Seed:AplicarMigrations", "true");
             b.UseSetting("Seed:DadosExemplo", "true");
             b.UseSetting("Seed:ImportarMarcacoesSeVazio", "false");
@@ -71,19 +87,27 @@ public sealed class ApiFixture : IAsyncLifetime
                 b.UseSetting($"Seed:Usuarios:{i}:Senha", SenhaUsuarios);
                 b.UseSetting($"Seed:Usuarios:{i}:Papel", papeis[i]);
             }
+            foreach (var (k, v) in extras ?? new Dictionary<string, string?>()) b.UseSetting(k, v);
         });
-        _ = _factory.Server; // força o startup (migrations + seed)
-        BancoDisponivel = true;
+        _factories.Add(f);
+        return f;
     }
 
-    public async Task<HttpClient> ClienteAsync(string papel)
+    public Task<HttpClient> ClienteAsync(string papel) => ClienteAsync(Factory, $"{papel.ToLowerInvariant()}@testes.local", SenhaUsuarios);
+
+    public static async Task<HttpClient> ClienteAsync(WebApplicationFactory<Program> factory, string email, string senha, string? codigoMfa = null)
     {
-        var cliente = Factory.CreateClient();
-        var resposta = await cliente.PostAsJsonAsync("/api/auth/login", new { email = $"{papel.ToLowerInvariant()}@testes.local", senha = SenhaUsuarios });
-        resposta.EnsureSuccessStatusCode();
-        var login = await resposta.Content.ReadFromJsonAsync<LoginRespostaDto>(Json.Opcoes);
-        cliente.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login!.Token);
+        var cliente = factory.CreateClient();
+        var login = await LoginAsync(cliente, email, senha, codigoMfa);
+        cliente.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login.Token);
         return cliente;
+    }
+
+    public static async Task<LoginRespostaDto> LoginAsync(HttpClient cliente, string email, string senha, string? codigoMfa = null)
+    {
+        var resposta = await cliente.PostAsJsonAsync("/api/v1/auth/login", new { email, senha, codigoMfa });
+        resposta.EnsureSuccessStatusCode();
+        return (await resposta.Content.ReadFromJsonAsync<LoginRespostaDto>(Json.Opcoes))!;
     }
 
     /// <summary>Acesso direto ao banco pra conferir o que foi realmente persistido.</summary>
@@ -96,7 +120,7 @@ public sealed class ApiFixture : IAsyncLifetime
     public async Task DisposeAsync()
     {
         if (_factory is null) return;
-        await _factory.DisposeAsync();
+        foreach (var f in _factories) await f.DisposeAsync();
         SqlConnection.ClearAllPools();
         await using var conexao = new SqlConnection(new SqlConnectionStringBuilder(_servidor) { InitialCatalog = "master" }.ConnectionString);
         await conexao.OpenAsync();
@@ -118,4 +142,27 @@ public static class Json
     {
         Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter(), new BarcaLog.Api.Infra.ConversorTimeOnly() }
     };
+}
+
+/// <summary>Geradores de dados de teste válidos e únicos.</summary>
+public static class Dados
+{
+    private static int _seq = Random.Shared.Next(100, 900) * 1000;
+
+    public static int Proximo() => Interlocked.Increment(ref _seq);
+
+    /// <summary>CNPJ numérico válido e único.</summary>
+    public static string Cnpj()
+    {
+        var baseNum = $"{Proximo():D8}0001";
+        return BarcaLog.Domain.Regras.Cnpj.Normalizar(baseNum + BarcaLog.Domain.Regras.Cnpj.CalcularDigitos(baseNum));
+    }
+
+    /// <summary>Placa padrão antigo única (ex.: TST-1234).</summary>
+    public static string Placa()
+    {
+        var n = Proximo();
+        var letras = new string([(char)('A' + n / 10000 % 26), (char)('A' + n / 260000 % 26), 'Z']);
+        return $"{letras}-{n % 10000:D4}";
+    }
 }

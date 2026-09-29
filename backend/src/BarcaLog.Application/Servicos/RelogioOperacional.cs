@@ -10,6 +10,8 @@ public class RelogioOperacional(TimeProvider tempo, IOptions<OperacaoOptions> op
 
     public DateTime AgoraUtc => tempo.GetUtcNow().UtcDateTime;
 
+    public DateTimeOffset AgoraUtcOffset => tempo.GetUtcNow();
+
     public DateTime AgoraLocalPorto => TimeZoneInfo.ConvertTimeFromUtc(AgoraUtc, _fuso);
 
     public DateOnly HojeLocalPorto => DateOnly.FromDateTime(AgoraLocalPorto);

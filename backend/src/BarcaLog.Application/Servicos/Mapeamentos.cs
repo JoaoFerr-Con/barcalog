@@ -38,6 +38,4 @@ internal static class Mapeamentos
             espera is null ? null : JanelaPermanencia.Classificar(espera.Value).Chave,
             m.TerminalId, m.Terminal?.Nome);
     }
-
-    public static UsuarioDto ParaDto(this Usuario u) => new(u.Id, u.Nome, u.Email, u.Papel);
 }

@@ -1,0 +1,68 @@
+name: Backend
+
+on:
+  push:
+    paths: ["backend/**", "src/data/**", ".github/workflows/backend.yml"]
+  pull_request:
+    paths: ["backend/**", "src/data/**", ".github/workflows/backend.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          # Senha descartável, só do container efêmero do CI.
+          MSSQL_SA_PASSWORD: "Ci_Descartavel#2026"
+        ports: ["1433:1433"]
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Ci_Descartavel#2026' -C -Q 'SELECT 1'"
+          --health-interval 10s --health-timeout 5s --health-retries 12
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build (avisos como erro)
+        run: dotnet build --no-restore -c Release -warnaserror
+
+      - name: Pacotes com vulnerabilidade conhecida
+        run: |
+          dotnet list package --vulnerable --include-transitive | tee vuln.txt
+          if grep -qE "\b(High|Critical)\b" vuln.txt; then echo "::error::Dependência com vulnerabilidade alta/crítica"; exit 1; fi
+
+      - name: Migrations sem mudança pendente no modelo
+        run: |
+          dotnet tool restore
+          dotnet ef migrations has-pending-model-changes --project src/BarcaLog.Infrastructure --startup-project src/BarcaLog.Api
+        env:
+          ConnectionStrings__BarcaLog: "Server=localhost,1433;Database=BarcaLog_CI;User Id=sa;Password=Ci_Descartavel#2026;TrustServerCertificate=True"
+
+      - name: Testes (unitários + integração com SQL Server)
+        run: dotnet test --no-build -c Release --logger "trx" --results-directory TestResults
+        env:
+          BARCALOG_TESTES_SQL: "Server=localhost,1433;User Id=sa;Password=Ci_Descartavel#2026;TrustServerCertificate=True"
+
+      - name: Nenhum teste de integração pode ser pulado no CI
+        run: |
+          if grep -q 'outcome="NotExecuted"' TestResults/*.trx; then echo "::error::Testes pulados (SQL Server indisponível?)"; exit 1; fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: resultados-testes
+          path: backend/TestResults

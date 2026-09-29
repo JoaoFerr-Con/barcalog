@@ -37,6 +37,10 @@ public static class RegrasNegativacao
             ? StatusNegativacao.Negativada
             : StatusNegativacao.Regular;
 
+    /// <summary>Mesma regra a partir da contagem (consulta agregada no banco, sem carregar a frota).</summary>
+    public static StatusNegativacao CalcularStatusTransportadora(int carretasNegativadas) =>
+        carretasNegativadas > 0 ? StatusNegativacao.Negativada : StatusNegativacao.Regular;
+
     /// <summary>Apta a operar = nenhuma carreta negativada.</summary>
     public static bool EstaAptaParaOperar(IEnumerable<Veiculo> frota) =>
         CalcularStatusTransportadora(frota) == StatusNegativacao.Regular;

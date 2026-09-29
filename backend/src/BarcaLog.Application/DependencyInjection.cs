@@ -9,6 +9,7 @@ public static class DependencyInjection
     {
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<RelogioOperacional>();
+        services.AddSingleton<CacheMarcacoes>();
         services.AddScoped<TransportadoraServico>();
         services.AddScoped<VeiculoServico>();
         services.AddScoped<CondutorServico>();
@@ -22,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<ImportacaoMarcacoesServico>();
         services.AddScoped<IntegracaoServico>();
         services.AddScoped<UsuarioServico>();
+        services.AddScoped<AutenticacaoServico>();
         return services;
     }
 }

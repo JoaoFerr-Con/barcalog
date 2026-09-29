@@ -8,7 +8,7 @@ namespace BarcaLog.Api.Controllers;
 
 /// <summary>Terminais (Unitapajós, TGPM, Hidrovias) e capacidade nominal.</summary>
 [ApiController]
-[Route("api/terminais")]
+[Route("api/v1/terminais")]
 [Authorize(Policy = Politicas.Leitura)]
 [Produces("application/json")]
 public class TerminaisController(ITerminalRepositorio terminais) : ControllerBase

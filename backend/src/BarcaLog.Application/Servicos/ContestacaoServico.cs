@@ -16,8 +16,8 @@ public class ContestacaoServico(
     IContextoAuditoria auditoria,
     RelogioOperacional relogio)
 {
-    public async Task<List<ContestacaoDto>> ListarAsync(FiltroContestacoes filtro, CancellationToken ct = default) =>
-        (await contestacoes.ListarAsync(filtro, ct)).Select(c => c.ParaDto()).ToList();
+    public async Task<Pagina<ContestacaoDto>> ListarAsync(FiltroContestacoes filtro, CancellationToken ct = default) =>
+        (await contestacoes.ListarAsync(filtro, ct)).Mapear(c => c.ParaDto());
 
     public async Task<ContestacaoDto> ObterAsync(int id, CancellationToken ct = default) =>
         (await ObterEntidadeAsync(id, ct)).ParaDto();

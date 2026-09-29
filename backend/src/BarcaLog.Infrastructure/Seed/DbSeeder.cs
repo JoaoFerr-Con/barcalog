@@ -54,7 +54,8 @@ public class DbSeeder(
                 Email = UsuarioServico.NormalizarEmail(u.Email),
                 SenhaHash = hash.Gerar(u.Senha),
                 Papel = u.Papel,
-                Ativo = true
+                Ativo = true,
+                DeveTrocarSenha = false // usuários de desenvolvimento; em produção não há seed de usuários
             });
         }
         auditoria.DefinirAcao("Usuários iniciais criados (seed)");
@@ -67,11 +68,11 @@ public class DbSeeder(
         var agora = relogio.AgoraUtc;
         DateTime Ha(TimeSpan t) => agora - t;
 
-        var rota = new Transportadora { Nome = "Rota Amazônia Cargas", Cnpj = "07.123.456/0001-10" };
-        var agro = new Transportadora { Nome = "AgroTransportes Sul", Cnpj = "09.234.567/0001-21" };
-        var norte = new Transportadora { Nome = "Norte Grãos Logística", Cnpj = "11.345.678/0001-32" };
-        var transnorte = new Transportadora { Nome = "TransNorte Cargas", Cnpj = "13.456.789/0001-43" };
-        var barcarena = new Transportadora { Nome = "Barcarena Transportes", Cnpj = "15.567.890/0001-54" };
+        var rota = new Transportadora { Nome = "Rota Amazônia Cargas", Cnpj = "07.123.456/0001-98" };
+        var agro = new Transportadora { Nome = "AgroTransportes Sul", Cnpj = "09.234.567/0001-05" };
+        var norte = new Transportadora { Nome = "Norte Grãos Logística", Cnpj = "11.345.678/0001-22" };
+        var transnorte = new Transportadora { Nome = "TransNorte Cargas", Cnpj = "13.456.789/0001-31" };
+        var barcarena = new Transportadora { Nome = "Barcarena Transportes", Cnpj = "15.567.890/0001-95" };
         db.Transportadoras.AddRange(rota, agro, norte, transnorte, barcarena);
 
         Veiculo V(string placa, Transportadora t, string modelo, StatusPortaria sp, TimeSpan ha, string terminal, StatusNegativacao sn = StatusNegativacao.Regular) =>

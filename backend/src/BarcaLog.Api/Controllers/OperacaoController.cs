@@ -1,4 +1,6 @@
+using BarcaLog.Api.Infra;
 using BarcaLog.Api.Seguranca;
+using Microsoft.AspNetCore.RateLimiting;
 using BarcaLog.Application.Dtos;
 using BarcaLog.Application.Servicos;
 using Microsoft.AspNetCore.Authorization;
@@ -8,14 +10,14 @@ namespace BarcaLog.Api.Controllers;
 
 /// <summary>Agendamentos de descarga (persistidos — antes era simulação em memória).</summary>
 [ApiController]
-[Route("api/agendamentos")]
+[Route("api/v1/agendamentos")]
 [Authorize(Policy = Politicas.Leitura)]
 [Produces("application/json")]
 public class AgendamentosController(AgendamentoServico servico) : ControllerBase
 {
     /// <summary>Lista agendamentos (filtros: data, terminal, status, transportadora, placa).</summary>
     [HttpGet]
-    public Task<List<AgendamentoDto>> Listar([FromQuery] FiltroAgendamentos filtro, CancellationToken ct) => servico.ListarAsync(filtro, ct);
+    public Task<Pagina<AgendamentoDto>> Listar([FromQuery] FiltroAgendamentos filtro, CancellationToken ct) => servico.ListarAsync(filtro, ct);
 
     /// <summary>Resumo do dia: totais, confirmados, em operação, atrasados e concentração por horário.</summary>
     [HttpGet("resumo")]
@@ -29,6 +31,7 @@ public class AgendamentosController(AgendamentoServico servico) : ControllerBase
     /// <summary>Cria agendamento. Carreta negativada (N3) é recusada.</summary>
     [HttpPost]
     [Authorize(Policy = Politicas.Escrita)]
+    [Idempotente]
     [ProducesResponseType<AgendamentoDto>(StatusCodes.Status201Created)]
     public async Task<ActionResult<AgendamentoDto>> Criar(CriarAgendamentoRequest req, CancellationToken ct)
     {
@@ -49,7 +52,7 @@ public class AgendamentosController(AgendamentoServico servico) : ControllerBase
 
 /// <summary>Portaria: fila virtual e estado atual da frota.</summary>
 [ApiController]
-[Route("api/portaria")]
+[Route("api/v1/portaria")]
 [Authorize(Policy = Politicas.Leitura)]
 [Produces("application/json")]
 public class PortariaController(PortariaServico servico) : ControllerBase
@@ -69,8 +72,9 @@ public class PortariaController(PortariaServico servico) : ControllerBase
 
 /// <summary>Integração sistema-a-sistema (autenticação por cabeçalho X-Api-Key, não JWT).</summary>
 [ApiController]
-[Route("api/integracao")]
+[Route("api/v1/integracao")]
 [Authorize(Policy = Politicas.Integracao)]
+[EnableRateLimiting(LimitesRequisicao.Integracao)]
 [Produces("application/json")]
 public class IntegracaoController(IntegracaoServico servico) : ControllerBase
 {
@@ -81,6 +85,8 @@ public class IntegracaoController(IntegracaoServico servico) : ControllerBase
     /// com dataLiberacao. Datas no horário local do porto, sem fuso.
     /// </summary>
     [HttpPost("eventos")]
+    [Idempotente]
+    [RequestSizeLimit(2_000_000)]
     [ProducesResponseType<ResultadoIntegracaoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ResultadoIntegracaoDto>> Eventos(List<EventoIntegracaoDto> eventos, CancellationToken ct)

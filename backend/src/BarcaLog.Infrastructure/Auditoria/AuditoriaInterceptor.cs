@@ -19,7 +19,11 @@ public class AuditoriaInterceptor(IUsuarioAtual usuarioAtual, IContextoAuditoria
     /// <summary>Acima disso por tipo/estado, o detalhe vira só uma contagem (ex.: importação em lote).</summary>
     private const int LimiteDetalhePorGrupo = 10;
 
-    private static readonly HashSet<string> PropriedadesOcultas = new(StringComparer.Ordinal) { nameof(Usuario.SenhaHash) };
+    /// <summary>Nunca aparecem com valor no log (segredos). Só "campo alterado".</summary>
+    private static readonly HashSet<string> PropriedadesOcultas = new(StringComparer.Ordinal)
+    {
+        nameof(Usuario.SenhaHash), nameof(Usuario.MfaSegredoCifrado), nameof(Usuario.MfaUltimoPassoUsado), "VersaoLinha"
+    };
     private static readonly string[] PropriedadesIdentificadoras = ["Placa", "Nome", "Email", "MovimentoId"];
 
     public override InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
@@ -63,7 +67,7 @@ public class AuditoriaInterceptor(IUsuarioAtual usuarioAtual, IContextoAuditoria
         // O interceptor roda antes do DetectChanges automático do SaveChanges.
         ctx.ChangeTracker.DetectChanges();
         var entradas = ctx.ChangeTracker.Entries()
-            .Where(e => e.Entity is not LogAuditoria && e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .Where(e => e.Entity is not (LogAuditoria or Idempotencia.ChaveIdempotencia) && e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
             .Where(e => e.State != EntityState.Modified || e.Properties.Any(p => p.IsModified))
             .ToList();
         if (entradas.Count == 0) return;
@@ -80,7 +84,7 @@ public class AuditoriaInterceptor(IUsuarioAtual usuarioAtual, IContextoAuditoria
                 detalhes.AppendLine($"{grupo.Key.Tipo}: {lista.Count} registro(s) {Verbo(grupo.Key.State)}");
                 continue;
             }
-            foreach (var entrada in lista) detalhes.AppendLine(Descrever(entrada));
+            foreach (var entrada in lista) detalhes.AppendLine(Descrever(entrada, contexto.OcultarValores));
         }
 
         var acao = contexto.Acao ?? string.Join("; ", grupos.Select(g => $"{g.Key.Tipo} {Verbo(g.Key.State)}"));
@@ -93,21 +97,21 @@ public class AuditoriaInterceptor(IUsuarioAtual usuarioAtual, IContextoAuditoria
         });
     }
 
-    private static string Descrever(EntityEntry entrada)
+    private static string Descrever(EntityEntry entrada, bool ocultarValores)
     {
         var tipo = entrada.Metadata.ClrType.Name;
-        var identificacao = Identificar(entrada);
+        var identificacao = Identificar(entrada, ocultarValores);
         switch (entrada.State)
         {
             case EntityState.Added:
                 var valores = entrada.Properties
                     .Where(p => !p.Metadata.IsPrimaryKey() && !PropriedadesOcultas.Contains(p.Metadata.Name) && p.Metadata.ValueGenerated == Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.Never && p.CurrentValue is not null)
-                    .Select(p => $"{p.Metadata.Name}={Formatar(p.CurrentValue)}");
+                    .Select(p => ocultarValores ? p.Metadata.Name : $"{p.Metadata.Name}={Formatar(p.CurrentValue)}");
                 return $"{tipo} criado {identificacao}: {string.Join(", ", valores)}";
             case EntityState.Modified:
                 var mudancas = entrada.Properties
                     .Where(p => p.IsModified && !Equals(p.OriginalValue, p.CurrentValue))
-                    .Select(p => PropriedadesOcultas.Contains(p.Metadata.Name)
+                    .Select(p => ocultarValores || PropriedadesOcultas.Contains(p.Metadata.Name)
                         ? $"{p.Metadata.Name} alterado"
                         : $"{p.Metadata.Name}: {Formatar(p.OriginalValue)} → {Formatar(p.CurrentValue)}");
                 return $"{tipo} alterado {identificacao}: {string.Join(", ", mudancas)}";
@@ -116,7 +120,7 @@ public class AuditoriaInterceptor(IUsuarioAtual usuarioAtual, IContextoAuditoria
         }
     }
 
-    private static string Identificar(EntityEntry entrada)
+    private static string Identificar(EntityEntry entrada, bool ocultarValores)
     {
         var partes = new List<string>();
         var chave = entrada.Metadata.FindPrimaryKey();
@@ -128,6 +132,7 @@ public class AuditoriaInterceptor(IUsuarioAtual usuarioAtual, IContextoAuditoria
                 if (!prop.IsTemporary) partes.Add($"#{Formatar(prop.CurrentValue)}");
             }
         }
+        if (ocultarValores) return string.Join(" ", partes);
         foreach (var nome in PropriedadesIdentificadoras)
         {
             var metaProp = entrada.Metadata.FindProperty(nome);

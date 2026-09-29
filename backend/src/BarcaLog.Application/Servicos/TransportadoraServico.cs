@@ -15,42 +15,39 @@ public class TransportadoraServico(
 {
     public async Task<List<TransportadoraDto>> ListarAsync(CancellationToken ct = default)
     {
-        var lista = await transportadoras.ListarComFrotaAsync(ct);
+        var lista = await transportadoras.ListarComContagemAsync(ct);
         var n2 = await ContarN2Async(ct);
-        return lista.Select(t => ParaDto(t, n2.GetValueOrDefault(t.Id))).ToList();
+        return lista.Select(t => ParaDto(t, n2.GetValueOrDefault(t.Transportadora.Id))).ToList();
     }
 
     public async Task<TransportadoraDto> ObterAsync(int id, CancellationToken ct = default)
     {
-        var t = await transportadoras.ObterComFrotaAsync(id, ct) ?? throw NaoEncontrada(id);
+        var t = await transportadoras.ObterComContagemAsync(id, ct) ?? throw NaoEncontrada(id);
         var n2 = await ContarN2Async(ct);
-        return ParaDto(t, n2.GetValueOrDefault(t.Id));
+        return ParaDto(t, n2.GetValueOrDefault(id));
     }
 
     public async Task<TransportadoraDto> CriarAsync(SalvarTransportadoraRequest req, CancellationToken ct = default)
     {
-        var nome = req.Nome.Trim();
-        var cnpj = req.Cnpj.Trim();
+        var (nome, cnpj) = Normalizar(req);
         if (await transportadoras.ExisteNomeOuCnpjAsync(nome, cnpj, null, ct))
             throw new RegraNegocioException("Já existe transportadora com esse nome ou CNPJ.");
         var t = new Transportadora { Nome = nome, Cnpj = cnpj };
         transportadoras.Adicionar(t);
         await uow.SalvarAsync(ct);
-        return ParaDto(t, 0);
+        return ParaDto(new TransportadoraComFrota(t, 0, 0), 0);
     }
 
     public async Task<TransportadoraDto> AtualizarAsync(int id, SalvarTransportadoraRequest req, CancellationToken ct = default)
     {
-        var t = await transportadoras.ObterComFrotaAsync(id, ct) ?? throw NaoEncontrada(id);
-        var nome = req.Nome.Trim();
-        var cnpj = req.Cnpj.Trim();
+        var t = await transportadoras.ObterAsync(id, ct) ?? throw NaoEncontrada(id);
+        var (nome, cnpj) = Normalizar(req);
         if (await transportadoras.ExisteNomeOuCnpjAsync(nome, cnpj, id, ct))
             throw new RegraNegocioException("Já existe transportadora com esse nome ou CNPJ.");
         t.Nome = nome;
         t.Cnpj = cnpj;
         await uow.SalvarAsync(ct);
-        var n2 = await ContarN2Async(ct);
-        return ParaDto(t, n2.GetValueOrDefault(t.Id));
+        return await ObterAsync(id, ct);
     }
 
     public async Task RemoverAsync(int id, CancellationToken ct = default)
@@ -62,18 +59,19 @@ public class TransportadoraServico(
         await uow.SalvarAsync(ct);
     }
 
+    private static (string Nome, string Cnpj) Normalizar(SalvarTransportadoraRequest req) =>
+        (req.Nome.Trim(), Cnpj.Normalizar(req.Cnpj));
+
     private Task<Dictionary<int, int>> ContarN2Async(CancellationToken ct) =>
         ocorrencias.ContarPorTransportadoraDesdeAsync(
             NivelOcorrencia.N2, relogio.AgoraUtc.AddDays(-RegrasNegativacao.JanelaReincidenciaN2Dias), ct);
 
-    private static TransportadoraDto ParaDto(Transportadora t, int reincidenciasN2)
+    private static TransportadoraDto ParaDto(TransportadoraComFrota t, int reincidenciasN2)
     {
-        var status = RegrasNegativacao.CalcularStatusTransportadora(t.Veiculos);
+        var status = RegrasNegativacao.CalcularStatusTransportadora(t.CarretasNegativadas);
         return new TransportadoraDto(
-            t.Id, t.Nome, t.Cnpj, status,
-            t.Veiculos.Count(v => v.EstaNegativado),
-            t.Veiculos.Count,
-            reincidenciasN2,
+            t.Transportadora.Id, t.Transportadora.Nome, t.Transportadora.Cnpj, status,
+            t.CarretasNegativadas, t.CarretasTotal, reincidenciasN2,
             status == StatusNegativacao.Regular);
     }
 

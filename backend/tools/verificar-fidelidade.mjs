@@ -30,38 +30,38 @@ const registros = TERMINAIS.flatMap(([id, nome]) =>
     empresaNome: nome
   })));
 
-const { token } = await (await fetch(`${api}/api/auth/login`, {
+const { token } = await (await fetch(`${api}/api/v1/auth/login`, {
   method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, senha })
 })).json();
 const get = async p => (await fetch(`${api}${p}`, { headers: { Authorization: `Bearer ${token}` } })).json();
 
 // [endpoint, referência JS, chave natural p/ listas cuja ordem de desempate depende da ordem de leitura dos registros]
 const casos = [
-  ["/api/marcacoes/kpis", rel.obterKpisGerais(registros)],
-  ["/api/marcacoes/visao-terminal", me.visaoPorTerminal(registros)],
-  ["/api/marcacoes/por-mes", rel.agruparPorMesDetalhado(registros)],
-  ["/api/marcacoes/ranking-esperas", rel.rankingMaioresEsperas(registros, 10)],
-  ["/api/marcacoes/indice-risco-hora", me.indiceRiscoGargalo(registros)],
-  ["/api/marcacoes/janelas-permanencia", me.distribuicaoJanelas(registros)],
-  ["/api/marcacoes/tma-terminal", me.tmaPorTerminal(registros)],
-  ["/api/marcacoes/indicadores-performance", me.indicadoresPerformance(registros), x => x.terminal],
-  ["/api/marcacoes/alertas-operacionais", me.alertasOperacionais(registros)],
-  ["/api/marcacoes/concentracao-turno", me.concentracaoPorTurno(registros)],
-  ["/api/marcacoes/horarios-criticos", me.horariosCriticos(registros), x => `${x.total}|${x.diaSemana}|${x.turno}`],
-  ["/api/marcacoes/picos-entrada-saida", me.picosEntradaSaida(registros)],
-  ["/api/marcacoes/analise-preditiva", me.analisePreditiva(registros, 3)],
-  ["/api/marcacoes/score-operadores", rel.scoreEficienciaPorOperador(registros)],
-  ["/api/marcacoes/atrasos-recorrentes", rel.atrasosRecorrentes(registros, 24, 3)],
-  ["/api/marcacoes/por-ciclo", rel.distribuicaoPorCiclo(registros)],
-  ["/api/marcacoes/tendencia-sla", rel.tendenciaSLA(registros)],
-  ["/api/marcacoes/por-operador", rel.totaisPorOperador(registros)],
-  ["/api/marcacoes/por-carga", rel.totaisPorCarga(registros)],
-  ["/api/marcacoes/por-terminal", rel.totaisPorEmpresa(registros)],
-  ["/api/marcacoes/recomendacoes", me.recomendacoesPrescritivas(registros)],
-  ["/api/marcacoes/top-dias", me.top30DiasCompacto(registros), x => `${x.data}|${x.empresa}`],
-  ["/api/marcacoes/detalhamento-diario", rel.detalhamentoDiarioPorMes(registros)],
-  ["/api/marcacoes/concentracao-turno?terminalId=hidrovias", me.concentracaoPorTurno(registros.filter(r => r.empresaId === "hidrovias"))],
-  ["/api/marcacoes/indice-risco-hora?terminalId=tgpm", me.indiceRiscoGargalo(registros.filter(r => r.empresaId === "tgpm"))]
+  ["/api/v1/marcacoes/kpis", rel.obterKpisGerais(registros)],
+  ["/api/v1/marcacoes/visao-terminal", me.visaoPorTerminal(registros)],
+  ["/api/v1/marcacoes/por-mes", rel.agruparPorMesDetalhado(registros)],
+  ["/api/v1/marcacoes/ranking-esperas", rel.rankingMaioresEsperas(registros, 10)],
+  ["/api/v1/marcacoes/indice-risco-hora", me.indiceRiscoGargalo(registros)],
+  ["/api/v1/marcacoes/janelas-permanencia", me.distribuicaoJanelas(registros)],
+  ["/api/v1/marcacoes/tma-terminal", me.tmaPorTerminal(registros)],
+  ["/api/v1/marcacoes/indicadores-performance", me.indicadoresPerformance(registros), x => x.terminal],
+  ["/api/v1/marcacoes/alertas-operacionais", me.alertasOperacionais(registros)],
+  ["/api/v1/marcacoes/concentracao-turno", me.concentracaoPorTurno(registros)],
+  ["/api/v1/marcacoes/horarios-criticos", me.horariosCriticos(registros), x => `${x.total}|${x.diaSemana}|${x.turno}`],
+  ["/api/v1/marcacoes/picos-entrada-saida", me.picosEntradaSaida(registros)],
+  ["/api/v1/marcacoes/analise-preditiva", me.analisePreditiva(registros, 3)],
+  ["/api/v1/marcacoes/score-operadores", rel.scoreEficienciaPorOperador(registros)],
+  ["/api/v1/marcacoes/atrasos-recorrentes", rel.atrasosRecorrentes(registros, 24, 3)],
+  ["/api/v1/marcacoes/por-ciclo", rel.distribuicaoPorCiclo(registros)],
+  ["/api/v1/marcacoes/tendencia-sla", rel.tendenciaSLA(registros)],
+  ["/api/v1/marcacoes/por-operador", rel.totaisPorOperador(registros)],
+  ["/api/v1/marcacoes/por-carga", rel.totaisPorCarga(registros)],
+  ["/api/v1/marcacoes/por-terminal", rel.totaisPorEmpresa(registros)],
+  ["/api/v1/marcacoes/recomendacoes", me.recomendacoesPrescritivas(registros)],
+  ["/api/v1/marcacoes/top-dias", me.top30DiasCompacto(registros), x => `${x.data}|${x.empresa}`],
+  ["/api/v1/marcacoes/detalhamento-diario", rel.detalhamentoDiarioPorMes(registros)],
+  ["/api/v1/marcacoes/concentracao-turno?terminalId=hidrovias", me.concentracaoPorTurno(registros.filter(r => r.empresaId === "hidrovias"))],
+  ["/api/v1/marcacoes/indice-risco-hora?terminalId=tgpm", me.indiceRiscoGargalo(registros.filter(r => r.empresaId === "tgpm"))]
 ];
 
 // Campos renomeados no porte / intermediários do JS que a API não expõe.

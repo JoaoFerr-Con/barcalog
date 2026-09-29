@@ -94,11 +94,17 @@ public class MarcacaoRepositorio(BarcaLogDbContext db) : IMarcacaoRepositorio
 
 public class TransportadoraRepositorio(BarcaLogDbContext db) : ITransportadoraRepositorio
 {
-    public Task<List<Transportadora>> ListarComFrotaAsync(CancellationToken ct = default) =>
-        db.Transportadoras.Include(t => t.Veiculos).OrderBy(t => t.Nome).ToListAsync(ct);
+    // Uma única consulta com subconsultas COUNT — sem carregar a frota inteira.
+    private IQueryable<TransportadoraComFrota> ComContagem(IQueryable<Transportadora> origem) => origem.AsNoTracking().Select(t => new TransportadoraComFrota(
+        t,
+        db.Veiculos.Count(v => v.TransportadoraId == t.Id),
+        db.Veiculos.Count(v => v.TransportadoraId == t.Id && v.StatusNegativacao == StatusNegativacao.Negativada)));
 
-    public Task<Transportadora?> ObterComFrotaAsync(int id, CancellationToken ct = default) =>
-        db.Transportadoras.Include(t => t.Veiculos).FirstOrDefaultAsync(t => t.Id == id, ct);
+    public Task<List<TransportadoraComFrota>> ListarComContagemAsync(CancellationToken ct = default) =>
+        ComContagem(db.Transportadoras.OrderBy(t => t.Nome)).ToListAsync(ct);
+
+    public Task<TransportadoraComFrota?> ObterComContagemAsync(int id, CancellationToken ct = default) =>
+        ComContagem(db.Transportadoras.Where(t => t.Id == id)).FirstOrDefaultAsync(ct);
 
     public Task<Transportadora?> ObterAsync(int id, CancellationToken ct = default) =>
         db.Transportadoras.FirstOrDefaultAsync(t => t.Id == id, ct);
@@ -121,9 +127,9 @@ public class VeiculoRepositorio(BarcaLogDbContext db) : IVeiculoRepositorio
 {
     private IQueryable<Veiculo> ComDetalhes => db.Veiculos.Include(v => v.Transportadora).Include(v => v.Terminal);
 
-    public Task<List<Veiculo>> ListarAsync(FiltroVeiculos f, CancellationToken ct = default)
+    public Task<Pagina<Veiculo>> ListarAsync(FiltroVeiculos f, CancellationToken ct = default)
     {
-        var q = ComDetalhes;
+        var q = ComDetalhes.AsNoTracking();
         if (f.TransportadoraId is { } tid) q = q.Where(v => v.TransportadoraId == tid);
         if (!string.IsNullOrWhiteSpace(f.TerminalId)) q = q.Where(v => v.TerminalId == f.TerminalId);
         if (f.StatusPortaria is { } sp) q = q.Where(v => v.StatusPortaria == sp);
@@ -133,7 +139,7 @@ public class VeiculoRepositorio(BarcaLogDbContext db) : IVeiculoRepositorio
             var placa = Veiculo.NormalizarPlaca(f.Placa);
             q = q.Where(v => v.Placa.Contains(placa));
         }
-        return q.OrderBy(v => v.Placa).ToListAsync(ct);
+        return q.OrderBy(v => v.Placa).ThenBy(v => v.Id).PaginarAsync(f, ct);
     }
 
     public Task<Veiculo?> ObterAsync(int id, CancellationToken ct = default) =>
@@ -150,12 +156,13 @@ public class VeiculoRepositorio(BarcaLogDbContext db) : IVeiculoRepositorio
 
     public Task<List<Veiculo>> ListarFilaAsync(CancellationToken ct = default) =>
         ComDetalhes
+            .AsNoTracking()
             .Where(v => v.StatusPortaria == StatusPortaria.NoPatio || v.StatusPortaria == StatusPortaria.Aguardando)
-            .OrderBy(v => v.StatusPortariaDesde)
+            .OrderBy(v => v.StatusPortariaDesde).ThenBy(v => v.Id)
             .ToListAsync(ct);
 
-    public Task<List<Veiculo>> ListarTodosAsync(CancellationToken ct = default) =>
-        ComDetalhes.OrderBy(v => v.StatusPortariaDesde).ToListAsync(ct);
+    public Task<Dictionary<StatusPortaria, int>> ContarPorStatusPortariaAsync(CancellationToken ct = default) =>
+        db.Veiculos.GroupBy(v => v.StatusPortaria).Select(g => new { g.Key, Total = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.Total, ct);
 
     public void Adicionar(Veiculo veiculo) => db.Veiculos.Add(veiculo);
 
@@ -164,11 +171,11 @@ public class VeiculoRepositorio(BarcaLogDbContext db) : IVeiculoRepositorio
 
 public class CondutorRepositorio(BarcaLogDbContext db) : ICondutorRepositorio
 {
-    public Task<List<Condutor>> ListarAsync(int? transportadoraId, CancellationToken ct = default)
+    public Task<Pagina<Condutor>> ListarAsync(FiltroCondutores f, CancellationToken ct = default)
     {
-        var q = db.Condutores.Include(c => c.Transportadora).AsQueryable();
-        if (transportadoraId is { } tid) q = q.Where(c => c.TransportadoraId == tid);
-        return q.OrderBy(c => c.Nome).ToListAsync(ct);
+        var q = db.Condutores.AsNoTracking().Include(c => c.Transportadora).AsQueryable();
+        if (f.TransportadoraId is { } tid) q = q.Where(c => c.TransportadoraId == tid);
+        return q.OrderBy(c => c.Nome).ThenBy(c => c.Id).PaginarAsync(f, ct);
     }
 
     public Task<Condutor?> ObterAsync(int id, CancellationToken ct = default) =>
@@ -183,9 +190,9 @@ public class OcorrenciaRepositorio(BarcaLogDbContext db) : IOcorrenciaRepositori
 {
     private IQueryable<Ocorrencia> ComDetalhes => db.Ocorrencias.Include(o => o.Transportadora).Include(o => o.Condutor);
 
-    public Task<List<Ocorrencia>> ListarAsync(FiltroOcorrencias f, CancellationToken ct = default)
+    public Task<Pagina<Ocorrencia>> ListarAsync(FiltroOcorrencias f, CancellationToken ct = default)
     {
-        var q = ComDetalhes;
+        var q = ComDetalhes.AsNoTracking();
         if (f.TransportadoraId is { } tid) q = q.Where(o => o.TransportadoraId == tid);
         if (f.Nivel is { } nivel) q = q.Where(o => o.Nivel == nivel);
         if (f.Status is { } status) q = q.Where(o => o.Status == status);
@@ -194,8 +201,11 @@ public class OcorrenciaRepositorio(BarcaLogDbContext db) : IOcorrenciaRepositori
             var placa = Veiculo.NormalizarPlaca(f.Placa);
             q = q.Where(o => o.Placa == placa);
         }
-        return q.OrderByDescending(o => o.CriadoEm).ThenByDescending(o => o.Id).ToListAsync(ct);
+        return q.OrderByDescending(o => o.CriadoEm).ThenByDescending(o => o.Id).PaginarAsync(f, ct);
     }
+
+    public Task<List<Ocorrencia>> ListarPorCondutorAsync(int condutorId, CancellationToken ct = default) =>
+        ComDetalhes.AsNoTracking().Where(o => o.CondutorId == condutorId).OrderByDescending(o => o.CriadoEm).ToListAsync(ct);
 
     public Task<Ocorrencia?> ObterAsync(int id, CancellationToken ct = default) =>
         ComDetalhes.FirstOrDefaultAsync(o => o.Id == id, ct);
@@ -217,13 +227,13 @@ public class ContestacaoRepositorio(BarcaLogDbContext db) : IContestacaoReposito
 {
     private IQueryable<Contestacao> ComDetalhes => db.Contestacoes.Include(c => c.Ocorrencia).Include(c => c.Transportadora);
 
-    public Task<List<Contestacao>> ListarAsync(FiltroContestacoes f, CancellationToken ct = default)
+    public Task<Pagina<Contestacao>> ListarAsync(FiltroContestacoes f, CancellationToken ct = default)
     {
-        var q = ComDetalhes;
+        var q = ComDetalhes.AsNoTracking();
         if (f.TransportadoraId is { } tid) q = q.Where(c => c.TransportadoraId == tid);
         if (f.OcorrenciaId is { } oid) q = q.Where(c => c.OcorrenciaId == oid);
         if (f.Status is { } status) q = q.Where(c => c.Status == status);
-        return q.OrderByDescending(c => c.CriadoEm).ThenByDescending(c => c.Id).ToListAsync(ct);
+        return q.OrderByDescending(c => c.CriadoEm).ThenByDescending(c => c.Id).PaginarAsync(f, ct);
     }
 
     public Task<Contestacao?> ObterAsync(int id, CancellationToken ct = default) =>
@@ -254,9 +264,9 @@ public class AgendamentoRepositorio(BarcaLogDbContext db) : IAgendamentoReposito
 {
     private IQueryable<Agendamento> ComDetalhes => db.Agendamentos.Include(a => a.Transportadora).Include(a => a.Terminal);
 
-    public Task<List<Agendamento>> ListarAsync(FiltroAgendamentos f, CancellationToken ct = default)
+    public Task<Pagina<Agendamento>> ListarAsync(FiltroAgendamentos f, CancellationToken ct = default)
     {
-        var q = ComDetalhes;
+        var q = ComDetalhes.AsNoTracking();
         if (f.Data is { } data) q = q.Where(a => a.Data == data);
         if (!string.IsNullOrWhiteSpace(f.TerminalId) && f.TerminalId != "todos") q = q.Where(a => a.TerminalId == f.TerminalId);
         if (f.Status is { } status) q = q.Where(a => a.Status == status);
@@ -266,8 +276,22 @@ public class AgendamentoRepositorio(BarcaLogDbContext db) : IAgendamentoReposito
             var placa = Veiculo.NormalizarPlaca(f.Placa);
             q = q.Where(a => a.Placa == placa);
         }
-        return q.OrderBy(a => a.Data).ThenBy(a => a.Hora).ThenBy(a => a.Id).ToListAsync(ct);
+        return q.OrderBy(a => a.Data).ThenBy(a => a.Hora).ThenBy(a => a.Id).PaginarAsync(f, ct);
     }
+
+    public Task<List<Agendamento>> ListarDoDiaAsync(DateOnly data, string? terminalId, CancellationToken ct = default)
+    {
+        var q = ComDetalhes.AsNoTracking().Where(a => a.Data == data);
+        if (!string.IsNullOrWhiteSpace(terminalId) && terminalId != "todos") q = q.Where(a => a.TerminalId == terminalId);
+        return q.OrderBy(a => a.Hora).ThenBy(a => a.Id).ToListAsync(ct);
+    }
+
+    public Task<List<Agendamento>> ListarPorMotoristaAsync(string nomeMotorista, CancellationToken ct = default) =>
+        ComDetalhes.Where(a => a.Motorista == nomeMotorista).OrderBy(a => a.Data).ThenBy(a => a.Hora).ToListAsync(ct);
+
+    public Task<bool> ExisteConflitoAsync(string placa, DateOnly data, TimeOnly hora, int? ignorarId, CancellationToken ct = default) =>
+        db.Agendamentos.AnyAsync(a => a.Placa == placa && a.Data == data && a.Hora == hora
+            && a.Status != StatusAgendamento.Cancelado && (ignorarId == null || a.Id != ignorarId), ct);
 
     public Task<Agendamento?> ObterAsync(int id, CancellationToken ct = default) =>
         ComDetalhes.FirstOrDefaultAsync(a => a.Id == id, ct);
@@ -284,6 +308,72 @@ public class UsuarioRepositorio(BarcaLogDbContext db) : IUsuarioRepositorio
         db.Usuarios.FirstOrDefaultAsync(u => u.Id == id, ct);
 
     public Task<bool> ExisteAlgumAsync(CancellationToken ct = default) => db.Usuarios.AnyAsync(ct);
+
+    public Task<Pagina<Usuario>> ListarAsync(FiltroUsuarios f, CancellationToken ct = default)
+    {
+        var q = db.Usuarios.AsNoTracking();
+        if (f.Papel is { } papel) q = q.Where(u => u.Papel == papel);
+        if (f.Ativo is { } ativo) q = q.Where(u => u.Ativo == ativo);
+        if (!string.IsNullOrWhiteSpace(f.Busca)) q = q.Where(u => u.Nome.Contains(f.Busca) || u.Email.Contains(f.Busca));
+        return q.OrderBy(u => u.Nome).ThenBy(u => u.Id).PaginarAsync(f, ct);
+    }
+
+    public Task<int> ContarGestoresAtivosAsync(CancellationToken ct = default) =>
+        db.Usuarios.CountAsync(u => u.Papel == PapelUsuario.Gestor && u.Ativo, ct);
+
+    public Task<bool> RegistrarFalhaLoginAsync(int usuarioId, DateTime agoraUtc, int maximo, TimeSpan duracaoBloqueio, string motivo, CancellationToken ct = default) =>
+        // Transação dentro da estratégia de retry: em falha transitória o bloco inteiro é repetido.
+        db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+    {
+        var ate = agoraUtc + duracaoBloqueio;
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        // Um único UPDATE: incrementa e, se chegou no limite, bloqueia e zera — sem janela pra corrida.
+        await db.Usuarios.Where(u => u.Id == usuarioId).ExecuteUpdateAsync(s => s
+            .SetProperty(u => u.BloqueadoAte, u => u.FalhasLoginConsecutivas + 1 >= maximo ? ate : u.BloqueadoAte)
+            .SetProperty(u => u.FalhasLoginConsecutivas, u => u.FalhasLoginConsecutivas + 1 >= maximo ? 0 : u.FalhasLoginConsecutivas + 1), ct);
+        var dados = await db.Usuarios.AsNoTracking().Where(u => u.Id == usuarioId).Select(u => new { u.Email, u.BloqueadoAte }).SingleAsync(ct);
+        var bloqueou = dados.BloqueadoAte == ate;
+        await RegistrarEventoAsync(dados.Email, bloqueou ? "Conta bloqueada por excesso de tentativas" : "Falha de autenticação", $"{dados.Email} — {motivo}", agoraUtc, ct);
+        await tx.CommitAsync(ct);
+        return bloqueou;
+    });
+
+    public Task RegistrarLoginAsync(int usuarioId, DateTime agoraUtc, string? novoHash, CancellationToken ct = default) =>
+        db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+    {
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.Usuarios.Where(u => u.Id == usuarioId).ExecuteUpdateAsync(s => s
+            .SetProperty(u => u.FalhasLoginConsecutivas, 0)
+            .SetProperty(u => u.BloqueadoAte, (DateTime?)null)
+            .SetProperty(u => u.UltimoLoginEm, agoraUtc)
+            .SetProperty(u => u.SenhaHash, u => novoHash ?? u.SenhaHash), ct);
+        var email = await db.Usuarios.Where(u => u.Id == usuarioId).Select(u => u.Email).SingleAsync(ct);
+        await RegistrarEventoAsync(email, "Login realizado", email + (novoHash is null ? "" : " (hash de senha atualizado)"), agoraUtc, ct);
+        await tx.CommitAsync(ct);
+    });
+
+    public async Task<bool> ConsumirPassoMfaAsync(int usuarioId, long passo, CancellationToken ct = default) =>
+        await db.Usuarios
+            .Where(u => u.Id == usuarioId && (u.MfaUltimoPassoUsado == null || u.MfaUltimoPassoUsado < passo))
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.MfaUltimoPassoUsado, passo), ct) == 1;
+
+    /// <summary>
+    /// UPDATE em lote não passa pelo interceptor de auditoria (não há entidade
+    /// rastreada), então o evento de segurança é gravado aqui, na mesma transação.
+    /// </summary>
+    private async Task RegistrarEventoAsync(string autor, string acao, string detalhes, DateTime quando, CancellationToken ct)
+    {
+        var log = new LogAuditoria { Autor = autor, Acao = acao, Detalhes = detalhes, Quando = quando };
+        db.LogsAuditoria.Add(log);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        finally
+        {
+            db.Entry(log).State = EntityState.Detached; // se houver retry, não reinsere a mesma linha
+        }
+    }
 
     public void Adicionar(Usuario usuario) => db.Usuarios.Add(usuario);
 }

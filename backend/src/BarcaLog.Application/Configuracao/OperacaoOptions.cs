@@ -12,4 +12,7 @@ public class OperacaoOptions
 
     /// <summary>Tempo que o resultado agregado das marcações fica em cache (minutos).</summary>
     public int CacheMetricasMinutos { get; set; } = 30;
+
+    /// <summary>Intervalo mínimo entre recargas do cache depois de importação/integração (segundos).</summary>
+    public int IntervaloMinimoRecargaSegundos { get; set; } = 60;
 }

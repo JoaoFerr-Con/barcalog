@@ -30,7 +30,7 @@ public static class DependencyInjection
             {
                 sql.MigrationsAssembly(typeof(BarcaLogDbContext).Assembly.FullName);
                 sql.EnableRetryOnFailure(3);
-                sql.CommandTimeout(120);
+                sql.CommandTimeout(30);
             });
             options.AddInterceptors(sp.GetRequiredService<AuditoriaInterceptor>());
         });
@@ -48,6 +48,10 @@ public static class DependencyInjection
         services.AddScoped<IUsuarioRepositorio, UsuarioRepositorio>();
 
         services.AddSingleton<IHashSenha, HashSenha>();
+        services.AddSingleton<IProtetorSegredos, ProtetorSegredosAesGcm>();
+        services.AddSingleton<IValidadorSessao, ValidadorSessao>();
+        services.AddScoped<Idempotencia.ServicoIdempotencia>();
+        services.AddHostedService<Idempotencia.LimpezaIdempotencia>();
         services.Configure<SeedOptions>(configuration.GetSection(SeedOptions.Secao));
         services.AddScoped<DbSeeder>();
         return services;

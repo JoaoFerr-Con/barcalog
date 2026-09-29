@@ -68,6 +68,11 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                     b.Property<int>("TransportadoraId")
                         .HasColumnType("int");
 
+                    b.Property<byte[]>("VersaoLinha")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Placa");
@@ -78,7 +83,17 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
 
                     b.HasIndex("TerminalId", "Data");
 
-                    b.ToTable("Agendamentos", (string)null);
+                    b.HasIndex("Placa", "Data", "Hora")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Agendamentos_PlacaHorarioAtivo")
+                        .HasFilter("[Status] <> N'Cancelado'");
+
+                    b.ToTable("Agendamentos", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Agendamentos_JanelaConformidade", "[JanelaConformidade] IN (N'D0', N'D1', N'D2', N'D3')");
+
+                            t.HasCheckConstraint("CK_Agendamentos_Status", "[Status] IN (N'Agendado', N'Confirmado', N'ACaminho', N'AguardandoEntrada', N'EmOperacao', N'Finalizado', N'Atrasado', N'Cancelado')");
+                        });
                 });
 
             modelBuilder.Entity("BarcaLog.Domain.Entidades.Condutor", b =>
@@ -106,13 +121,21 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                     b.Property<int>("TransportadoraId")
                         .HasColumnType("int");
 
+                    b.Property<byte[]>("VersaoLinha")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.HasKey("Id");
 
                     b.HasIndex("PlacaVinculada");
 
                     b.HasIndex("TransportadoraId");
 
-                    b.ToTable("Condutores", (string)null);
+                    b.ToTable("Condutores", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Condutores_StatusNegativacao", "[StatusNegativacao] IN (N'Regular', N'Negativada')");
+                        });
                 });
 
             modelBuilder.Entity("BarcaLog.Domain.Entidades.Contestacao", b =>
@@ -149,13 +172,26 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                     b.Property<int>("TransportadoraId")
                         .HasColumnType("int");
 
+                    b.Property<byte[]>("VersaoLinha")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("OcorrenciaId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Contestacoes_OcorrenciaPendente")
+                        .HasFilter("[Status] = N'Pendente'");
 
                     b.HasIndex("TransportadoraId");
 
                     b.HasIndex("OcorrenciaId", "Status");
 
-                    b.ToTable("Contestacoes", (string)null);
+                    b.ToTable("Contestacoes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Contestacoes_Status", "[Status] IN (N'Pendente', N'Aprovada', N'Rejeitada')");
+                        });
                 });
 
             modelBuilder.Entity("BarcaLog.Domain.Entidades.LogAuditoria", b =>
@@ -255,6 +291,8 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
 
                     b.ToTable("Marcacoes", null, t =>
                         {
+                            t.HasCheckConstraint("CK_Marcacoes_Ciclo", "[Ciclo] >= 0");
+
                             t.HasCheckConstraint("CK_Marcacoes_Liberacao", "[DataLiberacao] IS NULL OR [DataLiberacao] >= [DataMarcacao]");
                         });
                 });
@@ -304,6 +342,11 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                     b.Property<int>("TransportadoraId")
                         .HasColumnType("int");
 
+                    b.Property<byte[]>("VersaoLinha")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CondutorId");
@@ -314,7 +357,12 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
 
                     b.HasIndex("TransportadoraId", "Nivel", "CriadoEm");
 
-                    b.ToTable("Ocorrencias", (string)null);
+                    b.ToTable("Ocorrencias", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Ocorrencias_Nivel", "[Nivel] IN (N'N1', N'N2', N'N3')");
+
+                            t.HasCheckConstraint("CK_Ocorrencias_Status", "[Status] IN (N'Ativa', N'Contestada', N'Resolvida')");
+                        });
                 });
 
             modelBuilder.Entity("BarcaLog.Domain.Entidades.Terminal", b =>
@@ -382,6 +430,11 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<byte[]>("VersaoLinha")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Cnpj")
@@ -404,10 +457,29 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                     b.Property<bool>("Ativo")
                         .HasColumnType("bit");
 
+                    b.Property<DateTime?>("BloqueadoAte")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("DeveTrocarSenha")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("FalhasLoginConsecutivas")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("MfaAtivo")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("MfaSegredoCifrado")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long?>("MfaUltimoPassoUsado")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Nome")
                         .IsRequired()
@@ -424,12 +496,30 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<DateTime?>("UltimoLoginEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("VersaoLinha")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("VersaoToken")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
+
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
                         .IsUnique();
 
-                    b.ToTable("Usuarios", (string)null);
+                    b.ToTable("Usuarios", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Usuarios_Falhas", "[FalhasLoginConsecutivas] >= 0");
+
+                            t.HasCheckConstraint("CK_Usuarios_Papel", "[Papel] IN (N'Operador', N'Gestor', N'Auditor')");
+                        });
                 });
 
             modelBuilder.Entity("BarcaLog.Domain.Entidades.Veiculo", b =>
@@ -470,6 +560,11 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                     b.Property<int>("TransportadoraId")
                         .HasColumnType("int");
 
+                    b.Property<byte[]>("VersaoLinha")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Placa")
@@ -483,7 +578,61 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
 
                     b.HasIndex("StatusPortaria", "StatusPortariaDesde");
 
-                    b.ToTable("Veiculos", (string)null);
+                    b.ToTable("Veiculos", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Veiculos_StatusNegativacao", "[StatusNegativacao] IN (N'Regular', N'Negativada')");
+
+                            t.HasCheckConstraint("CK_Veiculos_StatusPortaria", "[StatusPortaria] IN (N'NoPatio', N'Aguardando', N'NoPorto', N'DescargaFinalizada')");
+                        });
+                });
+
+            modelBuilder.Entity("BarcaLog.Infrastructure.Idempotencia.ChaveIdempotencia", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Chave")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("Concluida")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("CorpoResposta")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CriadaEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Escopo")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("HashRequisicao")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("StatusHttp")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CriadaEm");
+
+                    b.HasIndex("Escopo", "Chave")
+                        .IsUnique();
+
+                    b.ToTable("ChavesIdempotencia", (string)null);
                 });
 
             modelBuilder.Entity("BarcaLog.Domain.Entidades.Agendamento", b =>

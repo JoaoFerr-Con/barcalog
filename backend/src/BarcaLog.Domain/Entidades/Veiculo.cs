@@ -28,6 +28,6 @@ public class Veiculo
         StatusPortariaDesde = agoraUtc;
     }
 
-    /// <summary>Normaliza a placa pro formato usado nas buscas (maiúsculas, sem espaços).</summary>
-    public static string NormalizarPlaca(string? placa) => (placa ?? string.Empty).Trim().ToUpperInvariant();
+    /// <summary>Normaliza a placa pro formato canônico usado nas buscas (ver <see cref="Regras.Placa"/>).</summary>
+    public static string NormalizarPlaca(string? placa) => Regras.Placa.Normalizar(placa);
 }

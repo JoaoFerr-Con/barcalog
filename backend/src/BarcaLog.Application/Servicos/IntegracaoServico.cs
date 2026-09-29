@@ -14,13 +14,19 @@ public class IntegracaoServico(
     ITerminalRepositorio terminais,
     IUnitOfWork uow,
     IContextoAuditoria auditoria,
-    MetricasServico metricas)
+    MetricasServico metricas,
+    RelogioOperacional relogio)
 {
+    /// <summary>Tolerância pra relógio adiantado do sistema de origem.</summary>
+    private static readonly TimeSpan ToleranciaFuturo = TimeSpan.FromHours(2);
+    private static readonly DateTime DataMinima = new(2000, 1, 1);
+
     public const int MaximoEventosPorRequisicao = 1000;
 
     public async Task<ResultadoIntegracaoDto> ProcessarAsync(IReadOnlyList<EventoIntegracaoDto> eventos, CancellationToken ct = default)
     {
         var idsTerminais = (await terminais.ListarAsync(ct)).Select(t => t.Id).ToHashSet(StringComparer.Ordinal);
+        var limiteFuturo = relogio.AgoraLocalPorto + ToleranciaFuturo;
         var existentes = await marcacoes.ObterVariasAsync(eventos.Select(e => e.MovimentoId.Trim()), ct);
         var erros = new List<ErroEventoDto>();
         var criados = new HashSet<string>();
@@ -32,6 +38,7 @@ public class IntegracaoServico(
             var id = e.MovimentoId.Trim();
             try
             {
+                ValidarDatas(e, limiteFuturo);
                 existentes.TryGetValue(id, out var marcacao);
                 if (marcacao is null)
                 {
@@ -59,6 +66,16 @@ public class IntegracaoServico(
             metricas.InvalidarCache();
         }
         return new ResultadoIntegracaoDto(eventos.Count, criados.Count, atualizados.Count, erros);
+    }
+
+    /// <summary>Datas no horário local do porto: nem antes de 2000, nem no futuro (evento "de amanhã" é erro de origem).</summary>
+    private static void ValidarDatas(EventoIntegracaoDto e, DateTime limiteFuturo)
+    {
+        foreach (var (campo, valor) in new[] { ("dataMarcacao", e.DataMarcacao), ("dataLiberacao", e.DataLiberacao) })
+        {
+            if (valor is not { } d) continue;
+            if (d < DataMinima || d > limiteFuturo) throw new ArgumentException($"{campo} fora da faixa aceita (2000 até agora).");
+        }
     }
 
     private static Marcacao CriarNova(EventoIntegracaoDto e, string id, HashSet<string> terminais)

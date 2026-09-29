@@ -8,11 +8,13 @@ namespace BarcaLog.Application.Servicos;
 public class CondutorServico(
     ICondutorRepositorio condutores,
     ITransportadoraRepositorio transportadoras,
+    IOcorrenciaRepositorio ocorrencias,
+    IAgendamentoRepositorio agendamentos,
     IUnitOfWork uow,
     IContextoAuditoria auditoria)
 {
-    public async Task<List<CondutorDto>> ListarAsync(int? transportadoraId, CancellationToken ct = default) =>
-        (await condutores.ListarAsync(transportadoraId, ct)).Select(c => c.ParaDto()).ToList();
+    public async Task<Pagina<CondutorDto>> ListarAsync(FiltroCondutores filtro, CancellationToken ct = default) =>
+        (await condutores.ListarAsync(filtro, ct)).Mapear(c => c.ParaDto());
 
     public async Task<CondutorDto> ObterAsync(int id, CancellationToken ct = default) =>
         (await ObterEntidadeAsync(id, ct)).ParaDto();
@@ -47,8 +49,42 @@ public class CondutorServico(
     {
         var condutor = await ObterEntidadeAsync(id, ct);
         condutores.Remover(condutor);
-        auditoria.DefinirAcao("Condutor removido", condutor.Nome);
+        auditoria.DefinirAcao("Condutor removido", $"Condutor #{id}");
         await uow.SalvarAsync(ct);
+    }
+
+    /// <summary>
+    /// LGPD (art. 18): relatório de todos os dados pessoais do condutor que o
+    /// sistema guarda — cadastro, ocorrências vinculadas e agendamentos em que
+    /// aparece como motorista.
+    /// </summary>
+    public async Task<DadosPessoaisCondutorDto> ExportarDadosPessoaisAsync(int id, CancellationToken ct = default)
+    {
+        var condutor = await ObterEntidadeAsync(id, ct);
+        var ocorrenciasDoCondutor = await ocorrencias.ListarPorCondutorAsync(id, ct);
+        var agendamentosDoCondutor = await agendamentos.ListarPorMotoristaAsync(condutor.Nome, ct);
+        return new DadosPessoaisCondutorDto(
+            condutor.ParaDto(),
+            ocorrenciasDoCondutor.Select(o => o.ParaDto()).ToList(),
+            agendamentosDoCondutor.Select(a => a.ParaDto()).ToList());
+    }
+
+    /// <summary>
+    /// LGPD (art. 18, IV/VI): substitui o nome por um pseudônimo e desvincula a
+    /// placa, preservando ocorrências/agendamentos para estatística e para as
+    /// obrigações de auditoria. O log desta ação não guarda o nome antigo.
+    /// </summary>
+    public async Task<CondutorDto> AnonimizarAsync(int id, CancellationToken ct = default)
+    {
+        var condutor = await ObterEntidadeAsync(id, ct);
+        var nomeAntigo = condutor.Nome;
+        var pseudonimo = $"Condutor anonimizado #{id}";
+        foreach (var a in await agendamentos.ListarPorMotoristaAsync(nomeAntigo, ct)) a.Motorista = pseudonimo;
+        condutor.Nome = pseudonimo;
+        condutor.PlacaVinculada = null;
+        auditoria.DefinirAcao("Condutor anonimizado (LGPD)", $"Condutor #{id}", ocultarValores: true);
+        await uow.SalvarAsync(ct);
+        return condutor.ParaDto();
     }
 
     private static string? NormalizarPlacaOpcional(string? placa) =>

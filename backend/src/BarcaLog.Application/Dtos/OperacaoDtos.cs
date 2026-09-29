@@ -3,14 +3,14 @@ using BarcaLog.Domain.Enums;
 
 namespace BarcaLog.Application.Dtos;
 
-public class FiltroAgendamentos
+public class FiltroAgendamentos : FiltroPaginado
 {
     /// <summary>Data do agendamento (padrão: todas).</summary>
     public DateOnly? Data { get; set; }
     public string? TerminalId { get; set; }
     public StatusAgendamento? Status { get; set; }
     public int? TransportadoraId { get; set; }
-    public string? Placa { get; set; }
+    [StringLength(10)] public string? Placa { get; set; }
 }
 
 public sealed record AgendamentoDto(
@@ -33,11 +33,11 @@ public class CriarAgendamentoRequest
     /// <summary>Padrão: hoje (horário do porto).</summary>
     public DateOnly? Data { get; set; }
     [Required] public TimeOnly Hora { get; set; }
-    [Required, StringLength(10, MinimumLength = 7)] public string Placa { get; set; } = null!;
+    [Required, StringLength(10, MinimumLength = 7), PlacaValida] public string Placa { get; set; } = null!;
     [Required] public int TransportadoraId { get; set; }
     [Required, StringLength(32)] public string TerminalId { get; set; } = null!;
-    [Required, StringLength(50)] public string Carga { get; set; } = "Soja";
-    [StringLength(150)] public string? Motorista { get; set; }
+    [Required, StringLength(50), TextoSimples] public string Carga { get; set; } = "Soja";
+    [StringLength(150), TextoSimples] public string? Motorista { get; set; }
     public JanelaConformidade JanelaConformidade { get; set; } = JanelaConformidade.D0;
 }
 

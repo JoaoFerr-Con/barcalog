@@ -1,4 +1,7 @@
+using BarcaLog.Api.Infra;
 using BarcaLog.Api.Seguranca;
+using Microsoft.AspNetCore.Http.Timeouts;
+using Microsoft.AspNetCore.RateLimiting;
 using BarcaLog.Application.Dtos;
 using BarcaLog.Application.Metricas;
 using BarcaLog.Application.Servicos;
@@ -13,7 +16,7 @@ namespace BarcaLog.Api.Controllers;
 /// terminalId, de, ate (datas de marcação, horário do porto) e convenio.
 /// </summary>
 [ApiController]
-[Route("api/marcacoes")]
+[Route("api/v1/marcacoes")]
 [Authorize(Policy = Politicas.Leitura)]
 [Produces("application/json")]
 public class MarcacoesController(MarcacaoServico marcacoes, MetricasServico metricas, ImportacaoMarcacoesServico importacao, IConfiguration configuracao, IWebHostEnvironment ambiente) : ControllerBase
@@ -23,7 +26,7 @@ public class MarcacoesController(MarcacaoServico marcacoes, MetricasServico metr
     public Task<Pagina<MarcacaoDto>> Listar([FromQuery] FiltroMarcacoes filtro, CancellationToken ct) => marcacoes.ListarAsync(filtro, ct);
 
     /// <summary>Um movimento pelo id.</summary>
-    [HttpGet("{movimentoId}")]
+    [HttpGet("{movimentoId:maxlength(32)}")]
     public Task<MarcacaoDto> Obter(string movimentoId, CancellationToken ct) => marcacoes.ObterAsync(movimentoId, ct);
 
     /// <summary>KPIs gerais: total, média diária, dias operados, mês mais movimentado, tempo médio de espera (simples e ponderado) e maior atraso.</summary>
@@ -242,6 +245,8 @@ public class MarcacoesController(MarcacaoServico marcacoes, MetricasServico metr
     /// <summary>Importa os JSON reais do diretório configurado (Seed:DiretorioDatasets). Idempotente. Somente Gestor.</summary>
     [HttpPost("importar")]
     [Authorize(Policy = Politicas.Gestao)]
+    [EnableRateLimiting(LimitesRequisicao.Importacao)]
+    [RequestTimeout(LimitesRequisicao.TimeoutImportacao)]
     public Task<List<ResultadoImportacaoDto>> ImportarDiretorio(CancellationToken ct)
     {
         var dir = Path.GetFullPath(Path.Combine(ambiente.ContentRootPath, configuracao["Seed:DiretorioDatasets"] ?? "../../../src/data/datasets"));
@@ -249,12 +254,30 @@ public class MarcacoesController(MarcacaoServico marcacoes, MetricasServico metr
     }
 
     /// <summary>Importa um arquivo JSON (mesmo formato de src/data/datasets/*.json) para o terminal informado. Somente Gestor.</summary>
-    [HttpPost("importar/{terminalId}")]
+    [HttpPost("importar/{terminalId:maxlength(32)}")]
     [Authorize(Policy = Politicas.Gestao)]
-    [RequestSizeLimit(100_000_000)]
-    public async Task<ResultadoImportacaoDto> ImportarArquivo(string terminalId, IFormFile arquivo, CancellationToken ct)
+    [EnableRateLimiting(LimitesRequisicao.Importacao)]
+    [RequestTimeout(LimitesRequisicao.TimeoutImportacao)]
+    [RequestSizeLimit(TamanhoMaximoArquivo + 1_000_000)]
+    [RequestFormLimits(MultipartBodyLengthLimit = TamanhoMaximoArquivo + 1_000_000)]
+    [ProducesResponseType<ResultadoImportacaoDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ImportarArquivo(string terminalId, IFormFile arquivo, CancellationToken ct)
     {
+        // Upload: extensão, tipo e tamanho validados aqui; o conteúdo é lido em
+        // streaming, validado registro a registro e NUNCA gravado em disco.
+        if (arquivo.Length == 0 || arquivo.Length > TamanhoMaximoArquivo)
+            return ValidationProblem(detail: $"Arquivo vazio ou maior que {TamanhoMaximoArquivo / 1_000_000} MB.");
+        if (!string.Equals(Path.GetExtension(arquivo.FileName), ".json", StringComparison.OrdinalIgnoreCase))
+            return ValidationProblem(detail: "Envie um arquivo .json.");
+        if (arquivo.ContentType is not ("application/json" or "text/json" or "application/octet-stream"))
+            return ValidationProblem(detail: "Tipo de conteúdo inválido: esperado application/json.");
         await using var stream = arquivo.OpenReadStream();
-        return await importacao.ImportarAsync(terminalId, stream, arquivo.FileName, ct);
+        if (stream.ReadByte() is var primeiro && primeiro != '[' && primeiro != 0xEF) // '[' ou BOM UTF-8
+            return ValidationProblem(detail: "O arquivo deve conter um array JSON de registros.");
+        stream.Position = 0;
+        return Ok(await importacao.ImportarAsync(terminalId, stream, arquivo.FileName, ct));
     }
+
+    private const long TamanhoMaximoArquivo = 50_000_000;
 }

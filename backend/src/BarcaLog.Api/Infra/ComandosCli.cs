@@ -13,15 +13,36 @@ namespace BarcaLog.Api.Infra;
 ///   dotnet run -- seed
 ///   dotnet run -- importar-marcacoes [diretorio]
 ///   dotnet run -- criar-usuario &lt;email&gt; &lt;nome&gt; &lt;Operador|Gestor|Auditor&gt;   (senha via env BARCALOG_SENHA)
+///   dotnet run -- gerar-api-key &lt;sistema&gt;     (imprime a chave UMA vez + o hash pra config)
+///   dotnet run -- gerar-chave                     (chave aleatória pra Jwt:Chave / Seguranca:ChaveCriptografia)
 /// </summary>
 public static class ComandosCli
 {
-    private static readonly string[] Comandos = ["migrar", "seed", "importar-marcacoes", "criar-usuario"];
+    private static readonly string[] Comandos = ["migrar", "seed", "importar-marcacoes", "criar-usuario", "gerar-api-key", "gerar-chave"];
+
+    /// <summary>Comandos que só geram texto e não precisam de configuração completa.</summary>
+    private static readonly string[] SemServidor = ["gerar-api-key", "gerar-chave"];
 
     public static bool EhComando(string[] args) => args.Length > 0 && Comandos.Contains(args[0]);
 
+    public static bool EhComandoSemServidor(string[] args) => args.Length > 0 && SemServidor.Contains(args[0]);
+
     public static async Task<int> ExecutarAsync(WebApplication app, string[] args)
     {
+        if (args[0] == "gerar-chave")
+        {
+            Console.WriteLine(Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)));
+            return 0;
+        }
+        if (args[0] == "gerar-api-key")
+        {
+            var sistema = args.Length > 1 ? args[1] : "Sistema";
+            var chave = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+            Console.WriteLine($"Chave (entregue ao sistema '{sistema}' por canal seguro; não é mostrada de novo):\n  {chave}");
+            Console.WriteLine($"Configuração da API (só o hash):\n  Integracao__ApiKeys__N__Sistema={sistema}\n  Integracao__ApiKeys__N__ChaveSha256={Seguranca.ApiKeyAuthenticationHandler.Hash(chave)}");
+            return 0;
+        }
+
         await using var escopo = app.Services.CreateAsyncScope();
         var sp = escopo.ServiceProvider;
         var log = sp.GetRequiredService<ILoggerFactory>().CreateLogger("BarcaLog.Cli");
@@ -55,7 +76,8 @@ public static class ComandosCli
                         log.LogError("Defina a senha (mín. 8 caracteres) na variável de ambiente BARCALOG_SENHA.");
                         return 2;
                     }
-                    var u = await sp.GetRequiredService<UsuarioServico>().CriarAsync(new CriarUsuarioRequest { Email = args[1], Nome = args[2], Papel = papel, Senha = senha });
+                    // Criado pelo administrador do servidor: senha definitiva (Gestor ainda precisa cadastrar MFA no 1º login).
+                    var u = await sp.GetRequiredService<UsuarioServico>().CriarAsync(new CriarUsuarioRequest { Email = args[1], Nome = args[2], Papel = papel, Senha = senha }, senhaProvisoria: false);
                     log.LogInformation("Usuário {Email} criado com papel {Papel}.", u.Email, u.Papel);
                     break;
             }

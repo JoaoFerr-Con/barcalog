@@ -17,8 +17,8 @@ public class OcorrenciaServico(
     IUsuarioAtual usuario,
     RelogioOperacional relogio)
 {
-    public async Task<List<OcorrenciaDto>> ListarAsync(FiltroOcorrencias filtro, CancellationToken ct = default) =>
-        (await ocorrencias.ListarAsync(filtro, ct)).Select(o => o.ParaDto()).ToList();
+    public async Task<Pagina<OcorrenciaDto>> ListarAsync(FiltroOcorrencias filtro, CancellationToken ct = default) =>
+        (await ocorrencias.ListarAsync(filtro, ct)).Mapear(o => o.ParaDto());
 
     public async Task<OcorrenciaDto> ObterAsync(int id, CancellationToken ct = default) =>
         (await ocorrencias.ObterAsync(id, ct) ?? throw new NaoEncontradoException($"Ocorrência {id} não encontrada.")).ParaDto();

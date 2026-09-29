@@ -8,21 +8,33 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace BarcaLog.Api.Seguranca;
 
+public static class ClaimsBarcaLog
+{
+    /// <summary>VersaoToken do usuário no momento da emissão — revogação.</summary>
+    public const string Versao = "ver";
+
+    /// <summary>Presente = token restrito ("trocar-senha" ou "configurar-mfa").</summary>
+    public const string Restricao = "restricao";
+}
+
 public class GeradorTokenJwt(IOptions<JwtOptions> opcoes, TimeProvider tempo) : IGeradorToken
 {
-    public TokenGerado Gerar(Usuario usuario)
+    public TokenGerado Gerar(Usuario usuario, string? restricao)
     {
         var o = opcoes.Value;
         var agora = tempo.GetUtcNow().UtcDateTime;
-        var expira = agora.AddMinutes(o.ExpiracaoMinutos);
-        var claims = new[]
+        // Token restrito vive pouco: só serve pra concluir a troca de senha / MFA.
+        var expira = agora.AddMinutes(restricao is null ? o.ExpiracaoMinutos : Math.Min(15, o.ExpiracaoMinutos));
+        var claims = new List<Claim>
         {
-            new Claim(JwtRegisteredClaimNames.Sub, usuario.Id.ToString()),
-            new Claim(JwtRegisteredClaimNames.Email, usuario.Email),
-            new Claim(JwtRegisteredClaimNames.Name, usuario.Nome),
-            new Claim(ClaimTypes.Role, usuario.Papel.ToString()),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"))
+            new(JwtRegisteredClaimNames.Sub, usuario.Id.ToString()),
+            new(JwtRegisteredClaimNames.Email, usuario.Email),
+            new(JwtRegisteredClaimNames.Name, usuario.Nome),
+            new(ClaimTypes.Role, usuario.Papel.ToString()),
+            new(ClaimsBarcaLog.Versao, usuario.VersaoToken.ToString()),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"))
         };
+        if (restricao is not null) claims.Add(new Claim(ClaimsBarcaLog.Restricao, restricao));
         var credenciais = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(o.Chave)), SecurityAlgorithms.HmacSha256);
         var token = new JwtSecurityToken(o.Emissor, o.Audiencia, claims, agora, expira, credenciais);
         return new TokenGerado(new JwtSecurityTokenHandler().WriteToken(token), expira);
