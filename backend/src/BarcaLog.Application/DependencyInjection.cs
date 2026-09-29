@@ -24,6 +24,7 @@ public static class DependencyInjection
         services.AddScoped<IntegracaoServico>();
         services.AddScoped<UsuarioServico>();
         services.AddScoped<AutenticacaoServico>();
+        services.AddScoped<PortalServico>();
         return services;
     }
 }

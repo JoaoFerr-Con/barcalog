@@ -42,7 +42,8 @@ public class FiltroSegurancaSwagger : IOperationFilter
             Politicas.Gestao => "Requer papel Gestor.",
             Politicas.Escrita => "Requer papel Operador ou Gestor.",
             Politicas.Leitura => "Qualquer usuário autenticado (Operador, Gestor, Auditor).",
-            Politicas.Autenticado => "Qualquer usuário autenticado, inclusive com token restrito (senha provisória / MFA pendente).",
+            Politicas.Portal => "Somente usuário do Portal (papel Transportadora); dados sempre limitados à própria transportadora.",
+            Politicas.Autenticado =>"Qualquer usuário autenticado, inclusive com token restrito (senha provisória / MFA pendente).",
             Politicas.Integracao => "Requer cabeçalho X-Api-Key.",
             _ => null
         };

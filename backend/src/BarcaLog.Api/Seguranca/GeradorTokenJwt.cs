@@ -15,6 +15,9 @@ public static class ClaimsBarcaLog
 
     /// <summary>Presente = token restrito ("trocar-senha" ou "configurar-mfa").</summary>
     public const string Restricao = "restricao";
+
+    /// <summary>Id da transportadora do usuário do Portal — escopo de TODOS os dados que ele acessa.</summary>
+    public const string Transportadora = "transportadora";
 }
 
 public class GeradorTokenJwt(IOptions<JwtOptions> opcoes, TimeProvider tempo) : IGeradorToken
@@ -35,6 +38,7 @@ public class GeradorTokenJwt(IOptions<JwtOptions> opcoes, TimeProvider tempo) : 
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"))
         };
         if (restricao is not null) claims.Add(new Claim(ClaimsBarcaLog.Restricao, restricao));
+        if (usuario.TransportadoraId is { } tid) claims.Add(new Claim(ClaimsBarcaLog.Transportadora, tid.ToString()));
         var credenciais = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(o.Chave)), SecurityAlgorithms.HmacSha256);
         var token = new JwtSecurityToken(o.Emissor, o.Audiencia, claims, agora, expira, credenciais);
         return new TokenGerado(new JwtSecurityTokenHandler().WriteToken(token), expira);

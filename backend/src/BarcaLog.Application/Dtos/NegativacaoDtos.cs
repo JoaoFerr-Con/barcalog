@@ -68,6 +68,13 @@ public class AbrirContestacaoRequest
     [Required, StringLength(4000, MinimumLength = 10), TextoSimples] public string Justificativa { get; set; } = null!;
 }
 
+/// <summary>Contestação aberta pelo Portal: a transportadora vem do token, nunca do corpo.</summary>
+public class AbrirContestacaoPortalRequest
+{
+    [Required] public int OcorrenciaId { get; set; }
+    [Required, StringLength(4000, MinimumLength = 10), TextoSimples] public string Justificativa { get; set; } = null!;
+}
+
 public class ResponderContestacaoRequest
 {
     [StringLength(2000), TextoSimples] public string? RespostaOperador { get; set; }

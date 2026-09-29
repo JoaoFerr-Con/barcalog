@@ -32,8 +32,9 @@ public class DbSeeder(
             logger.LogInformation("Aplicando migrations pendentes…");
             await db.Database.MigrateAsync(ct);
         }
-        if (o.Usuarios.Count > 0) await SemearUsuariosAsync(o.Usuarios, ct);
+        // Dados de exemplo antes dos usuários: usuários do Portal apontam para uma transportadora.
         if (o.DadosExemplo) await SemearDadosExemploAsync(ct);
+        if (o.Usuarios.Count > 0) await SemearUsuariosAsync(o.Usuarios, ct);
         if (o.ImportarMarcacoesSeVazio && !await db.Marcacoes.AnyAsync(ct))
         {
             var dir = Path.GetFullPath(Path.Combine(contentRoot, o.DiretorioDatasets));
@@ -45,19 +46,36 @@ public class DbSeeder(
 
     private async Task SemearUsuariosAsync(IEnumerable<UsuarioSeed> usuarios, CancellationToken ct)
     {
-        if (await db.Usuarios.AnyAsync(ct)) return;
+        // Só cria os que ainda não existem (por e-mail): nunca sobrescreve senha de quem já está lá.
+        var existentes = (await db.Usuarios.Select(u => u.Email).ToListAsync(ct)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var criados = 0;
         foreach (var u in usuarios)
         {
+            var email = UsuarioServico.NormalizarEmail(u.Email);
+            if (existentes.Contains(email)) continue;
+            int? transportadoraId = null;
+            if (u.Papel == PapelUsuario.Transportadora)
+            {
+                transportadoraId = await db.Transportadoras.Where(t => t.Nome == u.TransportadoraNome).Select(t => (int?)t.Id).FirstOrDefaultAsync(ct);
+                if (transportadoraId is null)
+                {
+                    logger.LogWarning("Seed: transportadora '{Nome}' não existe; usuário do Portal {Email} não criado", u.TransportadoraNome, email);
+                    continue;
+                }
+            }
             db.Usuarios.Add(new Usuario
             {
                 Nome = u.Nome,
-                Email = UsuarioServico.NormalizarEmail(u.Email),
+                Email = email,
                 SenhaHash = hash.Gerar(u.Senha),
                 Papel = u.Papel,
+                TransportadoraId = transportadoraId,
                 Ativo = true,
                 DeveTrocarSenha = false // usuários de desenvolvimento; em produção não há seed de usuários
             });
+            criados++;
         }
+        if (criados == 0) return;
         auditoria.DefinirAcao("Usuários iniciais criados (seed)");
         await db.SaveChangesAsync(ct);
     }

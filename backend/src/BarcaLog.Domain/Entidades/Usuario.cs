@@ -11,6 +11,9 @@ public class Usuario
     public PapelUsuario Papel { get; set; }
     public bool Ativo { get; set; } = true;
 
+    /// <summary>Obrigatório (e só permitido) para o papel Transportadora — define o escopo de dados do Portal.</summary>
+    public int? TransportadoraId { get; set; }
+
     /// <summary>Tentativas erradas seguidas; zera no login bem-sucedido.</summary>
     public int FalhasLoginConsecutivas { get; set; }
 

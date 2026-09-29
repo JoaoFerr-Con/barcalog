@@ -31,6 +31,7 @@ public static class LimitesRequisicao
     public const string Integracao = "integracao";
     public const string Importacao = "importacao";
     public const string TimeoutImportacao = "importacao";
+    public const string Exportacao = "exportacao";
 
     public static IServiceCollection AddLimitesRequisicao(this IServiceCollection services, IConfiguration config)
     {
@@ -62,6 +63,9 @@ public static class LimitesRequisicao
                 Chave(http), _ => Janela(o.IntegracaoPorMinuto, TimeSpan.FromMinutes(1))));
             r.AddPolicy(Importacao, http => RateLimitPartition.GetFixedWindowLimiter(
                 "importacao", _ => Janela(o.ImportacaoPorHora, TimeSpan.FromHours(1))));
+            // CSV com 100k+ linhas: operação cara, 10 por minuto por usuário.
+            r.AddPolicy(Exportacao, http => RateLimitPartition.GetFixedWindowLimiter(
+                Chave(http), _ => Janela(10, TimeSpan.FromMinutes(1))));
         });
         return services;
     }

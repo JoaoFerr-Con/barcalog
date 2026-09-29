@@ -87,6 +87,16 @@ public sealed class ApiFixture : IAsyncLifetime
                 b.UseSetting($"Seed:Usuarios:{i}:Senha", SenhaUsuarios);
                 b.UseSetting($"Seed:Usuarios:{i}:Papel", papeis[i]);
             }
+            (string Email, string Transportadora)[] portal = [("norte@portal.local", "Norte Grãos Logística"), ("agro@portal.local", "AgroTransportes Sul")];
+            for (var i = 0; i < portal.Length; i++)
+            {
+                var n = papeis.Length + i;
+                b.UseSetting($"Seed:Usuarios:{n}:Nome", $"Portal {portal[i].Transportadora}");
+                b.UseSetting($"Seed:Usuarios:{n}:Email", portal[i].Email);
+                b.UseSetting($"Seed:Usuarios:{n}:Senha", SenhaUsuarios);
+                b.UseSetting($"Seed:Usuarios:{n}:Papel", "Transportadora");
+                b.UseSetting($"Seed:Usuarios:{n}:TransportadoraNome", portal[i].Transportadora);
+            }
             foreach (var (k, v) in extras ?? new Dictionary<string, string?>()) b.UseSetting(k, v);
         });
         _factories.Add(f);

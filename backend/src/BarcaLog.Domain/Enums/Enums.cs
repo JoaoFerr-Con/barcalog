@@ -67,5 +67,7 @@ public enum PapelUsuario
 {
     Operador,
     Gestor,
-    Auditor
+    Auditor,
+    /// <summary>Usuário externo do Portal: enxerga e contesta SÓ os dados da própria transportadora.</summary>
+    Transportadora
 }

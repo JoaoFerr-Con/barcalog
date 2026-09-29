@@ -185,7 +185,14 @@ public class UsuarioConfiguracao : IEntityTypeConfiguration<Usuario>
 {
     public void Configure(EntityTypeBuilder<Usuario> b)
     {
-        b.ToTable("Usuarios", t => t.HasCheckConstraint("CK_Usuarios_Falhas", "[FalhasLoginConsecutivas] >= 0"));
+        b.ToTable("Usuarios", t =>
+        {
+            t.HasCheckConstraint("CK_Usuarios_Falhas", "[FalhasLoginConsecutivas] >= 0");
+            // Usuário do Portal SEMPRE tem transportadora; interno NUNCA tem — escopo de dados sem ambiguidade.
+            t.HasCheckConstraint("CK_Usuarios_EscopoTransportadora",
+                "([Papel] = N'Transportadora' AND [TransportadoraId] IS NOT NULL) OR ([Papel] <> N'Transportadora' AND [TransportadoraId] IS NULL)");
+        });
+        b.HasOne<Transportadora>().WithMany().HasForeignKey(x => x.TransportadoraId).OnDelete(DeleteBehavior.Restrict);
         b.VersaoLinha();
         b.Property(x => x.Nome).HasMaxLength(150).IsRequired();
         b.Property(x => x.Email).HasMaxLength(200).IsRequired();

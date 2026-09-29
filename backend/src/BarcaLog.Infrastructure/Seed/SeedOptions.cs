@@ -28,4 +28,6 @@ public class UsuarioSeed
     public string Email { get; set; } = null!;
     public string Senha { get; set; } = null!;
     public PapelUsuario Papel { get; set; }
+    /// <summary>Só para Papel = Transportadora: nome da transportadora do cadastro de exemplo.</summary>
+    public string? TransportadoraNome { get; set; }
 }

@@ -104,9 +104,15 @@ builder.Services
 builder.Services.AddAuthorization(o =>
 {
     string[] todosPapeis = Enum.GetNames<PapelUsuario>();
+    // Papéis INTERNOS (equipe do porto). O papel Transportadora fica de fora de propósito:
+    // ele só acessa /api/v1/portal/*, sempre filtrado pela própria transportadora.
+    string[] papeisInternos = [nameof(PapelUsuario.Operador), nameof(PapelUsuario.Gestor), nameof(PapelUsuario.Auditor)];
     static bool SemRestricao(AuthorizationHandlerContext c) => !c.User.HasClaim(x => x.Type == ClaimsBarcaLog.Restricao);
+    static bool TemTransportadora(AuthorizationHandlerContext c) => int.TryParse(c.User.FindFirst(ClaimsBarcaLog.Transportadora)?.Value, out _);
     o.AddPolicy(Politicas.Autenticado, p => p.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme).RequireRole(todosPapeis));
-    o.AddPolicy(Politicas.Leitura, p => p.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme).RequireRole(todosPapeis).RequireAssertion(SemRestricao));
+    o.AddPolicy(Politicas.Leitura, p => p.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme).RequireRole(papeisInternos).RequireAssertion(SemRestricao));
+    o.AddPolicy(Politicas.Portal, p => p.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireRole(nameof(PapelUsuario.Transportadora)).RequireAssertion(SemRestricao).RequireAssertion(TemTransportadora));
     o.AddPolicy(Politicas.Escrita, p => p.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
         .RequireRole(nameof(PapelUsuario.Operador), nameof(PapelUsuario.Gestor)).RequireAssertion(SemRestricao));
     o.AddPolicy(Politicas.Gestao, p => p.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)

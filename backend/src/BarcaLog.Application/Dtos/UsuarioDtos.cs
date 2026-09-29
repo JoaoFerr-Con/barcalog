@@ -12,7 +12,8 @@ public class LoginRequest
     [StringLength(10)] public string? CodigoMfa { get; set; }
 }
 
-public sealed record UsuarioDto(int Id, string Nome, string Email, PapelUsuario Papel, bool Ativo, bool MfaAtivo, bool DeveTrocarSenha, bool Bloqueado, DateTime? UltimoLoginEm);
+/// <summary>TransportadoraId só vem preenchido para usuários do Portal (papel Transportadora).</summary>
+public sealed record UsuarioDto(int Id, string Nome, string Email, PapelUsuario Papel, bool Ativo, bool MfaAtivo, bool DeveTrocarSenha, bool Bloqueado, DateTime? UltimoLoginEm, int? TransportadoraId);
 
 /// <summary>
 /// Restricao: null = acesso normal; "trocar-senha" = senha provisória, só dá
@@ -31,6 +32,8 @@ public class CriarUsuarioRequest
     /// <summary>Senha inicial (provisória: o usuário troca no primeiro acesso).</summary>
     [Required, StringLength(PoliticaSenha.TamanhoMaximo)] public string Senha { get; set; } = null!;
     [Required] public PapelUsuario Papel { get; set; }
+    /// <summary>Obrigatório quando Papel = Transportadora (usuário do Portal); proibido nos demais.</summary>
+    public int? TransportadoraId { get; set; }
 }
 
 public class AlterarPapelRequest

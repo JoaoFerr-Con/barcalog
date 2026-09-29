@@ -174,6 +174,7 @@ public class AutenticacaoServico(
 /// <summary>Administração de usuários (somente Gestor).</summary>
 public class UsuarioServico(
     IUsuarioRepositorio usuarios,
+    ITransportadoraRepositorio transportadoras,
     IHashSenha hash,
     IValidadorSessao sessoes,
     IUnitOfWork uow,
@@ -184,7 +185,7 @@ public class UsuarioServico(
     public static string NormalizarEmail(string email) => email.Trim().ToLowerInvariant();
 
     public static UsuarioDto ParaDto(Usuario u, DateTime agoraUtc) =>
-        new(u.Id, u.Nome, u.Email, u.Papel, u.Ativo, u.MfaAtivo, u.DeveTrocarSenha, u.EstaBloqueado(agoraUtc), u.UltimoLoginEm);
+        new(u.Id, u.Nome, u.Email, u.Papel, u.Ativo, u.MfaAtivo, u.DeveTrocarSenha, u.EstaBloqueado(agoraUtc), u.UltimoLoginEm, u.TransportadoraId);
 
     public async Task<Pagina<UsuarioDto>> ListarAsync(FiltroUsuarios filtro, CancellationToken ct = default)
     {
@@ -204,7 +205,21 @@ public class UsuarioServico(
         if (erros.Count > 0) throw new RegraNegocioException(string.Join(" ", erros));
         if (await usuarios.ObterPorEmailAsync(email, ct) is not null)
             throw new RegraNegocioException("Já existe usuário com esse e-mail.");
-        var usuario = new Usuario { Nome = nome, Email = email, SenhaHash = hash.Gerar(req.Senha), Papel = req.Papel, Ativo = true, DeveTrocarSenha = senhaProvisoria };
+        if (req.Papel == PapelUsuario.Transportadora)
+        {
+            if (req.TransportadoraId is not { } tid || await transportadoras.ObterAsync(tid, ct) is null)
+                throw new RegraNegocioException("Usuário do Portal precisa de uma transportadora existente (transportadoraId).");
+        }
+        else if (req.TransportadoraId is not null)
+        {
+            throw new RegraNegocioException("Só usuários do papel Transportadora têm transportadoraId.");
+        }
+        var usuario = new Usuario
+        {
+            Nome = nome, Email = email, SenhaHash = hash.Gerar(req.Senha), Papel = req.Papel,
+            TransportadoraId = req.Papel == PapelUsuario.Transportadora ? req.TransportadoraId : null,
+            Ativo = true, DeveTrocarSenha = senhaProvisoria
+        };
         usuarios.Adicionar(usuario);
         auditoria.DefinirAcao("Usuário criado", $"{nome} <{email}> — {usuario.Papel}");
         await uow.SalvarAsync(ct);
@@ -215,6 +230,9 @@ public class UsuarioServico(
     {
         var usuario = await ObterEntidadeAsync(id, ct);
         if (usuario.Papel == papel) return ParaDto(usuario, relogio.AgoraUtc);
+        // Conta do Portal e conta interna têm escopos de dados diferentes: não se converte uma na outra.
+        if (usuario.Papel == PapelUsuario.Transportadora || papel == PapelUsuario.Transportadora)
+            throw new RegraNegocioException("Não é possível converter conta do Portal em conta interna (ou vice-versa). Crie um novo usuário.");
         await GarantirQueNaoRemoveUltimoGestorAsync(usuario, ct);
         usuario.Papel = papel;
         usuario.RevogarTokens(); // o papel vai no token: força novo login

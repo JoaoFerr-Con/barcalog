@@ -25,6 +25,34 @@ public class MarcacoesController(MarcacaoServico marcacoes, MetricasServico metr
     [HttpGet]
     public Task<Pagina<MarcacaoDto>> Listar([FromQuery] FiltroMarcacoes filtro, CancellationToken ct) => marcacoes.ListarAsync(filtro, ct);
 
+    /// <summary>
+    /// Exporta as marcações liberadas do recorte em CSV (separador ";", UTF-8
+    /// com BOM, abre direto no Excel). Células que começam com = + - @ são
+    /// neutralizadas (injeção de fórmula). Limite de 10 exportações/min.
+    /// </summary>
+    [HttpGet("exportar")]
+    [EnableRateLimiting(LimitesRequisicao.Exportacao)]
+    [Produces("text/csv")]
+    public async Task Exportar([FromQuery] FiltroMetricas f, CancellationToken ct)
+    {
+        var registros = (await metricas.CarregarAsync(f, ct)).Registros;
+        Response.ContentType = "text/csv; charset=utf-8";
+        var nome = $"marcacoes_{(string.IsNullOrWhiteSpace(f.TerminalId) ? "todas" : f.TerminalId)}.csv";
+        Response.Headers.ContentDisposition = new Microsoft.Net.Http.Headers.ContentDispositionHeaderValue("attachment") { FileNameStar = nome }.ToString();
+        await using var escritor = new StreamWriter(Response.Body, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: true), bufferSize: 64 * 1024);
+        await escritor.WriteLineAsync("Movimento;Senha;Convênio;Terminal;Operador;Carga;Ciclo;Marcação;Liberação;Espera (h)");
+        var br = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
+        foreach (var r in registros)
+        {
+            ct.ThrowIfCancellationRequested();
+            await escritor.WriteLineAsync(string.Join(';',
+                Csv.Celula(r.MovimentoId), Csv.Celula(r.Senha), Csv.Celula(r.Convenio), Csv.Celula(r.TerminalNome),
+                Csv.Celula(r.Operador), Csv.Celula(r.Carga), r.Ciclo.ToString(br),
+                r.MarcadoEm.ToString("dd/MM/yyyy HH:mm:ss", br), r.LiberadoEm.ToString("dd/MM/yyyy HH:mm:ss", br),
+                r.EsperaHoras.ToString("0.00", br)));
+        }
+    }
+
     /// <summary>Um movimento pelo id.</summary>
     [HttpGet("{movimentoId:maxlength(32)}")]
     public Task<MarcacaoDto> Obter(string movimentoId, CancellationToken ct) => marcacoes.ObterAsync(movimentoId, ct);
