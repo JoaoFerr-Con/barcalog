@@ -2,11 +2,8 @@ import { useMemo } from "react";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip
 } from "recharts";
-import { useRegistrosReais } from "../hooks/useRegistrosReais.js";
-import { agruparPorMes } from "../data/relatorio.js";
-import {
-  indiceRiscoGargalo, alertasOperacionais, concentracaoPorTurno, horariosCriticos
-} from "../data/metricsEngine.js";
+import { useMetrica } from "../hooks/useMetricas.js";
+import { Carregando, ErroCarga } from "../components/EstadoCarga.jsx";
 
 const CORES_NIVEL = {
   normal: { bg: "var(--verde-100)", cor: "var(--verde-500)", emoji: "🟢" },
@@ -16,27 +13,34 @@ const CORES_NIVEL = {
 };
 
 export default function PrevisaoGargalos() {
-  const { registros, carregando } = useRegistrosReais("todas");
-
-  const porMes = useMemo(() => agruparPorMes(registros), [registros]);
-  const indice = useMemo(() => indiceRiscoGargalo(registros), [registros]);
-  const alertas = useMemo(() => alertasOperacionais(registros), [registros]);
-  const turnos = useMemo(() => concentracaoPorTurno(registros), [registros]);
-  const criticos = useMemo(() => horariosCriticos(registros), [registros]);
+  // Todos os cálculos (ρ = λ/μ por hora, turnos, alertas) são feitos na API.
+  const rMes = useMetrica("por-mes");
+  const rIndice = useMetrica("indice-risco-hora");
+  const rAlertas = useMetrica("alertas-operacionais");
+  const rTurnos = useMetrica("concentracao-turno");
+  const rCriticos = useMetrica("horarios-criticos");
+  const todas = [rMes, rIndice, rAlertas, rTurnos, rCriticos];
+  const porMes = rMes.dados || [];
+  const indice = rIndice.dados || [];
+  const alertas = rAlertas.dados || [];
+  const turnos = rTurnos.dados || [];
+  const criticos = rCriticos.dados || [];
 
   const horaAgora = new Date().getHours();
   const proximas6h = useMemo(() => {
     const janela = [];
     for (let i = 0; i < 6; i++) {
       const h = (horaAgora + i) % 24;
-      janela.push(indice[h]);
+      if (indice[h]) janela.push(indice[h]);
     }
     return janela;
   }, [indice, horaAgora]);
 
   const dadosVolume = useMemo(() => porMes.map(m => ({ mes: m.rotulo, total: m.total })), [porMes]);
 
-  if (carregando) return <p style={{ color: "var(--tinta-suave)", fontSize: 13 }}>Carregando…</p>;
+  const comErro = todas.find(r => r.erro);
+  if (comErro) return <ErroCarga erro={comErro.erro} aoTentarDeNovo={() => todas.forEach(r => r.recarregar())} />;
+  if (todas.some(r => r.carregando && !r.dados)) return <Carregando texto="Carregando previsão…" />;
 
   return (
     <>

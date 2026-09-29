@@ -232,61 +232,44 @@ enum inválido, corpo de 1 MB+, upload malicioso, headers de segurança, CORS e
 anonimização LGPD. O CI (`.github/workflows/backend.yml`) roda tudo contra um
 SQL Server real e falha se algum teste for pulado.
 
-## O que o frontend precisa mudar (próxima tarefa)
+## Frontend ligado à API
 
-1. **Base da API**: `VITE_API_URL` (ex.: `http://localhost:5080` em dev) e um
-   `api.js` com `fetch` que injeta `Authorization: Bearer` e trata 401
-   (voltar pro login).
-2. **Login** (`App.jsx`, `ProvedorAutenticacao.entrar`): trocar o login
-   "qualquer e-mail" por `POST /api/v1/auth/login`; guardar `token` **em
-   memória** (no máximo `sessionStorage`, nunca `localStorage`) e `usuario`
-   (`nome`, `papel`). Tratar `restricao` (telas de troca de senha / cadastro de
-   MFA com QR code a partir de `uriOtpauth`), `codigo: "mfa_requerido"`, 401
-   (sessão expirada → login), 409 (recarregar), 429 (aguardar `Retry-After`).
-   Enviar `Idempotency-Key` (UUID por ação) nos POST. `sessao.js` deixa de ser
-   necessário — o autor da auditoria vem do token.
-3. **Dados reais** (`registry.js`, `useRegistrosReais`, `relatorio.js`,
-   `metricsEngine.js`): parar de baixar os 22 MB de JSON e de calcular no
-   navegador. Cada card/gráfico chama o endpoint equivalente com
-   `?terminalId=` do `SeletorEmpresa`:
+O frontend (raiz do repositório) não baixa mais os datasets nem calcula nada no
+navegador: tudo vem desta API.
 
-   | Função JS | Endpoint |
-   |---|---|
-   | `obterKpisGerais` | `/api/v1/marcacoes/kpis` |
-   | `visaoPorTerminal` | `/api/v1/marcacoes/visao-terminal` |
-   | `agruparPorMes` / `agruparPorMesDetalhado` | `/api/v1/marcacoes/por-mes` |
-   | `rankingMaioresEsperas` | `/api/v1/marcacoes/ranking-esperas?limite=10` |
-   | `indiceRiscoGargalo` | `/api/v1/marcacoes/indice-risco-hora` |
-   | `distribuicaoJanelas` | `/api/v1/marcacoes/janelas-permanencia` |
-   | `picosEntradaSaida(registrosDoMes)` | `/api/v1/marcacoes/picos-entrada-saida?mes=2026-05` |
-   | `analisePreditiva` | `/api/v1/marcacoes/analise-preditiva` |
-   | `alertasOperacionais` | `/api/v1/marcacoes/alertas-operacionais` |
-   | `previsaoGargaloPortaria` + fila | `/api/v1/portaria/fila-virtual` |
-   | demais | rota com o mesmo nome em kebab-case (ver tabela acima) |
+**Rodando local**
 
-   Os JSON de `src/data/datasets/` podem sair do bundle depois disso (ficam só
-   como fonte da importação, ou são movidos pra fora do `src/`).
-4. **`negativacaoStore.js`**: cada função vira um `fetch` — `listarTransportadoras`
-   → `GET /api/v1/transportadoras`, `registrarOcorrencia` → `POST /api/v1/ocorrencias`,
-   `abrirContestacao` → `POST /api/v1/contestacoes`, `responderContestacao` →
-   `POST /api/v1/contestacoes/{id}/aprovar|rejeitar`, `negativarVeiculo` →
-   `POST /api/v1/veiculos/{id}/negativar`, `atualizarStatusPortaria` →
-   `PATCH /api/v1/veiculos/{id}/status-portaria`, `listarFilaAtual` →
-   `GET /api/v1/portaria/fila-virtual`, etc. O evento `barcalog:negativacao:mudou`
-   vira "refazer o GET depois da mutação" (ou SWR/React Query).
-5. **Referências por id**: o frontend identifica transportadora pelo **nome**
-   e terminal pelo slug; a API usa `transportadoraId` numérico (o terminal
-   continua `"unitapajos" | "tgpm" | "hidrovias"`).
-6. **Enums** vêm sem espaço/acento: `NoPatio`, `Aguardando`, `NoPorto`,
-   `DescargaFinalizada`; `Regular`/`Negativada`; `Ativa`/`Contestada`/`Resolvida`;
-   `Pendente`/`Aprovada`/`Rejeitada`; agendamento `ACaminho`,
-   `AguardandoEntrada`, `EmOperacao`… — um mapa de rótulos no frontend resolve.
-7. **Agendamentos.jsx**: trocar o `useState(SEED_AGENDAMENTOS)` por
-   `GET /api/v1/agendamentos?data=`, `POST`, `PATCH /{id}/status` e
-   `GET /api/v1/agendamentos/resumo`. O QR passa a codificar `codigo` (`AGD-000123`).
-8. **Auditoria.jsx**: `GET /api/v1/auditoria?texto=` (paginado, no servidor).
-9. Remover os avisos `AvisoDadosSimulados` das telas que passarem a usar a API.
-10. Configurar `Cors:Origens` com o domínio real da Vercel e acrescentar a URL
-    da API ao `connect-src` da CSP em `vercel.json` (hoje só `'self'`).
-11. Frontend usa Vite 7 (exige Node ≥ 20.19) e tem `package-lock.json`: use
-    `npm ci`. Nunca `npm audit fix --force` sem avaliar (salta versões maiores).
+```bash
+# 1. API (este README, seção "Como rodar") em http://localhost:5080
+# 2. Frontend
+cp .env.example .env.local     # VITE_API_URL=http://localhost:5080
+npm ci
+npm run dev                    # http://localhost:5173 (já liberado no Cors de Development)
+```
+
+Usuários de desenvolvimento (senha `BarcaLog@2026`, **só no seed de Development**):
+`gestor@`, `operador@`, `auditor@barcalog.local` (painel interno) e
+`norte@`, `agro@transportadora.local` (Portal do Transportador, em `/portal`).
+
+**Como está organizado**
+
+| Arquivo | Papel |
+|---|---|
+| `src/api/cliente.js` | Único ponto de acesso à API: token no `Authorization`, `Idempotency-Key`, erros `ProblemDetails` → mensagem amigável, 401 encerra a sessão |
+| `src/api/rotulos.js` | Enums da API ↔ rótulos da tela e adaptadores de DTO |
+| `src/auth/autenticacao.js` + `components/Acesso.jsx` | Login (com etapa MFA), logout (revoga no servidor), troca de senha provisória e cadastro obrigatório de MFA |
+| `src/data/negativacaoStore.js` | Mesmo contrato de antes (`listarVeiculos()`…), agora um cache da API; gravações chamam a API e recarregam |
+| `src/hooks/useMetricas.js` | Indicadores da Visão Geral / Relatório PDF (endpoints `/api/v1/marcacoes/*` em paralelo) |
+| `src/hooks/useApi.js`, `useAcao.js` | Leitura com cancelamento/carregando/erro; gravação sem clique duplo, com toast |
+| `src/data/metricsEngine.js`, `relatorio.js` | **Não usados pelas telas** — especificação de referência para `tools/verificar-fidelidade.mjs` |
+
+**Deploy (Vercel)**
+
+- `VITE_API_URL` = URL pública da API (sem barra no fim). Sem ela, o build de
+  produção chama a API **na mesma origem** (`/api/...`), nunca `localhost`.
+- CSP: `vercel.json` tem `connect-src 'self'`. Ou (a) adicione um rewrite
+  `/api/(.*)` → API e deixe `VITE_API_URL` vazio (mesma origem, CSP intacta),
+  ou (b) acrescente o domínio da API ao `connect-src`. Sem um dos dois o
+  navegador bloqueia as chamadas.
+- `Cors:Origens` da API precisa conter o domínio exato do frontend.
+- Vite 7 exige Node ≥ 20.19; use `npm ci`. Nunca `npm audit fix --force` sem avaliar (salta versões maiores).

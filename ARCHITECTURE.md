@@ -14,9 +14,10 @@ indicadores operacionais.
 └──────────────────────┘                  └───────────────────────────────┘
 ```
 
-> Estado atual: o **backend está pronto e testado**; o frontend ainda roda
-> 100% no navegador (JSON estático + `localStorage`). A migração do frontend
-> para a API é a próxima etapa — roteiro em `backend/README.md`.
+> Estado atual: o frontend usa **só a API** (login real com JWT, dados e
+> métricas calculados no servidor). Nada de regra de negócio, dado real ou
+> sessão em `localStorage`. Mapa dos arquivos em `backend/README.md`
+> ("Frontend ligado à API").
 
 ## Backend em camadas
 
@@ -50,7 +51,9 @@ autenticação não toca nas regras.
 | `Idempotency-Key` com tabela própria | Clique duplo, retry após timeout e rede instável não duplicam operações | Uma escrita extra por requisição com a chave; limpeza a cada hora |
 | JWT no cabeçalho, sem cookie | Frontend e API em domínios diferentes; sem CSRF | Token acessível ao JS → frontend deve guardar em memória e manter CSP rígida (ver SECURITY.md) |
 | Rota versionada `/api/v1` | Outros sistemas vão integrar; mudanças incompatíveis vão para `/api/v2` sem quebrar ninguém | — |
-| Terminal com id textual (`unitapajos`, `tgpm`, `hidrovias`) | Mesmo id do frontend (`registry.js`), facilita a migração | — |
+| Store do frontend mantido como cache da API (`negativacaoStore.js`) | As telas já dependiam desse contrato; trocar a fonte sem reescrever layout reduz regressão | Cache recarregado inteiro após cada gravação (volume pequeno); se crescer, paginar por tela |
+| Métricas agregadas no servidor | O navegador baixava 22 MB e calculava 103 mil registros; agora recebe só os agregados | Mais chamadas por tela (em paralelo) |
+| Terminal com id textual (`unitapajos`, `tgpm`, `hidrovias`) | Mesmo id usado no frontend (`src/api/rotulos.js`) | — |
 
 ## Fluxos críticos
 

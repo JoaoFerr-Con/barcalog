@@ -34,14 +34,14 @@ Não abra issue pública. Envie para o responsável técnico do projeto
 ### Sessão e tokens
 - JWT HS256 (algoritmo fixo: `alg: none` e troca de algoritmo são recusados — testado), emissor/audiência validados, expiração de 8h (um turno).
 - **Revogação imediata**: o token carrega `ver` (VersaoToken). Logout, troca/redefinição de senha, troca de papel, desativação e alterações de MFA incrementam a versão; o token antigo deixa de valer na próxima requisição (cache de 30 s por usuário, invalidado na hora na mesma instância).
-- **Cookies/CSRF**: a API não usa cookies — o token vai no cabeçalho `Authorization`. Sem credencial automática do navegador não há CSRF. **Decisão para o frontend**: guardar o token **em memória** (e, no máximo, `sessionStorage`), nunca em `localStorage`, e manter CSP rígida para reduzir o risco de XSS roubar o token. Alternativa considerada: cookie `HttpOnly; Secure; SameSite=Strict` — exige API e frontend no mesmo site (ex.: `api.barcalog.com.br` + `app.barcalog.com.br`); como o frontend está na Vercel em outro domínio, o cookie seria `SameSite=None` e aí passaria a precisar de proteção CSRF. Se os domínios forem unificados, migrar para cookie é recomendado.
+- **Cookies/CSRF**: a API não usa cookies — o token vai no cabeçalho `Authorization`. Sem credencial automática do navegador não há CSRF. **Decisão para o frontend** (implementada em `src/api/cliente.js`): token **em memória** + `sessionStorage` (sobrevive a F5, some ao fechar a aba), nunca em `localStorage`, e manter CSP rígida para reduzir o risco de XSS roubar o token. Alternativa considerada: cookie `HttpOnly; Secure; SameSite=Strict` — exige API e frontend no mesmo site (ex.: `api.barcalog.com.br` + `app.barcalog.com.br`); como o frontend está na Vercel em outro domínio, o cookie seria `SameSite=None` e aí passaria a precisar de proteção CSRF. Se os domínios forem unificados, migrar para cookie é recomendado.
 
 ### Autorização
 - Toda regra está no backend. Política padrão **fechada**: endpoint sem `[Authorize]` explícito exige login (`FallbackPolicy`).
 - Papéis: Auditor (leitura), Operador (leitura + escrita), Gestor (tudo + remoções, importação, usuários). Testes cobrem cada negação (403).
 - Token restrito (senha provisória / MFA pendente) só acessa `me`, `logout`, `trocar-senha` e `mfa/*`.
 - Gestor não pode desativar/rebaixar a si mesmo nem o último Gestor ativo.
-- **IDOR/BOLA**: hoje todos os usuários são funcionários do porto com visão global por papel — não há "dono" de registro. Quando o Portal da Transportadora ganhar login, **todo** endpoint acessível a ela precisa filtrar por `TransportadoraId` do token (ver "Riscos que permanecem").
+- **IDOR/BOLA**: funcionários do porto têm visão global por papel. Usuários do **Portal** (papel `Transportadora`) só acessam `/api/v1/portal/*`, e o backend força o filtro pelo `TransportadoraId` do token (claim `transportadora`); ocorrência de outra empresa devolve 404. Eles não passam na política `Leitura` dos endpoints internos (testado).
 - Integração: API key autentica **só** `/api/v1/integracao/*`; não abre endpoints de usuário e JWT não abre integração (testado).
 
 ### Entrada e saída
@@ -93,8 +93,8 @@ Não abra issue pública. Envie para o responsável técnico do projeto
 
 | Risco | Gravidade | Mitigação atual | Próximo passo |
 |---|---|---|---|
-| Frontend ainda usa login falso e `localStorage` (não fala com a API) | Alta até a migração | Nenhum dado real no frontend fora os datasets públicos | Migrar o frontend para a API (tarefa seguinte), com token em memória |
-| Portal da Transportadora sem autenticação própria | Alta quando for ao ar | Endpoints atuais são só de funcionários | Criar papel/usuário por transportadora e filtrar **todo** acesso por `TransportadoraId` (BOLA) |
+| Token JWT acessível ao JavaScript (`sessionStorage`) | Média | CSP rígida, sem HTML dinâmico, token some ao fechar a aba, logout revoga no servidor | Unificar domínios e migrar para cookie `HttpOnly; SameSite=Strict` |
+| Anexos de contestação (GED) não implementados | Baixa | Portal orienta a enviar documentos pelo canal oficial | Upload com validação de tipo/tamanho, antivírus e armazenamento fora do banco |
 | Recuperação de senha depende do Gestor (sem e-mail) | Média | Senha provisória + troca obrigatória | Fluxo por e-mail com token de uso único e expiração curta |
 | Revogação leva até 30 s em outras instâncias | Baixa | Cache curto | Redis/backplane se houver várias instâncias |
 | Rate limit e bloqueio de importação são por instância | Baixa | Bloqueio de conta é no banco (global) | Rate limit distribuído (Redis) com várias instâncias |

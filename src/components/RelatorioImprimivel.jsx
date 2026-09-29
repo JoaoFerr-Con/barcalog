@@ -1,68 +1,28 @@
 import { createPortal } from "react-dom";
-import {
-  obterKpisGerais,
-  agruparPorMesDetalhado,
-  formatarHoras as fmtH
-} from "../data/relatorio.js";
-import {
-  CAPACIDADE_DIARIA,
-  SLA_LIMITE_HORAS,
-  distribuicaoJanelas,
-  outliersEstouroCritico,
-  mediaPonderadaPermanencia,
-  ritmoOperacional,
-  alertasRitmo,
-  custoTotalDemurrage,
-  concentracaoPorTurno,
-  horariosCriticos,
-  matrizVolumeMensal,
-  top30DiasCompacto,
-  alertasSaturacao,
-  recomendacoesPrescritivas,
-  custoAmpliadoGargalo,
-  fatoresUtilizacaoCriticos,
-  slaPorEtapa,
-  simulacaoROI,
-  impactoESG,
-  formatarHoras,
-  formatarBRL,
-  formatarDataPtBR
-} from "../data/metricsEngine.js";
+import { CAPACIDADE_DIARIA } from "../api/rotulos.js";
+import { formatarHoras, formatarBRL, formatarDataPtBR } from "../utils/formatar.js";
+
+const SLA_LIMITE_HORAS = 144; // 6 dias = estouro crítico (mesma régua da API)
+const fmtH = formatarHoras;
 
 // ====================================================================
 // RELATÓRIO EXECUTIVO — ESTRITAMENTE 3 PÁGINAS
 // 100% em português, sem jargões em inglês ou símbolos acadêmicos.
 // Projetado para clareza em impressão/PDF, tom institucional.
+// Os números vêm prontos da API (buscarRelatorio em hooks/useMetricas.js);
+// este componente só formata.
 // ====================================================================
-export default function RelatorioImprimivel({ registros, nomeRecorte }) {
-  if (!registros || registros.length === 0) return null;
+export default function RelatorioImprimivel({ dados, nomeRecorte }) {
+  if (!dados || !dados.kpis) return null;
 
-  const kpis = obterKpisGerais(registros);
-  const porMes = agruparPorMesDetalhado(registros);
+  const {
+    kpis, porMes, tmpPonderado, demurrage, matriz, top30, janelas, outliers, turnos, criticos,
+    ritmo, alertasRitmo: alertasR, alertasSat, recs, custoAmpliado, fatoresRho, etapasSLA, roi, esg
+  } = dados;
   const maiorVolumeMes = Math.max(...porMes.map(m => m.total), 1);
-  const tmpPonderado = mediaPonderadaPermanencia(registros);
   const pctCapacidadeMedia = (kpis.mediaDiaria / CAPACIDADE_DIARIA) * 100;
-  const demurrage = custoTotalDemurrage(registros);
-
-  const matriz = matrizVolumeMensal(registros);
-  const top30 = top30DiasCompacto(registros);
   const diaMaiorFluxo = top30[0];
-
-  const janelas = distribuicaoJanelas(registros);
-  const outliers = outliersEstouroCritico(registros);
-  const turnos = concentracaoPorTurno(registros);
-  const criticos = horariosCriticos(registros);
-  const ritmo = ritmoOperacional(registros);
-  const alertasR = alertasRitmo(ritmo);
   const maiorLambda = Math.max(...ritmo.map(r => Math.max(r.lambda, r.mu)), 1);
-
-  const alertasSat = alertasSaturacao(registros);
-  const recs = recomendacoesPrescritivas(registros);
-  const custoAmpliado = custoAmpliadoGargalo(registros);
-  const fatoresRho = fatoresUtilizacaoCriticos(registros);
-  const etapasSLA = slaPorEtapa(tmpPonderado);
-  const roi = simulacaoROI(registros);
-  const esg = impactoESG(registros);
 
   const CORES_PRIORIDADE = { alta: "#DC2626", media: "#F59E0B", baixa: "#22C55E" };
 
