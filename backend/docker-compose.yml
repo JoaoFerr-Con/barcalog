@@ -1,0 +1,17 @@
+# SQL Server 2022 para desenvolvimento em Linux/macOS (no Windows dá pra usar o LocalDB).
+#   export MSSQL_SA_PASSWORD='UmaSenhaForte#2026'
+#   docker compose up -d
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: barcalog-sql
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Defina MSSQL_SA_PASSWORD (mín. 8 caracteres, maiúscula, minúscula, número e símbolo)}
+    ports:
+      - "1433:1433"
+    volumes:
+      - barcalog-sql-dados:/var/opt/mssql
+
+volumes:
+  barcalog-sql-dados:
