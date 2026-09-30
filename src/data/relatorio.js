@@ -1,7 +1,6 @@
-// Funções de agregação sobre um array de registros de marcação/liberação.
-// Não importam mais um dataset fixo — recebem `registros` já carregados via
-// registry.js (carregarRegistros), o que permite: filtrar por empresa,
-// combinar empresas, e plugar uma nova fonte de dados sem tocar aqui.
+// ESPECIFICAÇÃO DE REFERÊNCIA — não é mais usada pelas telas (os agregados
+// vêm da API). Mantida porque backend/tools/verificar-fidelidade.mjs compara
+// estas funções, sobre os mesmos datasets, com o que a API devolve.
 
 const NOMES_MES = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho",

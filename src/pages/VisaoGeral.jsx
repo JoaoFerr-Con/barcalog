@@ -1,30 +1,19 @@
 import { useState, useMemo } from "react";
 import {
-  ResponsiveContainer, ComposedChart, LineChart, Line, Area, XAxis, YAxis,
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend
 } from "recharts";
 import CartaoIndicador from "../components/CartaoIndicador.jsx";
 import SeletorEmpresa from "../components/SeletorEmpresa.jsx";
 import Modal from "../components/Modal.jsx";
 import GraficoLinhas from "../components/GraficoLinhas.jsx";
-import { useRegistrosReais } from "../hooks/useRegistrosReais.js";
-import {
-  obterKpisGerais, agruparPorMes, agruparPorMesDetalhado, totaisPorEmpresa,
-  totaisPorOperador, totaisPorCarga, rankingMaioresEsperas,
-  tendenciaSLA, scoreEficienciaPorOperador, atrasosRecorrentes,
-  formatarHoras
-} from "../data/relatorio.js";
-import {
-  analisePreditiva, tmaPorTerminal, distribuicaoJanelas, JANELAS,
-  CAPACIDADE_DIARIA, picosEntradaSaida, indicadoresPerformance,
-  visaoPorTerminal, alertasOperacionais, operacaoAgora
-} from "../data/metricsEngine.js";
-import { exportarCSV, exportarPDF } from "../utils/exportar.js";
-import { EMPRESAS } from "../data/registry.js";
+import { usePainel, useMetrica, buscarRelatorio } from "../hooks/useMetricas.js";
+import { useAcao } from "../hooks/useAcao.js";
+import { baixarArquivo } from "../api/cliente.js";
+import { JANELAS, CAPACIDADE_DIARIA, TERMINAIS, nomeTerminal } from "../api/rotulos.js";
+import { formatarHoras } from "../utils/formatar.js";
+import { Carregando, ErroCarga } from "../components/EstadoCarga.jsx";
 import RelatorioImprimivel from "../components/RelatorioImprimivel.jsx";
-import { listarVeiculos } from "../data/negativacaoStore.js";
-import { useNegativacao } from "../hooks/useNegativacao.js";
-import AvisoDadosSimulados from "../components/AvisoDadosSimulados.jsx";
 
 const ABAS = [
   { chave: "resumo", rotulo: "Resumo" },
@@ -33,80 +22,67 @@ const ABAS = [
   { chave: "analises", rotulo: "Análises" }
 ];
 
+// Barra de distribuição D0…Estouro de um terminal (busca só quando a aba abre).
+function JanelasDoTerminal({ terminalId }) {
+  const { dados } = useMetrica("janelas-permanencia", { terminalId });
+  if (!dados || dados.every(j => j.total === 0)) return null;
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>{nomeTerminal(terminalId)}</div>
+      <div style={{ display: "flex", gap: 2, borderRadius: 6, overflow: "hidden", height: 18 }} role="img" aria-label={dados.map(j => `${j.rotulo}: ${j.pct.toFixed(1)}%`).join(", ")}>
+        {dados.map(j => (
+          <div key={j.chave} title={`${j.rotulo}: ${j.pct.toFixed(1)}%`} style={{ flex: Math.max(j.pct, 0.5), background: JANELAS.find(x => x.chave === j.chave)?.cor }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function VisaoGeral() {
-  useNegativacao();
   const [empresaId, setEmpresaId] = useState("todas");
   const [aba, setAba] = useState("resumo");
   const [modal, setModal] = useState(null);
-  const { registros, carregando } = useRegistrosReais(empresaId);
-
-  const kpis = useMemo(() => obterKpisGerais(registros), [registros]);
-  const porMes = useMemo(() => agruparPorMes(registros), [registros]);
-  const porMesDet = useMemo(() => agruparPorMesDetalhado(registros), [registros]);
-  const porEmpresa = useMemo(() => totaisPorEmpresa(registros), [registros]);
-  const porOperador = useMemo(() => totaisPorOperador(registros), [registros]);
-  const porCarga = useMemo(() => totaisPorCarga(registros), [registros]);
-  const top10 = useMemo(() => rankingMaioresEsperas(registros, 10), [registros]);
-  const recentes = useMemo(() => [...registros].sort((a, b) => new Date(b.marcadoEm) - new Date(a.marcadoEm)).slice(0, 8), [registros]);
-  const preditiva = useMemo(() => analisePreditiva(registros, 3), [registros]);
-  const tma = useMemo(() => tmaPorTerminal(registros), [registros]);
-  const sla = useMemo(() => tendenciaSLA(registros), [registros]);
-  const scoreOp = useMemo(() => scoreEficienciaPorOperador(registros), [registros]);
-  const recorrentes = useMemo(() => atrasosRecorrentes(registros, 24, 3), [registros]);
-  const janelas = useMemo(() => distribuicaoJanelas(registros), [registros]);
+  const [relatorio, setRelatorio] = useState(null);
+  const [executar, exportando] = useAcao();
+  const painel = usePainel(empresaId);
   const [mesFiltroPico, setMesFiltroPico] = useState("todos");
-  const registrosDoMesPico = useMemo(
-    () => mesFiltroPico === "todos" ? registros : registros.filter(r => r.marcadoEm.slice(0, 7) === mesFiltroPico),
-    [registros, mesFiltroPico]
-  );
-  const picos = useMemo(() => picosEntradaSaida(registrosDoMesPico), [registrosDoMesPico]);
-  const dadosPicos = useMemo(() => picos.entrada.map((h, i) => ({
+  const picosApi = useMetrica("picos-entrada-saida", { terminalId: empresaId, mes: mesFiltroPico });
+
+  const d = painel.dados;
+  const dadosPicos = useMemo(() => (picosApi.dados?.entrada || []).map((h, i) => ({
     hora: h.hora,
     entrada: h.total,
-    saida: picos.saida[i]?.total ?? 0
-  })), [picos]);
-  const desempenho = useMemo(() => indicadoresPerformance(registros), [registros]);
-  const terminais = useMemo(() => visaoPorTerminal(registros), [registros]);
-  const alertas = useMemo(() => alertasOperacionais(registros), [registros]);
-  const frotaDemo = listarVeiculos();
-  const agora = useMemo(() => operacaoAgora(frotaDemo), [frotaDemo]);
-  const dadosPreditiva = useMemo(() => {
-    const hist = porMes.map((m, i) => ({
-      mes: m.rotulo,
-      historico: m.total,
-      projecao: i === porMes.length - 1 ? m.total : null,
-      banda: null
-    }));
-    const proj = preditiva.projecoes.map(p => ({
-      mes: p.rotulo,
-      historico: null,
-      projecao: p.total,
-      banda: [p.margemInferior, p.margemSuperior]
-    }));
-    return [...hist, ...proj];
-  }, [porMes, preditiva]);
+    saida: picosApi.dados.saida[i]?.total ?? 0
+  })), [picosApi.dados]);
 
-  if (carregando) return <p style={{ color: "var(--tinta-suave)", fontSize: 13 }}>Carregando dados reais…</p>;
+  if (painel.erro && !d) return <ErroCarga erro={painel.erro} aoTentarDeNovo={painel.recarregar} />;
+  if (!d) return <Carregando texto="Carregando indicadores…" />;
+  const {
+    kpis, porMes, porMesDet, porEmpresa, porOperador, porCarga, top10, recentes, preditiva,
+    tma, sla, scoreOp, recorrentes, janelas, desempenho, terminais, alertas, agora
+  } = d;
   if (!kpis) return <p style={{ color: "var(--tinta-suave)", fontSize: 13 }}>Nenhum registro para essa empresa.</p>;
+  const picos = picosApi.dados || { picoEntrada: { hora: "—", total: 0 }, picoSaida: { hora: "—", total: 0 } };
 
   const maiorMes = Math.max(...porMes.map(m => m.total), 1);
   const maiorEmpresa = Math.max(...porEmpresa.map(e => e.total), 1);
   const maiorOperador = Math.max(...porOperador.map(o => o.total), 1);
   const maiorCarga = Math.max(...porCarga.map(c => c.total), 1);
-  const todosComProjecao = [...porMes, ...preditiva.projecoes];
-  const maiorComProj = Math.max(...todosComProjecao.map(m => m.total), 1);
   const pctCapacidade = (kpis.mediaDiaria / CAPACIDADE_DIARIA) * 100;
 
+  // CSV gerado no servidor (com proteção contra injeção de fórmula).
   function exportarRegistrosCSV() {
-    exportarCSV(registros, [
-      { rotulo: "Movimento", chave: "id" }, { rotulo: "Senha", chave: "senha" },
-      { rotulo: "Convênio", chave: "convenio" }, { rotulo: "Empresa", chave: "empresaNome" },
-      { rotulo: "Operador", chave: "operador" }, { rotulo: "Carga", chave: "carga" },
-      { rotulo: "Ciclo", chave: "ciclo" },
-      { rotulo: "Marcação", valor: r => new Date(r.marcadoEm).toLocaleString("pt-BR") },
-      { rotulo: "Liberação", valor: r => new Date(r.liberadoEm).toLocaleString("pt-BR") },
-      { rotulo: "Espera (h)", chave: "esperaHoras" }
-    ], `marcacoes_${empresaId}`);
+    executar(() => baixarArquivo("/api/v1/marcacoes/exportar", { terminalId: empresaId }, `marcacoes_${empresaId}.csv`),
+      { erro: "Exportação falhou" });
+  }
+
+  // Relatório executivo: busca os dados só quando pedido, renderiza e abre a impressão.
+  function exportarPdf() {
+    executar(async () => {
+      setRelatorio(await buscarRelatorio(empresaId));
+      await new Promise(r => setTimeout(r, 300));
+      window.print();
+    }, { erro: "Relatório não gerado" });
   }
 
   function KpiClicavel({ rotulo, valor, icone, corIcone, corFundoIcone, nota, modalId }) {
@@ -127,10 +103,10 @@ export default function VisaoGeral() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <SeletorEmpresa valor={empresaId} aoMudar={setEmpresaId} />
-          <button className="botao botao--fantasma botao-exportar" onClick={exportarRegistrosCSV} title="Exportar CSV">
+          <button className="botao botao--fantasma botao-exportar" onClick={exportarRegistrosCSV} disabled={exportando} title="Exportar CSV">
             <span className="material-symbols-outlined" style={{ fontSize: 16 }}>download</span> CSV
           </button>
-          <button className="botao botao--fantasma botao-exportar" onClick={exportarPDF} title="Exportar PDF">
+          <button className="botao botao--fantasma botao-exportar" onClick={exportarPdf} disabled={exportando} title="Exportar PDF">
             <span className="material-symbols-outlined" style={{ fontSize: 16 }}>picture_as_pdf</span> PDF
           </button>
         </div>
@@ -162,9 +138,8 @@ export default function VisaoGeral() {
         <div className="cartao__cabecalho" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <h3>Operação Agora</h3>
-            <p>Estado atual da frota cadastrada — dado de demonstração, não vem de GPS/sensor real</p>
+            <p>Status de portaria dos veículos cadastrados — informado pela operação, não vem de GPS/sensor</p>
           </div>
-          <span className="material-symbols-outlined" title="Dados de demonstração" style={{ fontSize: 18, color: "var(--ambar-600)" }}>info</span>
         </div>
         <div className="cartao__corpo">
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -181,7 +156,7 @@ export default function VisaoGeral() {
             ))}
           </div>
           <p style={{ fontSize: 10.5, color: "var(--tinta-fraca)", marginTop: 10 }}>
-            Frota de {agora.total} veículos do cadastro de exemplo (Sistema de Negativação). Detalhe completo em Portaria.
+            Frota de {agora.total} veículos cadastrados (Gestão de Frotas). Detalhe completo em Portaria.
           </p>
         </div>
       </div>
@@ -396,7 +371,7 @@ export default function VisaoGeral() {
                     </tr>
                   </thead>
                   <tbody>
-                    {desempenho.sort((a, b) => b.totalGeral - a.totalGeral).map(d => {
+                    {[...desempenho].sort((a, b) => b.totalGeral - a.totalGeral).map(d => {
                       const maiorVolumeDesempenho = Math.max(...desempenho.map(x => x.totalGeral), 1);
                       return (
                         <tr key={d.terminal}>
@@ -566,21 +541,9 @@ export default function VisaoGeral() {
             <div className="cartao">
               <div className="cartao__cabecalho"><h3>Distribuição de Janelas por Terminal</h3><p>D0 a Estouro Crítico (&gt;144h), por terminal</p></div>
               <div className="cartao__corpo">
-                {EMPRESAS.map(e => {
-                  const doTerminal = registros.filter(r => r.empresaId === e.id);
-                  if (doTerminal.length === 0) return null;
-                  const janelasTerminal = distribuicaoJanelas(doTerminal);
-                  return (
-                    <div key={e.id} style={{ marginBottom: 14 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>{e.nome}</div>
-                      <div style={{ display: "flex", gap: 2, borderRadius: 6, overflow: "hidden", height: 18 }}>
-                        {janelasTerminal.map(j => (
-                          <div key={j.chave} title={`${j.rotulo}: ${j.pct.toFixed(1)}%`} style={{ flex: Math.max(j.pct, 0.5), background: j.cor }} />
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
+                {(empresaId === "todas" ? TERMINAIS : TERMINAIS.filter(t => t.id === empresaId)).map(t => (
+                  <JanelasDoTerminal key={t.id} terminalId={t.id} />
+                ))}
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
                   {JANELAS.map(j => (
                     <span key={j.chave} style={{ fontSize: 10.5, color: "var(--tinta-suave)" }}>
@@ -700,7 +663,7 @@ export default function VisaoGeral() {
         </div>
       )}
 
-      <RelatorioImprimivel registros={registros} nomeRecorte={empresaId === "todas" ? "Todas as Empresas" : (EMPRESAS.find(e => e.id === empresaId)?.nome || empresaId)} />
+      <RelatorioImprimivel dados={relatorio} nomeRecorte={empresaId === "todas" ? "Todas as Empresas" : nomeTerminal(empresaId)} />
     </>
   );
 }

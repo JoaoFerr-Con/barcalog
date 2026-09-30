@@ -1,192 +1,26 @@
-import React, {
-  useState,
-  useEffect,
-  useMemo,
-  createContext,
-  useContext
-} from "react";
-import {
-  TRANSPORTADORAS,
-  CARGAS,
-  JANELAS,
-  LISTA_STATUS,
-  TERMINAIS,
-  gerarDadosIniciais
-} from "./data/mock.js";
-import { lazy, Suspense } from "react";
-import CartaoIndicador from "./components/CartaoIndicador.jsx";
+import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import Tour, { tourJaVisto } from "./components/Tour.jsx";
 import Negativacao from "./pages/Negativacao.jsx";
 import GestaoFrotas from "./pages/GestaoFrotas.jsx";
 import Portaria from "./pages/Portaria.jsx";
-import { definirSessao } from "./data/sessao.js";
+import { FormularioLogin, TelaRestricao } from "./components/Acesso.jsx";
+import { Carregando, ErroCarga, Vazio } from "./components/EstadoCarga.jsx";
+import { useSessao, sair, iniciais } from "./auth/autenticacao.js";
+import { useNegativacao } from "./hooks/useNegativacao.js";
+import { listarVeiculos } from "./data/negativacaoStore.js";
+import { STATUS_PORTARIA } from "./api/rotulos.js";
 const VisaoGeral = lazy(() => import("./pages/VisaoGeral.jsx"));
 const Auditoria = lazy(() => import("./pages/Auditoria.jsx"));
 const PrevisaoGargalos = lazy(() => import("./pages/PrevisaoGargalos.jsx"));
 const Agendamentos = lazy(() => import("./pages/Agendamentos.jsx"));
 const Configuracoes = lazy(() => import("./pages/Configuracoes.jsx"));
 
-/* =========================================================
-   DADOS SIMULADOS (mock) — usados só na fila mock de "Carretas".
-   Ver src/data/mock.js. Dados reais (Unitapajós/TGPM/Hidrovias) estão em
-   src/data/datasets/ + src/data/relatorio.js, servidos pela Visão Geral,
-   pelo Mapa Operacional e pelo Sistema de Negativação.
-   ========================================================= */
+// Painel interno (equipe do porto). A autenticação é feita na API
+// (/api/v1/auth/login, JWT); aqui só guardamos o token e mostramos as telas.
+// O menu esconde o que o papel não pode usar, mas quem garante isso é o
+// backend (políticas Leitura/Escrita/Gestao em cada endpoint).
 
-/* =========================================================
-   CONTEXTO — Autenticação
-   ========================================================= */
-const ContextoAutenticacao = createContext(null);
-function ProvedorAutenticacao({
-  children
-}) {
-  const [usuario, setUsuario] = useState(() => {
-    const salvo = localStorage.getItem("barcalog_usuario");
-    return salvo ? JSON.parse(salvo) : null;
-  });
-  useEffect(() => {
-    if (usuario) localStorage.setItem("barcalog_usuario", JSON.stringify(usuario));else localStorage.removeItem("barcalog_usuario");
-    definirSessao(usuario ? { tipo: "interno", nome: usuario.nome } : null);
-  }, [usuario]);
-  function entrar(email, senha) {
-    if (!email || !senha) return {
-      ok: false,
-      erro: "Informe e-mail e senha."
-    };
-    const nome = email.split("@")[0];
-    setUsuario({
-      nome: nome.charAt(0).toUpperCase() + nome.slice(1),
-      email,
-      iniciais: nome.slice(0, 2).toUpperCase()
-    });
-    return {
-      ok: true
-    };
-  }
-  function sair() {
-    setUsuario(null);
-  }
-  return /*#__PURE__*/React.createElement(ContextoAutenticacao.Provider, {
-    value: {
-      usuario,
-      entrar,
-      sair
-    }
-  }, children);
-}
-function useAutenticacao() {
-  return useContext(ContextoAutenticacao);
-}
-
-/* =========================================================
-   CONTEXTO — Dados operacionais
-   ========================================================= */
-const ContextoDados = createContext(null);
-const CHAVE_ARMAZENAMENTO = "barcalog_carretas_v2";
-function ProvedorDados({
-  children
-}) {
-  const [carretas, setCarretas] = useState(() => {
-    const salvo = localStorage.getItem(CHAVE_ARMAZENAMENTO);
-    if (salvo) {
-      try {
-        return JSON.parse(salvo);
-      } catch {
-        return gerarDadosIniciais();
-      }
-    }
-    return gerarDadosIniciais();
-  });
-  useEffect(() => {
-    localStorage.setItem(CHAVE_ARMAZENAMENTO, JSON.stringify(carretas));
-  }, [carretas]);
-  function adicionarCarga(dados) {
-    const novaCarreta = {
-      id: `carreta-${Date.now()}`,
-      placa: dados.placa.toUpperCase(),
-      transportadora: dados.transportadora,
-      carga: dados.tipoGrao,
-      volume: Number(dados.volume) || 0,
-      origem: dados.origem,
-      terminal: dados.terminal,
-      janela: dados.janela.toUpperCase(),
-      status: "Aguardando",
-      criadoEm: new Date().toISOString()
-    };
-    setCarretas(prev => [novaCarreta, ...prev]);
-    return novaCarreta;
-  }
-  function buscarPorPlaca(placa) {
-    const consulta = placa.trim().toUpperCase();
-    if (!consulta) return null;
-    return carretas.find(c => c.placa.toUpperCase() === consulta) || null;
-  }
-  function atualizarStatus(id, status) {
-    setCarretas(prev => prev.map(c => c.id === id ? {
-      ...c,
-      status
-    } : c));
-  }
-
-  /* -------- Métricas e indicadores derivados -------- */
-  const stats = useMemo(() => {
-    const total = carretas.length;
-    const noPatio = carretas.filter(c => c.status === "No Pátio").length;
-    const noPorto = carretas.filter(c => c.status === "No Porto").length;
-    const aguardando = carretas.filter(c => c.status === "Aguardando").length;
-    const finalizada = carretas.filter(c => c.status === "Descarga Finalizada").length;
-    const volumeTotal = carretas.filter(c => c.status === "Descarga Finalizada").reduce((s, c) => s + c.volume, 0);
-    const fluxoPorHorario = [6, 8, 10, 12, 14, 16, 18, 20].map(hora => ({
-      hora: `${String(hora).padStart(2, "0")}:00`,
-      valor: carretas.filter(c => (c.placa.charCodeAt(1) + hora) % 8 === 0).length * 5 + 20
-    }));
-    const porTerminal = TERMINAIS.map(nome => ({
-      nome,
-      quantidade: carretas.filter(c => c.terminal === nome).length
-    }));
-    const porJanela = JANELAS.map(nome => ({
-      nome,
-      quantidade: carretas.filter(c => c.janela === nome).length
-    }));
-    const somaPorTransportadora = {};
-    carretas.forEach(c => {
-      somaPorTransportadora[c.transportadora] = (somaPorTransportadora[c.transportadora] || 0) + c.volume;
-    });
-    const rankingTransportadoras = Object.entries(somaPorTransportadora).map(([nome, volume]) => ({
-      nome,
-      volume
-    })).sort((a, b) => b.volume - a.volume).slice(0, 5);
-    const ativas = carretas.filter(c => c.status === "No Pátio" || c.status === "No Porto");
-    const tempoMedioPermanenciaHoras = ativas.length ? ativas.reduce((s, c) => s + (Date.now() - new Date(c.criadoEm).getTime()) / 3600000, 0) / ativas.length : 0;
-    const recentes = [...carretas].sort((a, b) => new Date(b.criadoEm) - new Date(a.criadoEm)).slice(0, 6);
-    return {
-      total,
-      noPatio,
-      noPorto,
-      aguardando,
-      finalizada,
-      volumeTotal,
-      fluxoPorHorario,
-      porTerminal,
-      porJanela,
-      rankingTransportadoras,
-      tempoMedioPermanenciaHoras,
-      recentes
-    };
-  }, [carretas]);
-  return /*#__PURE__*/React.createElement(ContextoDados.Provider, {
-    value: {
-      carretas,
-      adicionarCarga,
-      buscarPorPlaca,
-      atualizarStatus,
-      stats
-    }
-  }, children);
-}
-function useDados() {
-  return useContext(ContextoDados);
-}
+const PAPEIS_INTERNOS = ["Operador", "Gestor", "Auditor"];
 
 /* =========================================================
    NAVEGAÇÃO
@@ -200,12 +34,12 @@ const ITENS_NAV = [{
   chave: "agendamentos",
   rotulo: "Agendamentos",
   icone: "calendar_month",
-  descricao: "Simulação completa de criação e gerenciamento de janelas de agendamento — dados em memória, aguardando backend."
+  descricao: "Criação e acompanhamento das janelas de agendamento por terminal, com QR code de acesso."
 }, {
   chave: "portaria",
   rotulo: "Portaria",
   icone: "door_front",
-  descricao: "Busca um veículo pela placa e registra sua movimentação no pátio/porto em tempo real."
+  descricao: "Busca um veículo pela placa e registra sua movimentação no pátio/porto."
 }, {
   chave: "gargalos",
   rotulo: "Previsão de Gargalos",
@@ -220,7 +54,7 @@ const ITENS_NAV = [{
   chave: "carretas",
   rotulo: "Carretas",
   icone: "local_shipping",
-  descricao: "Lista e acompanha a frota em operação, com busca e status de cada carreta."
+  descricao: "Lista a frota cadastrada, com busca e o status de portaria de cada carreta."
 }, {
   chave: "frotas",
   rotulo: "Cadastros",
@@ -230,86 +64,43 @@ const ITENS_NAV = [{
   chave: "auditoria",
   rotulo: "Auditoria",
   icone: "history",
-  descricao: "Log de quem fez o quê e quando — toda mudança de status, cadastro e negativação fica registrada aqui."
+  descricao: "Log de quem fez o quê e quando — toda gravação fica registrada automaticamente no servidor."
 }, {
   chave: "configuracoes",
   rotulo: "Configurações",
   icone: "settings",
-  descricao: "Parâmetros operacionais (capacidade, limites de congestionamento) — módulo em desenvolvimento, depende de backend próprio."
+  descricao: "Parâmetros operacionais (capacidade, limites de congestionamento) — módulo em desenvolvimento."
 }];
-function relogioFormatado(data) {
-  const hora = data.toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit"
-  });
-  const dia = data.toLocaleDateString("pt-BR", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long"
-  });
-  return {
-    hora,
-    dia
-  };
-}
+
 const TITULOS_PAGINA = {
-  "visao-geral": {
-    titulo: "Visão Geral",
-    sub: "Central de Operações — Porto de Barcarena"
-  },
-  "carretas": {
-    titulo: "Gestão de Carretas",
-    sub: "Consulta e acompanhamento da frota em operação"
-  },
-  "frotas": {
-    titulo: "Cadastros",
-    sub: "Placas, transportadoras e condutores monitorados pelo Sistema de Negativação"
-  },
-  "portaria": {
-    titulo: "Controle de Portaria",
-    sub: "Operação rápida — Pátio principal"
-  },
-  "negativacao": {
-    titulo: "Sistema de Negativação",
-    sub: "Ocorrências, bloqueios automáticos N3 e contestações (GED)"
-  },
-  "auditoria": {
-    titulo: "Auditoria",
-    sub: "Log de alterações — quem fez o quê e quando"
-  },
-  "gargalos": {
-    titulo: "Previsão de Gargalos",
-    sub: "Índice de risco por horário e análise preditiva — baseado em padrão histórico real"
-  },
-  "agendamentos": {
-    titulo: "Agendamentos",
-    sub: "Simulação completa do módulo — em memória, aguardando backend pra persistir de verdade"
-  },
-  "configuracoes": {
-    titulo: "Configurações",
-    sub: "Parâmetros operacionais — módulo em desenvolvimento"
-  }
+  "visao-geral": { titulo: "Visão Geral", sub: "Central de Operações — Porto de Barcarena" },
+  "carretas": { titulo: "Gestão de Carretas", sub: "Frota cadastrada e status de portaria" },
+  "frotas": { titulo: "Cadastros", sub: "Placas, transportadoras e condutores monitorados pelo Sistema de Negativação" },
+  "portaria": { titulo: "Controle de Portaria", sub: "Operação rápida — Pátio principal" },
+  "negativacao": { titulo: "Sistema de Negativação", sub: "Ocorrências, bloqueios automáticos N3 e contestações (GED)" },
+  "auditoria": { titulo: "Auditoria", sub: "Log de alterações — quem fez o quê e quando" },
+  "gargalos": { titulo: "Previsão de Gargalos", sub: "Índice de risco por horário e análise preditiva — baseado em padrão histórico real" },
+  "agendamentos": { titulo: "Agendamentos", sub: "Janelas de agendamento por terminal" },
+  "configuracoes": { titulo: "Configurações", sub: "Parâmetros operacionais — módulo em desenvolvimento" }
 };
+
 const PASSOS_TOUR = ITENS_NAV.map(item => ({
   alvo: item.chave,
   titulo: item.rotulo,
   texto: item.descricao
 })).concat([
   { alvo: "recolher", titulo: "Recolher o menu", texto: "Clique aqui pra recolher a barra lateral e ganhar espaço de tela — só os ícones ficam visíveis." },
-  { alvo: "portal", titulo: "Portal do Transportador", texto: "Abre a área externa (em /portal) onde a própria transportadora consulta status, motivos de negativação e abre contestações no GED." }
+  { alvo: "portal", titulo: "Portal do Transportador", texto: "Abre a área externa (em /portal) onde a própria transportadora, com login próprio, consulta status, motivos de negativação e abre contestações." }
 ]);
 
-function EstruturaBase({
-  pagina,
-  definirPagina,
-  aoAbrirPortal,
-  children
-}) {
-  const {
-    usuario,
-    sair
-  } = useAutenticacao();
+function relogioFormatado(data) {
+  return {
+    hora: data.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+    dia: data.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })
+  };
+}
+
+function EstruturaBase({ usuario, pagina, definirPagina, aoAbrirPortal, children }) {
   const [agora, setAgora] = useState(new Date());
   const [recolhida, setRecolhida] = useState(false);
   const [tourAtivo, setTourAtivo] = useState(false);
@@ -323,363 +114,259 @@ function EstruturaBase({
       return () => clearTimeout(t);
     }
   }, [usuario?.email]);
-  const {
-    hora,
-    dia
-  } = relogioFormatado(agora);
+  const { hora, dia } = relogioFormatado(agora);
   const infoPagina = TITULOS_PAGINA[pagina];
-  return /*#__PURE__*/React.createElement(React.Fragment, null, tourAtivo && /*#__PURE__*/React.createElement(Tour, {
-    passos: PASSOS_TOUR,
-    chaveUsuario: usuario?.email,
-    aoTerminar: () => setTourAtivo(false)
-  }), /*#__PURE__*/React.createElement("div", {
-    className: `app-shell ${recolhida ? "recolhida" : ""}`
-  }, /*#__PURE__*/React.createElement("aside", {
-    className: "barra-lateral"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "barra-lateral__marca"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "icone-ancora"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "material-symbols-outlined"
-  }, "anchor")), !recolhida && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h1", null, "BarcaLog"), /*#__PURE__*/React.createElement("span", {
-    className: "sub"
-  }, "Porto de Barcarena")), /*#__PURE__*/React.createElement("button", {
-    "data-tour": "recolher",
-    className: "botao-recolher",
-    onClick: () => setRecolhida(r => !r),
-    title: recolhida ? "Expandir menu" : "Recolher menu"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "material-symbols-outlined",
-    style: { fontSize: 18 }
-  }, recolhida ? "chevron_right" : "chevron_left"))), /*#__PURE__*/React.createElement("nav", {
-    className: "barra-lateral__nav"
-  }, ITENS_NAV.map(item => /*#__PURE__*/React.createElement("button", {
-    key: item.chave,
-    "data-tour": item.chave,
-    onClick: () => definirPagina(item.chave),
-    className: `nav-item ${pagina === item.chave ? "ativo" : ""}`,
-    title: item.descricao
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "material-symbols-outlined"
-  }, item.icone), !recolhida && /*#__PURE__*/React.createElement("span", null, item.rotulo)))), /*#__PURE__*/React.createElement("div", {
-    className: "barra-lateral__rodape"
-  }, /*#__PURE__*/React.createElement("button", {
-    "data-tour": "portal",
-    className: "botao botao--fantasma",
-    style: { width: "100%", justifyContent: recolhida ? "center" : "flex-start", gap: 8, marginBottom: 12, borderStyle: "dashed" },
-    onClick: aoAbrirPortal,
-    title: "Portal do Transportador"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "material-symbols-outlined",
-    style: { fontSize: 18 }
-  }, "open_in_new"), !recolhida && "Portal do Transportador"), /*#__PURE__*/React.createElement("button", {
-    className: "cartao-usuario",
-    onClick: sair,
-    title: "Sair"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "cartao-usuario__avatar"
-  }, usuario?.iniciais || "OP"), !recolhida && /*#__PURE__*/React.createElement("div", {
-    className: "cartao-usuario__texto"
-  }, /*#__PURE__*/React.createElement("p", null, usuario?.nome || "Operador"), /*#__PURE__*/React.createElement("span", null, "Sair"))))), /*#__PURE__*/React.createElement("div", {
-    className: "conteudo"
-  }, /*#__PURE__*/React.createElement("header", {
-    className: "topo"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "topo__titulo"
-  }, /*#__PURE__*/React.createElement("h2", null, infoPagina.titulo), /*#__PURE__*/React.createElement("p", null, infoPagina.sub)), /*#__PURE__*/React.createElement("div", {
-    className: "topo__direita"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "pill-turno"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "ponto"
-  }), "Turno em andamento"), /*#__PURE__*/React.createElement("div", {
-    className: "relogio"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "hora mono"
-  }, hora), /*#__PURE__*/React.createElement("div", {
-    className: "data"
-  }, dia)))), /*#__PURE__*/React.createElement("main", {
-    className: "area-principal"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pagina conteudo-pagina",
-    key: pagina
-  }, children))), /*#__PURE__*/React.createElement("nav", {
-    className: "nav-mobile"
-  }, ITENS_NAV.map(item => /*#__PURE__*/React.createElement("button", {
-    key: item.chave,
-    onClick: () => definirPagina(item.chave),
-    className: pagina === item.chave ? "ativo" : ""
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "material-symbols-outlined",
-    style: {
-      fontSize: "20px"
-    }
-  }, item.icone), item.rotulo.split(" ")[0])))));
+
+  return (
+    <>
+      {tourAtivo && <Tour passos={PASSOS_TOUR} chaveUsuario={usuario?.email} aoTerminar={() => setTourAtivo(false)} />}
+      <div className={`app-shell ${recolhida ? "recolhida" : ""}`}>
+        <aside className="barra-lateral">
+          <div className="barra-lateral__marca">
+            <div className="icone-ancora"><span className="material-symbols-outlined" aria-hidden="true">anchor</span></div>
+            {!recolhida && (
+              <div>
+                <h1>BarcaLog</h1>
+                <span className="sub">Porto de Barcarena</span>
+              </div>
+            )}
+            <button type="button" data-tour="recolher" className="botao-recolher" onClick={() => setRecolhida(r => !r)}
+              title={recolhida ? "Expandir menu" : "Recolher menu"} aria-label={recolhida ? "Expandir menu" : "Recolher menu"}>
+              <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 18 }}>{recolhida ? "chevron_right" : "chevron_left"}</span>
+            </button>
+          </div>
+          <nav className="barra-lateral__nav" aria-label="Menu principal">
+            {ITENS_NAV.map(item => (
+              <button type="button" key={item.chave} data-tour={item.chave} onClick={() => definirPagina(item.chave)}
+                className={`nav-item ${pagina === item.chave ? "ativo" : ""}`} title={item.descricao}
+                aria-current={pagina === item.chave ? "page" : undefined}>
+                <span className="material-symbols-outlined" aria-hidden="true">{item.icone}</span>
+                {!recolhida && <span>{item.rotulo}</span>}
+              </button>
+            ))}
+          </nav>
+          <div className="barra-lateral__rodape">
+            <button type="button" data-tour="portal" className="botao botao--fantasma"
+              style={{ width: "100%", justifyContent: recolhida ? "center" : "flex-start", gap: 8, marginBottom: 12, borderStyle: "dashed" }}
+              onClick={aoAbrirPortal} title="Portal do Transportador">
+              <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 18 }}>open_in_new</span>
+              {!recolhida && "Portal do Transportador"}
+            </button>
+            <button type="button" className="cartao-usuario" onClick={sair} title={`Sair (${usuario.email})`}>
+              <div className="cartao-usuario__avatar" aria-hidden="true">{iniciais(usuario.nome)}</div>
+              {!recolhida && (
+                <div className="cartao-usuario__texto">
+                  <p>{usuario.nome}</p>
+                  <span>{usuario.papel} · Sair</span>
+                </div>
+              )}
+            </button>
+          </div>
+        </aside>
+        <div className="conteudo">
+          <header className="topo">
+            <div className="topo__titulo">
+              <h2>{infoPagina.titulo}</h2>
+              <p>{infoPagina.sub}</p>
+            </div>
+            <div className="topo__direita">
+              <span className="pill-turno"><span className="ponto" />Turno em andamento</span>
+              <div className="relogio">
+                <div className="hora mono">{hora}</div>
+                <div className="data">{dia}</div>
+              </div>
+            </div>
+          </header>
+          <main className="area-principal">
+            <div className="pagina conteudo-pagina" key={pagina}>{children}</div>
+          </main>
+        </div>
+        <nav className="nav-mobile" aria-label="Menu">
+          {ITENS_NAV.map(item => (
+            <button type="button" key={item.chave} onClick={() => definirPagina(item.chave)} className={pagina === item.chave ? "ativo" : ""}
+              aria-current={pagina === item.chave ? "page" : undefined}>
+              <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: "20px" }}>{item.icone}</span>
+              {item.rotulo.split(" ")[0]}
+            </button>
+          ))}
+        </nav>
+      </div>
+    </>
+  );
 }
 
 /* =========================================================
    TELA — Login
    ========================================================= */
-function TelaLogin() {
-  const {
-    entrar
-  } = useAutenticacao();
-  const [email, setEmail] = useState("");
-  const [senha, setSenha] = useState("");
-  const [erro, setErro] = useState("");
-  function aoEnviar(e) {
-    e.preventDefault();
-    const resultado = entrar(email, senha);
-    if (!resultado.ok) setErro(resultado.erro);
-  }
-  return /*#__PURE__*/React.createElement("div", {
-    className: "tela-login"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "tela-login__imagem"
-  }, /*#__PURE__*/React.createElement("img", {
-    src: "/porto.webp",
-    alt: "Complexo portuário de Barcarena"
-  }), /*#__PURE__*/React.createElement("span", {
-    className: "tela-login__selo"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "material-symbols-outlined"
-  }, "local_shipping"), " Operação em tempo real"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "tela-login__texto"
-  }, /*#__PURE__*/React.createElement("h2", null, "Precisão Logística"), /*#__PURE__*/React.createElement("p", null, "Plataforma de gestão logística do Porto de Barcarena. Controle de carretas, janelas de descarga e checkpoints em um só lugar.")), /*#__PURE__*/React.createElement("div", {
-    className: "tela-login__rodape"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "tela-login__metrica"
-  }, /*#__PURE__*/React.createElement("b", null, "48"), /*#__PURE__*/React.createElement("span", null, "Carretas ativas")), /*#__PURE__*/React.createElement("div", {
-    className: "tela-login__metrica"
-  }, /*#__PURE__*/React.createElement("b", null, "3"), /*#__PURE__*/React.createElement("span", null, "Terminais integrados")), /*#__PURE__*/React.createElement("div", {
-    className: "tela-login__metrica"
-  }, /*#__PURE__*/React.createElement("b", null, "24/7"), /*#__PURE__*/React.createElement("span", null, "Monitoramento"))))), /*#__PURE__*/React.createElement("div", {
-    className: "tela-login__form"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "cartao-login"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "cartao-login__marca"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "icone-ancora"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "material-symbols-outlined"
-  }, "anchor")), /*#__PURE__*/React.createElement("h2", null, "BarcaLog")), /*#__PURE__*/React.createElement("p", {
-    className: "cartao-login__sub"
-  }, "Autenticação de operadores — Porto de Barcarena"), /*#__PURE__*/React.createElement("form", {
-    onSubmit: aoEnviar,
-    style: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 18
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "campo"
-  }, /*#__PURE__*/React.createElement("label", null, "E-mail institucional"), /*#__PURE__*/React.createElement("div", {
-    className: "campo-icone"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "material-symbols-outlined"
-  }, "mail"), /*#__PURE__*/React.createElement("input", {
-    type: "email",
-    value: email,
-    onChange: e => setEmail(e.target.value),
-    placeholder: "operador@barcalog.com",
-    required: true
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "campo"
-  }, /*#__PURE__*/React.createElement("label", null, "Senha"), /*#__PURE__*/React.createElement("div", {
-    className: "campo-icone"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "material-symbols-outlined"
-  }, "lock"), /*#__PURE__*/React.createElement("input", {
-    type: "password",
-    value: senha,
-    onChange: e => setSenha(e.target.value),
-    placeholder: "••••••••",
-    required: true
-  }))), erro && /*#__PURE__*/React.createElement("p", {
-    style: {
-      color: "var(--vermelho-500)",
-      fontSize: 13
-    }
-  }, erro), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "flex-end"
-    }
-  }, /*#__PURE__*/React.createElement("a", {
-    href: "#",
-    style: {
-      fontSize: 12.5,
-      color: "var(--navio-600)",
-      fontWeight: 600
-    }
-  }, "Esqueci minha senha")), /*#__PURE__*/React.createElement("button", {
-    type: "submit",
-    className: "botao botao--primario",
-    style: {
-      background: "var(--navio-900)",
-      color: "#fff",
-      padding: "13px 18px"
-    }
-  }, "Acessar sistema"), /*#__PURE__*/React.createElement("p", {
-    style: {
-      textAlign: "center",
-      fontSize: 12,
-      color: "var(--tinta-suave)"
-    }
-  }, "Demonstração: use qualquer e-mail e senha para entrar.")))));
+function TelaLogin({ aviso, aoAbrirPortal }) {
+  return (
+    <div className="tela-login">
+      <div className="tela-login__imagem">
+        <img src="/porto.webp" alt="Complexo portuário de Barcarena" />
+        <span className="tela-login__selo"><span className="material-symbols-outlined" aria-hidden="true">local_shipping</span> Operação em tempo real</span>
+        <div>
+          <div className="tela-login__texto">
+            <h2>Precisão Logística</h2>
+            <p>Plataforma de gestão logística do Porto de Barcarena. Controle de carretas, janelas de descarga e checkpoints em um só lugar.</p>
+          </div>
+          <div className="tela-login__rodape">
+            <div className="tela-login__metrica"><b>3</b><span>Terminais integrados</span></div>
+            <div className="tela-login__metrica"><b>24/7</b><span>Monitoramento</span></div>
+          </div>
+        </div>
+      </div>
+      <div className="tela-login__form">
+        <div className="cartao-login">
+          <div className="cartao-login__marca">
+            <div className="icone-ancora"><span className="material-symbols-outlined" aria-hidden="true">anchor</span></div>
+            <h2>BarcaLog</h2>
+          </div>
+          <p className="cartao-login__sub">Autenticação de operadores — Porto de Barcarena</p>
+          <FormularioLogin placeholderEmail="nome@barcalog.com.br" aviso={aviso} />
+          <p style={{ textAlign: "center", fontSize: 12, marginTop: 14 }}>
+            É transportadora? <a href="/portal" onClick={e => { e.preventDefault(); aoAbrirPortal(); }} style={{ color: "var(--navio-600)", fontWeight: 600 }}>Acesse o Portal do Transportador</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Usuário do Portal tentou entrar no painel interno: a API recusaria tudo mesmo. */
+function AcessoNegado({ aoAbrirPortal }) {
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div className="cartao" style={{ maxWidth: 420 }}>
+        <div className="cartao__corpo" style={{ textAlign: "center", padding: 28 }}>
+          <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 36, color: "var(--vermelho-500)" }}>block</span>
+          <h3 style={{ margin: "8px 0" }}>Acesso restrito à equipe do porto</h3>
+          <p style={{ fontSize: 13, color: "var(--tinta-suave)" }}>Sua conta é de transportadora. Use o Portal do Transportador.</p>
+          <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 12 }}>
+            <button type="button" className="botao botao--primario" onClick={aoAbrirPortal}>Ir para o Portal</button>
+            <button type="button" className="botao botao--fantasma" onClick={sair}>Sair</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* =========================================================
-   COMPONENTES DE PAINEL
-   ========================================================= */
-const CORES_STATUS = {
-  "No Porto": "#1E9E6B",
-  "No Pátio": "#F2A93B",
-  "Aguardando": "#3568D4",
-  "Descarga Finalizada": "#9AA6BC"
-};
-
-/* =========================================================
-   PÁGINA — Gestão de Carretas
+   PÁGINA — Gestão de Carretas (frota cadastrada, via API)
    ========================================================= */
 const TAMANHO_PAGINA = 8;
 const ESTILO_STATUS = {
-  "No Porto": {
-    icone: "anchor"
-  },
-  "No Pátio": {
-    icone: "warehouse"
-  },
-  "Aguardando": {
-    icone: "schedule"
-  },
-  "Descarga Finalizada": {
-    icone: "task_alt"
-  }
+  "No Porto": { icone: "anchor", cor: "#1E9E6B" },
+  "No Pátio": { icone: "warehouse", cor: "#F2A93B" },
+  "Aguardando": { icone: "schedule", cor: "#3568D4" },
+  "Descarga Finalizada": { icone: "task_alt", cor: "#9AA6BC" }
 };
+
 function PaginaCarretas() {
-  const {
-    carretas
-  } = useDados();
+  const { carregado, erro, recarregar } = useNegativacao();
+  const carretas = listarVeiculos();
   const [busca, setBusca] = useState("");
-  const [filtroJanela, setFiltroJanela] = useState("Todas");
+  const [filtroStatus, setFiltroStatus] = useState("Todos");
   const [pagina, setPagina] = useState(1);
   const filtradas = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
     return carretas.filter(c => {
-      const combinaBusca = !busca || c.placa.toLowerCase().includes(busca.toLowerCase()) || c.terminal.toLowerCase().includes(busca.toLowerCase());
-      const combinaJanela = filtroJanela === "Todas" || c.janela === filtroJanela;
-      return combinaBusca && combinaJanela;
+      const combinaBusca = !termo || c.placa.toLowerCase().includes(termo) || (c.transportadora || "").toLowerCase().includes(termo) || (c.terminalNome || "").toLowerCase().includes(termo);
+      const combinaStatus = filtroStatus === "Todos" || c.statusPortaria === filtroStatus;
+      return combinaBusca && combinaStatus;
     });
-  }, [carretas, busca, filtroJanela]);
+  }, [carretas, busca, filtroStatus]);
+
+  if (erro && !carregado) return <ErroCarga erro={erro} aoTentarDeNovo={recarregar} />;
+  if (!carregado) return <Carregando texto="Carregando frota…" />;
+
   const totalPaginas = Math.max(1, Math.ceil(filtradas.length / TAMANHO_PAGINA));
   const paginaAtual = Math.min(pagina, totalPaginas);
   const inicio = (paginaAtual - 1) * TAMANHO_PAGINA;
   const visiveis = filtradas.slice(inicio, inicio + TAMANHO_PAGINA);
-  return /*#__PURE__*/React.createElement("div", {
-    className: "cartao"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "cartao__corpo",
-    style: {
-      paddingTop: 20,
-      display: "flex",
-      flexDirection: "column",
-      gap: 16
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "barra-filtros"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "busca"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "material-symbols-outlined"
-  }, "search"), /*#__PURE__*/React.createElement("input", {
-    placeholder: "Buscar por placa ou porto de Barcarena...",
-    value: busca,
-    onChange: e => {
-      setBusca(e.target.value);
-      setPagina(1);
-    }
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "chips"
-  }, ["Todas", ...JANELAS].map(j => /*#__PURE__*/React.createElement("button", {
-    key: j,
-    className: `chip ${filtroJanela === j ? "ativo" : ""}`,
-    onClick: () => {
-      setFiltroJanela(j);
-      setPagina(1);
-    }
-  }, j === "Todas" ? "Todas" : `Janela ${j}`)))), /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Placa"), /*#__PURE__*/React.createElement("th", null, "Porto de Barcarena"), /*#__PURE__*/React.createElement("th", null, "Janela"), /*#__PURE__*/React.createElement("th", null, "Status atual"))), /*#__PURE__*/React.createElement("tbody", null, visiveis.map(c => /*#__PURE__*/React.createElement("tr", {
-    key: c.id
-  }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
-    className: "placa-chip"
-  }, c.placa)), /*#__PURE__*/React.createElement("td", null, c.terminal), /*#__PURE__*/React.createElement("td", {
-    className: "mono"
-  }, c.janela), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
-    className: "selo",
-    style: {
-      background: `${CORES_STATUS[c.status]}22`,
-      color: CORES_STATUS[c.status]
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "material-symbols-outlined"
-  }, ESTILO_STATUS[c.status].icone), c.status)))))), /*#__PURE__*/React.createElement("div", {
-    className: "paginacao"
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 12.5,
-      color: "var(--tinta-suave)"
-    }
-  }, "Mostrando ", filtradas.length === 0 ? 0 : inicio + 1, "–", Math.min(inicio + TAMANHO_PAGINA, filtradas.length), " de ", filtradas.length), /*#__PURE__*/React.createElement("div", {
-    className: "paginacao__paginas"
-  }, /*#__PURE__*/React.createElement("button", {
-    className: "pagina-btn",
-    disabled: paginaAtual === 1,
-    onClick: () => setPagina(p => p - 1)
-  }, "‹"), Array.from({
-    length: totalPaginas
-  }, (_, i) => i + 1).slice(0, 5).map(n => /*#__PURE__*/React.createElement("button", {
-    key: n,
-    className: `pagina-btn ${paginaAtual === n ? "ativo" : ""}`,
-    onClick: () => setPagina(n)
-  }, n)), /*#__PURE__*/React.createElement("button", {
-    className: "pagina-btn",
-    disabled: paginaAtual === totalPaginas,
-    onClick: () => setPagina(p => p + 1)
-  }, "›")))));
+
+  return (
+    <div className="cartao">
+      <div className="cartao__corpo" style={{ paddingTop: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="barra-filtros">
+          <div className="busca">
+            <span className="material-symbols-outlined" aria-hidden="true">search</span>
+            <input placeholder="Buscar por placa, transportadora ou terminal…" aria-label="Buscar carretas" value={busca} maxLength={60}
+              onChange={e => { setBusca(e.target.value); setPagina(1); }} />
+          </div>
+          <div className="chips">
+            {["Todos", ...Object.values(STATUS_PORTARIA)].map(s => (
+              <button type="button" key={s} className={`chip ${filtroStatus === s ? "ativo" : ""}`} aria-pressed={filtroStatus === s}
+                onClick={() => { setFiltroStatus(s); setPagina(1); }}>{s}</button>
+            ))}
+          </div>
+        </div>
+        {filtradas.length === 0 ? <Vazio icone="local_shipping" titulo="Nenhuma carreta encontrada" /> : (
+          <div style={{ overflowX: "auto" }}>
+            <table>
+              <thead><tr><th scope="col">Placa</th><th scope="col">Transportadora</th><th scope="col">Terminal</th><th scope="col">Status atual</th></tr></thead>
+              <tbody>
+                {visiveis.map(c => {
+                  const estilo = ESTILO_STATUS[c.statusPortaria] || { icone: "help", cor: "#9AA6BC" };
+                  return (
+                    <tr key={c.id}>
+                      <td><span className="placa-chip">{c.placa}</span></td>
+                      <td>{c.transportadora}</td>
+                      <td>{c.terminalNome || "—"}</td>
+                      <td>
+                        <span className="selo" style={{ background: `${estilo.cor}22`, color: estilo.cor }}>
+                          <span className="material-symbols-outlined" aria-hidden="true">{estilo.icone}</span>{c.statusPortaria}
+                        </span>
+                        {c.statusNegativacao === "negativado" && <span className="selo" style={{ marginLeft: 6, background: "var(--vermelho-100)", color: "var(--vermelho-500)" }}>Negativada</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="paginacao">
+          <span style={{ fontSize: 12.5, color: "var(--tinta-suave)" }}>
+            Mostrando {filtradas.length === 0 ? 0 : inicio + 1}–{Math.min(inicio + TAMANHO_PAGINA, filtradas.length)} de {filtradas.length}
+          </span>
+          <div className="paginacao__paginas">
+            <button type="button" className="pagina-btn" aria-label="Página anterior" disabled={paginaAtual === 1} onClick={() => setPagina(paginaAtual - 1)}>‹</button>
+            <span style={{ fontSize: 12.5, padding: "0 8px" }}>{paginaAtual} / {totalPaginas}</span>
+            <button type="button" className="pagina-btn" aria-label="Próxima página" disabled={paginaAtual === totalPaginas} onClick={() => setPagina(paginaAtual + 1)}>›</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* =========================================================
    RAIZ DO APLICATIVO
    ========================================================= */
-function EstruturaApp({ aoAbrirPortal }) {
-  const {
-    usuario
-  } = useAutenticacao();
+export default function Aplicativo({ aoAbrirPortal }) {
+  const { sessao, aviso } = useSessao();
   const [pagina, setPagina] = useState("visao-geral");
-  if (!usuario) return /*#__PURE__*/React.createElement(TelaLogin, null);
-  const carregando = /*#__PURE__*/React.createElement("p", {
-    style: { color: "var(--tinta-suave)", fontSize: 13 }
-  }, "Carregando…");
-  const paginas = {
-    "visao-geral": /*#__PURE__*/React.createElement(Suspense, { fallback: carregando }, /*#__PURE__*/React.createElement(VisaoGeral, null)),
-    "carretas": /*#__PURE__*/React.createElement(PaginaCarretas, null),
-    "frotas": /*#__PURE__*/React.createElement(GestaoFrotas, null),
-    "portaria": /*#__PURE__*/React.createElement(Portaria, null),
-    "negativacao": /*#__PURE__*/React.createElement(Negativacao, null),
-    "auditoria": /*#__PURE__*/React.createElement(Suspense, { fallback: carregando }, /*#__PURE__*/React.createElement(Auditoria, null)),
-    "gargalos": /*#__PURE__*/React.createElement(Suspense, { fallback: carregando }, /*#__PURE__*/React.createElement(PrevisaoGargalos, null)),
-    "agendamentos": /*#__PURE__*/React.createElement(Suspense, { fallback: carregando }, /*#__PURE__*/React.createElement(Agendamentos, null)),
-    "configuracoes": /*#__PURE__*/React.createElement(Suspense, { fallback: carregando }, /*#__PURE__*/React.createElement(Configuracoes, null))
-  };
-  return /*#__PURE__*/React.createElement(ProvedorDados, null, /*#__PURE__*/React.createElement(EstruturaBase, {
-    pagina: pagina,
-    definirPagina: setPagina,
-    aoAbrirPortal: aoAbrirPortal
-  }, paginas[pagina]));
-}
-function Aplicativo({ aoAbrirPortal }) {
-  return /*#__PURE__*/React.createElement(ProvedorAutenticacao, null, /*#__PURE__*/React.createElement(EstruturaApp, { aoAbrirPortal }));
-}
 
-export default Aplicativo;
+  if (!sessao) return <TelaLogin aviso={aviso} aoAbrirPortal={aoAbrirPortal} />;
+  if (sessao.restricao) return <TelaRestricao sessao={sessao} />;
+  if (!PAPEIS_INTERNOS.includes(sessao.usuario?.papel)) return <AcessoNegado aoAbrirPortal={aoAbrirPortal} />;
+
+  const carregando = <Carregando />;
+  const paginas = {
+    "visao-geral": <VisaoGeral />,
+    "carretas": <PaginaCarretas />,
+    "frotas": <GestaoFrotas />,
+    "portaria": <Portaria />,
+    "negativacao": <Negativacao />,
+    "auditoria": <Auditoria />,
+    "gargalos": <PrevisaoGargalos />,
+    "agendamentos": <Agendamentos />,
+    "configuracoes": <Configuracoes />
+  };
+  return (
+    <EstruturaBase usuario={sessao.usuario} pagina={pagina} definirPagina={setPagina} aoAbrirPortal={aoAbrirPortal}>
+      <Suspense fallback={carregando}>{paginas[pagina]}</Suspense>
+    </EstruturaBase>
+  );
+}

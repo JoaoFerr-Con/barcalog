@@ -1,0 +1,29 @@
+# Segredos e configuração local — NUNCA versionar
+.env
+.env.*
+!.env.example
+*.pfx
+*.key
+*.pem
+appsettings.*.local.json
+secrets.json
+
+# Frontend
+node_modules/
+dist/
+.vite/
+coverage/
+
+# Backend (.NET) — ver também backend/.gitignore
+bin/
+obj/
+TestResults/
+*.user
+.vs/
+
+# SO / editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

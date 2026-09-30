@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+**/TestResults/
+tests/
+tools/
+**/*.user
+**/appsettings.*.local.json
+**/.env
+**/.env.*
+.config/
+docker-compose.yml

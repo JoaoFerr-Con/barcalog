@@ -2,9 +2,12 @@
 // ENGINE DE MÉTRICAS AVANÇADAS — Relatório Executivo de 3 Páginas
 // Projetado conforme especificação do Arquiteto de Dados / Lead BI
 // ====================================================================
-// Todas as funções recebem `registros` já carregados via registry.js.
-// Nenhuma depende de backend — roda inteiro no navegador, sobre os
-// datasets reais importados (Unitapajós, TGPM, Hidrovias).
+// ESPECIFICAÇÃO DE REFERÊNCIA — não é mais usada pelas telas.
+// O frontend agora recebe esses números prontos da API (porte em C# em
+// backend/src/BarcaLog.Application/Metricas). Este arquivo fica como fonte da
+// verdade das fórmulas: backend/tools/verificar-fidelidade.mjs roda estas
+// funções sobre os datasets e compara campo a campo com a API. Mudou uma
+// fórmula? Mude aqui E no backend, e rode a verificação.
 
 // ---------- CONSTANTES OPERACIONAIS ----------
 export const CAPACIDADE_DIARIA = 1000;         // carretas/dia por terminal
