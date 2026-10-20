@@ -201,7 +201,7 @@ function RevisaoLote({ id, gestor, aoVoltar, irPara }) {
               <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13.5 }} className="num">
                 <li>{numero(l.avisos.esperaAcima72h)} com espera acima de 72 h</li>
                 <li>{numero(l.avisos.semLiberacao)} sem liberação</li>
-                <li>{numero(l.avisos.possivelRemarcacao)} possíveis remarcações (mesma senha, outro movimento)</li>
+                <li>{numero(l.avisos.possivelRemarcacao)} possíveis remarcações (mesma senha, convênio e liberação, marcada de novo em poucos minutos)</li>
                 <li>{numero(l.avisos.convenioNovo)} com convênio ainda não cadastrado</li>
               </ul>
               <p className="fraco" style={{ fontSize: 12, marginTop: 6 }}>São avisos: as linhas entram normalmente e podem ser conferidas no relatório.</p>

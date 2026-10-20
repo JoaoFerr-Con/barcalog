@@ -133,17 +133,22 @@ Lista completa e documentada no Swagger (`/swagger`). Resumo:
 | Auth | `POST /api/v1/auth/login`, `GET /api/v1/auth/me`, `POST /api/v1/auth/logout`, `POST /api/v1/auth/trocar-senha`, `POST /api/v1/auth/mfa/configurar`, `/mfa/ativar`, `/mfa/desativar` |
 | Usuários (Gestor) | `GET/POST /api/v1/usuarios`, `GET /api/v1/usuarios/{id}`, `PUT /{id}/papel`, `POST /{id}/desativar`, `/reativar`, `/redefinir-senha`, `/redefinir-mfa` |
 | Terminais | `GET /api/v1/terminais` |
-| Marcações | `GET /api/v1/marcacoes` (paginado; `terminalId`, `de`, `ate`, `convenio`, `operador`, `carga`, `senha`), `GET /api/v1/marcacoes/{movimentoId}` |
+| Marcações | `GET /api/v1/marcacoes` (paginado; `terminalId`, `de`, `ate`, `convenio`, `operador`, `carga`, `senha`, `busca`, `codConvenio`, `esperaAcimaHoras`, `semLiberacao`, `origem`, `ordenacao=marcacao_desc\|marcacao_asc\|espera_desc\|espera_asc`), `GET /api/v1/marcacoes/{movimentoId}`, `GET /api/v1/marcacoes/{movimentoId}/detalhe` (origem: arquivo, linha, lote, quem importou; liberados no mesmo instante), `GET /api/v1/marcacoes/exportar` (CSV das liberadas) |
+| Indicadores | `GET /api/v1/indicadores/resumo`, `/terminais`, `/volume-mensal`, `/fluxo-horario`, `/frescor` — `terminalId`, `de`, `ate`, `compararDe`, `compararAte`. Regras em [`docs/INDICADORES.md`](../docs/INDICADORES.md) |
+| Alertas | `GET /api/v1/alertas` (`tipo`, `estado`, `terminalId`, `somenteAbertos`), `/resumo`, `/proximas-horas`, `/{id}`; `POST /avaliar`, `/{id}/assumir`, `/{id}/acoes`, `/{id}/resolver`, `/{id}/descartar`, `/{id}/reabrir` (Operador/Gestor) |
+| Importação de planilhas | `GET/POST /api/v1/importacoes` (multipart `terminalId` + `arquivo` .xlsx/.csv; Gestor), `GET /{id}`, `/{id}/linhas`, `/{id}/relatorio` (CSV), `POST /{id}/conflitos`, `/{id}/confirmar`, `/{id}/cancelar` (Gestor). Fluxo em [`docs/IMPORTACAO.md`](../docs/IMPORTACAO.md) |
+| Convênios | `GET /api/v1/convenios`, `PUT /api/v1/convenios/{codigo}` (Gestor) |
+| Configurações | `GET /api/v1/configuracoes`, `PUT /api/v1/configuracoes/terminais/{id}` (capacidade diária/horária, nula = não informada), `PUT /api/v1/configuracoes/parametros` (Gestor) |
 | Agregados pedidos | `GET /api/v1/marcacoes/kpis`, `/visao-terminal`, `/por-mes`, `/ranking-esperas`, `/indice-risco-hora` |
 | Demais métricas do motor | `/janelas-permanencia`, `/estouro-critico`, `/ritmo-operacional`, `/concentracao-turno`, `/horarios-criticos`, `/tma-terminal`, `/indicadores-performance`, `/alertas-operacionais`, `/picos-entrada-saida`, `/analise-preditiva`, `/projecao-volume`, `/alertas-saturacao`, `/capacidade-diaria`, `/top-dias`, `/dias-acima-capacidade`, `/matriz-volume-mensal`, `/detalhamento-diario`, `/por-operador`, `/por-carga`, `/por-terminal`, `/por-hora`, `/por-dia-semana`, `/por-ciclo`, `/tendencia-sla`, `/score-operadores`, `/atrasos-recorrentes`, `/recomendacoes`, `/business-case` — todos aceitam `terminalId`, `de`, `ate`, `convenio` (e `mes=yyyy-MM`) |
-| Importação | `POST /api/v1/marcacoes/importar` (diretório configurado), `POST /api/v1/marcacoes/importar/{terminalId}` (upload de um JSON) — Gestor |
+| Carga inicial (JSON) | `POST /api/v1/marcacoes/importar` (diretório configurado), `POST /api/v1/marcacoes/importar/{terminalId}` (upload de um JSON) — Gestor |
 | Transportadoras | `GET/POST /api/v1/transportadoras`, `GET/PUT/DELETE /api/v1/transportadoras/{id}` |
 | Veículos | `GET/POST /api/v1/veiculos`, `GET/PUT/DELETE /api/v1/veiculos/{id}`, `GET /api/v1/veiculos/placa/{placa}`, `PATCH /api/v1/veiculos/{id}/status-portaria`, `POST /api/v1/veiculos/{id}/negativar`, `POST /api/v1/veiculos/{id}/desnegativar` |
 | Condutores | `GET/POST /api/v1/condutores`, `GET/PUT/DELETE /api/v1/condutores/{id}`, LGPD: `GET /api/v1/condutores/{id}/dados-pessoais`, `POST /api/v1/condutores/{id}/anonimizar` (Gestor) |
 | Ocorrências | `GET/POST /api/v1/ocorrencias`, `GET /api/v1/ocorrencias/{id}` |
 | Contestações | `GET/POST /api/v1/contestacoes`, `GET /api/v1/contestacoes/{id}`, `POST /api/v1/contestacoes/{id}/aprovar`, `POST /api/v1/contestacoes/{id}/rejeitar` |
 | Auditoria | `GET /api/v1/auditoria?autor=&acao=&texto=&de=&ate=&pagina=&tamanhoPagina=` |
-| Agendamentos | `GET/POST /api/v1/agendamentos`, `GET /api/v1/agendamentos/resumo`, `GET/PUT /api/v1/agendamentos/{id}`, `PATCH /api/v1/agendamentos/{id}/status` |
+| Agendamentos | `GET/POST /api/v1/agendamentos`, `GET /api/v1/agendamentos/resumo` (`data`, `terminalId`; por hora × capacidade cadastrada), `GET/PUT /api/v1/agendamentos/{id}`, `PATCH /api/v1/agendamentos/{id}/status` |
 | Portaria | `GET /api/v1/portaria/fila-virtual`, `GET /api/v1/portaria/operacao-agora` |
 | Integração | `POST /api/v1/integracao/eventos` (X-Api-Key; lote de 1–1000 eventos `Marcacao`/`Liberacao`) |
 | Saúde | `GET /health/live`, `GET /health/ready` (checa o banco) |
