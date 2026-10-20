@@ -1,5 +1,32 @@
 namespace BarcaLog.Domain.Enums;
 
+/// <summary>
+/// Histórico: padrão observado no passado. Operacional: situação atual registrada.
+/// Previsão: estimativa a partir de padrão histórico. Dados: qualidade/atualização da base.
+/// </summary>
+public enum TipoAlerta
+{
+    Historico,
+    Operacional,
+    Previsao,
+    Dados
+}
+
+public enum PrioridadeAlerta
+{
+    Baixa,
+    Media,
+    Alta
+}
+
+public enum EstadoAlerta
+{
+    Novo,
+    EmAnalise,
+    Resolvido,
+    Descartado
+}
+
 /// <summary>De onde veio um movimento — exibido na tela para o usuário saber o que é manual, importado ou integrado.</summary>
 public enum OrigemMarcacao
 {

@@ -61,3 +61,42 @@ public class LinhaImportacaoConfiguracao : IEntityTypeConfiguration<LinhaImporta
         b.HasIndex(x => new { x.LoteId, x.MovimentoId });
     }
 }
+
+public class AlertaConfiguracao : IEntityTypeConfiguration<Alerta>
+{
+    public void Configure(EntityTypeBuilder<Alerta> b)
+    {
+        b.ToTable("Alertas");
+        b.Property(x => x.Chave).HasMaxLength(200).IsRequired();
+        b.HasIndex(x => x.Chave).IsUnique();
+        b.Property(x => x.Regra).HasMaxLength(50).IsRequired();
+        b.Property(x => x.TerminalId).HasMaxLength(32);
+        b.Property(x => x.Periodo).HasMaxLength(100).IsRequired();
+        b.Property(x => x.Titulo).HasMaxLength(200).IsRequired();
+        b.Property(x => x.Indicador).HasMaxLength(200).IsRequired();
+        b.Property(x => x.ValorObservado).HasMaxLength(50).IsRequired();
+        b.Property(x => x.Limite).HasMaxLength(50).IsRequired();
+        b.Property(x => x.Evidencia).HasMaxLength(2000).IsRequired();
+        b.Property(x => x.Origem).HasMaxLength(200).IsRequired();
+        b.Property(x => x.AcaoRecomendada).HasMaxLength(500);
+        b.Property(x => x.Responsavel).HasMaxLength(200);
+        b.Property(x => x.IdentificadoEm).EmUtc();
+        b.Property(x => x.AtualizadoEm).EmUtc();
+        b.HasIndex(x => new { x.Ativo, x.Estado, x.Tipo });
+        b.HasMany(x => x.Eventos).WithOne().HasForeignKey(e => e.AlertaId).OnDelete(DeleteBehavior.Cascade);
+        b.VersaoLinha();
+    }
+}
+
+public class EventoAlertaConfiguracao : IEntityTypeConfiguration<EventoAlerta>
+{
+    public void Configure(EntityTypeBuilder<EventoAlerta> b)
+    {
+        b.ToTable("EventosAlerta");
+        b.Property(x => x.Autor).HasMaxLength(200).IsRequired();
+        b.Property(x => x.Acao).HasMaxLength(50).IsRequired();
+        b.Property(x => x.Texto).HasMaxLength(2000);
+        b.Property(x => x.Quando).EmUtc();
+        b.HasIndex(x => x.AlertaId);
+    }
+}

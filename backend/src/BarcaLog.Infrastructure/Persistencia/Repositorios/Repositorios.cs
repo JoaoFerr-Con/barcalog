@@ -91,6 +91,14 @@ public class MarcacaoRepositorio(BarcaLogDbContext db) : IMarcacaoRepositorio
         return await q.GroupBy(m => m.TerminalId).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N, ct);
     }
 
+    public async Task<List<(string MovimentoId, string TerminalId, DateTime DataMarcacao)>> ListarAbertasMarcadasAntesDeAsync(DateTime limite, CancellationToken ct = default)
+    {
+        var linhas = await db.Marcacoes.AsNoTracking().Where(m => m.DataLiberacao == null && m.DataMarcacao < limite)
+            .OrderBy(m => m.DataMarcacao).Take(5000)
+            .Select(m => new { m.MovimentoId, m.TerminalId, m.DataMarcacao }).ToListAsync(ct);
+        return linhas.Select(l => (l.MovimentoId, l.TerminalId, l.DataMarcacao)).ToList();
+    }
+
     public async Task<Dictionary<string, (DateTime? UltimaMarcacao, DateTime? UltimaLiberacao)>> UltimosEventosPorTerminalAsync(CancellationToken ct = default)
     {
         var linhas = await db.Marcacoes.AsNoTracking().GroupBy(m => m.TerminalId)

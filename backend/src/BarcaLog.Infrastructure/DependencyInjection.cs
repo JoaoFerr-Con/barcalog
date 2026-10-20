@@ -48,6 +48,8 @@ public static class DependencyInjection
         services.AddScoped<IUsuarioRepositorio, UsuarioRepositorio>();
         services.AddScoped<IImportacaoRepositorio, ImportacaoRepositorio>();
         services.AddScoped<IConvenioRepositorio, ConvenioRepositorio>();
+        services.AddScoped<IAlertaRepositorio, AlertaRepositorio>();
+        services.AddHostedService<Alertas.AvaliacaoPeriodicaAlertas>();
         services.AddSingleton<ILeitorPlanilha, Importacao.LeitorPlanilha>();
 
         services.AddSingleton<IHashSenha, HashSenha>();

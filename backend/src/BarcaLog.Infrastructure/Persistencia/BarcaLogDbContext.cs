@@ -18,6 +18,8 @@ public class BarcaLogDbContext(DbContextOptions<BarcaLogDbContext> options) : Db
     public DbSet<Usuario> Usuarios => Set<Usuario>();
     public DbSet<Idempotencia.ChaveIdempotencia> ChavesIdempotencia => Set<Idempotencia.ChaveIdempotencia>();
     public DbSet<Convenio> Convenios => Set<Convenio>();
+    public DbSet<Alerta> Alertas => Set<Alerta>();
+    public DbSet<EventoAlerta> EventosAlerta => Set<EventoAlerta>();
     public DbSet<ParametrosOperacionais> Parametros => Set<ParametrosOperacionais>();
     public DbSet<LoteImportacao> LotesImportacao => Set<LoteImportacao>();
     public DbSet<LinhaImportacao> LinhasImportacao => Set<LinhaImportacao>();

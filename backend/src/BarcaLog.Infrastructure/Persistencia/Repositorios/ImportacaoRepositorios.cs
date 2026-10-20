@@ -185,3 +185,46 @@ public class ConvenioRepositorio(BarcaLogDbContext db) : IConvenioRepositorio
             .ToDictionary(g => g.Key, g => { var top = g.OrderByDescending(x => x.Total).First(); return (top.Operador, top.Carga); }, StringComparer.Ordinal);
     }
 }
+
+public class AlertaRepositorio(BarcaLogDbContext db) : IAlertaRepositorio
+{
+    public async Task<Dictionary<string, Alerta>> ObterPorChavesAsync(IEnumerable<string> chaves, CancellationToken ct = default)
+    {
+        var lista = chaves.Distinct().ToList();
+        return await db.Alertas.Include(a => a.Eventos).Where(a => lista.Contains(a.Chave)).ToDictionaryAsync(a => a.Chave, ct);
+    }
+
+    public Task<List<Alerta>> ListarAtivosAsync(CancellationToken ct = default) =>
+        db.Alertas.Include(a => a.Eventos).Where(a => a.Ativo).ToListAsync(ct);
+
+    public Task<Pagina<Alerta>> ListarAsync(FiltroAlertas f, CancellationToken ct = default)
+    {
+        IQueryable<Alerta> q = db.Alertas.AsNoTracking();
+        if (f.SomenteAbertos) q = q.Where(a => a.Ativo && (a.Estado == EstadoAlerta.Novo || a.Estado == EstadoAlerta.EmAnalise));
+        if (f.Tipo is { } t) q = q.Where(a => a.Tipo == t);
+        if (f.Estado is { } e) q = q.Where(a => a.Estado == e);
+        if (!string.IsNullOrWhiteSpace(f.TerminalId)) q = q.Where(a => a.TerminalId == f.TerminalId);
+        // Alta primeiro; dentro da prioridade, os mais recentes.
+        return q.OrderByDescending(a => a.Prioridade == PrioridadeAlerta.Alta).ThenByDescending(a => a.Prioridade == PrioridadeAlerta.Media)
+            .ThenByDescending(a => a.IdentificadoEm).ThenByDescending(a => a.Id).PaginarAsync(f, ct);
+    }
+
+    public Task<Alerta?> ObterAsync(int id, CancellationToken ct = default) =>
+        db.Alertas.AsNoTracking().Include(a => a.Eventos).FirstOrDefaultAsync(a => a.Id == id, ct);
+
+    public Task<Alerta?> ObterParaAlterarAsync(int id, CancellationToken ct = default) =>
+        db.Alertas.Include(a => a.Eventos).FirstOrDefaultAsync(a => a.Id == id, ct);
+
+    public async Task<Dictionary<TipoAlerta, int>> ContarAbertosPorTipoAsync(CancellationToken ct = default)
+    {
+        var contagem = await db.Alertas.AsNoTracking()
+            .Where(a => a.Ativo && (a.Estado == EstadoAlerta.Novo || a.Estado == EstadoAlerta.EmAnalise))
+            .GroupBy(a => a.Tipo).Select(g => new { g.Key, N = g.Count() }).ToListAsync(ct);
+        return Enum.GetValues<TipoAlerta>().ToDictionary(t => t, t => contagem.FirstOrDefault(c => c.Key == t)?.N ?? 0);
+    }
+
+    public Task<DateTime?> UltimaAtualizacaoAsync(CancellationToken ct = default) =>
+        db.Alertas.AsNoTracking().MaxAsync(a => (DateTime?)a.AtualizadoEm, ct);
+
+    public void Adicionar(Alerta alerta) => db.Alertas.Add(alerta);
+}

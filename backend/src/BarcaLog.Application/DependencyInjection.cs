@@ -25,6 +25,7 @@ public static class DependencyInjection
         services.AddScoped<ConvenioServico>();
         services.AddScoped<IndicadoresServico>();
         services.AddScoped<ConfiguracaoServico>();
+        services.AddScoped<AlertasServico>();
         services.AddScoped<IntegracaoServico>();
         services.AddScoped<UsuarioServico>();
         services.AddScoped<AutenticacaoServico>();

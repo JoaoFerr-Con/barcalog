@@ -19,7 +19,7 @@ namespace BarcaLog.Api.Controllers;
 [Route("api/v1/importacoes")]
 [Authorize(Policy = Politicas.Leitura)]
 [Produces("application/json")]
-public class ImportacoesController(ImportacaoPlanilhaServico servico) : ControllerBase
+public class ImportacoesController(ImportacaoPlanilhaServico servico, AlertasServico alertas, ILogger<ImportacoesController> logger) : ControllerBase
 {
     /// <summary>Histórico de importações, mais recentes primeiro.</summary>
     [HttpGet]
@@ -80,7 +80,14 @@ public class ImportacoesController(ImportacaoPlanilhaServico servico) : Controll
     [Authorize(Policy = Politicas.Gestao)]
     [Idempotente]
     [RequestTimeout(LimitesRequisicao.TimeoutImportacao)]
-    public Task<LoteImportacaoDto> Confirmar(int id, CancellationToken ct) => servico.ConfirmarAsync(id, ct);
+    public async Task<LoteImportacaoDto> Confirmar(int id, CancellationToken ct)
+    {
+        var lote = await servico.ConfirmarAsync(id, ct);
+        // Dados novos mudam os alertas; uma falha aqui não desfaz a importação (a avaliação periódica tenta de novo).
+        try { await alertas.AvaliarAsync(ct); }
+        catch (Exception ex) when (ex is not OperationCanceledException) { logger.LogError(ex, "Falha ao reavaliar alertas após a importação {Lote}", id); }
+        return lote;
+    }
 
     /// <summary>Descarta a análise. Nada é gravado em marcações.</summary>
     [HttpPost("{id:int}/cancelar")]

@@ -76,6 +76,7 @@ public sealed class ApiFixture : IAsyncLifetime
             b.UseSetting("LimitesRequisicao:IntegracaoPorMinuto", "100000");
             b.UseSetting("LimitesRequisicao:ImportacaoPorHora", "1000");
             b.UseSetting("Operacao:IntervaloMinimoRecargaSegundos", "0");
+            b.UseSetting("Alertas:IntervaloMinutos", "0");
             b.UseSetting("Seed:AplicarMigrations", "true");
             b.UseSetting("Seed:DadosExemplo", "true");
             b.UseSetting("Seed:ImportarMarcacoesSeVazio", "false");

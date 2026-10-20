@@ -57,6 +57,21 @@ public interface IImportacaoRepositorio
     Task RegistrarEventoAsync(string autor, string acao, string detalhes, DateTime quandoUtc, CancellationToken ct = default);
 }
 
+public interface IAlertaRepositorio
+{
+    /// <summary>Alertas (rastreados, com eventos) pelas chaves das regras.</summary>
+    Task<Dictionary<string, Alerta>> ObterPorChavesAsync(IEnumerable<string> chaves, CancellationToken ct = default);
+    /// <summary>Alertas marcados como ativos (rastreados, com eventos).</summary>
+    Task<List<Alerta>> ListarAtivosAsync(CancellationToken ct = default);
+    Task<Pagina<Alerta>> ListarAsync(FiltroAlertas filtro, CancellationToken ct = default);
+    Task<Alerta?> ObterAsync(int id, CancellationToken ct = default);
+    Task<Alerta?> ObterParaAlterarAsync(int id, CancellationToken ct = default);
+    /// <summary>Abertos = ativos e ainda não resolvidos/descartados.</summary>
+    Task<Dictionary<TipoAlerta, int>> ContarAbertosPorTipoAsync(CancellationToken ct = default);
+    Task<DateTime?> UltimaAtualizacaoAsync(CancellationToken ct = default);
+    void Adicionar(Alerta alerta);
+}
+
 public interface IConvenioRepositorio
 {
     Task<List<Convenio>> ListarAsync(CancellationToken ct = default);
@@ -86,6 +101,8 @@ public interface IMarcacaoRepositorio
     Task<Dictionary<string, Marcacao>> ObterVariasAsync(IEnumerable<string> movimentoIds, CancellationToken ct = default);
     /// <summary>Marcações sem liberação, por terminal, com marcação no intervalo [inicio, fim).</summary>
     Task<Dictionary<string, int>> ContarSemLiberacaoAsync(DateTime? inicio, DateTime? fim, CancellationToken ct = default);
+    /// <summary>Marcações ainda sem liberação marcadas antes de <paramref name="limite"/> (horário do porto).</summary>
+    Task<List<(string MovimentoId, string TerminalId, DateTime DataMarcacao)>> ListarAbertasMarcadasAntesDeAsync(DateTime limite, CancellationToken ct = default);
     /// <summary>Última marcação e última liberação recebidas de cada terminal.</summary>
     Task<Dictionary<string, (DateTime? UltimaMarcacao, DateTime? UltimaLiberacao)>> UltimosEventosPorTerminalAsync(CancellationToken ct = default);
     /// <summary>Valores atuais dos movimentos informados (sem rastreamento), para comparar com uma planilha.</summary>

@@ -96,6 +96,117 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                         });
                 });
 
+            modelBuilder.Entity("BarcaLog.Domain.Entidades.Alerta", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AcaoRecomendada")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("Ativo")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Chave")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Evidencia")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("IdentificadoEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Indicador")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Limite")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Origem")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Periodo")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Prioridade")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Regra")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Responsavel")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("TerminalId")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Titulo")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ValorObservado")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<byte[]>("VersaoLinha")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Chave")
+                        .IsUnique();
+
+                    b.HasIndex("Ativo", "Estado", "Tipo");
+
+                    b.ToTable("Alertas", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Alertas_Estado", "[Estado] IN (N'Novo', N'EmAnalise', N'Resolvido', N'Descartado')");
+
+                            t.HasCheckConstraint("CK_Alertas_Prioridade", "[Prioridade] IN (N'Baixa', N'Media', N'Alta')");
+
+                            t.HasCheckConstraint("CK_Alertas_Tipo", "[Tipo] IN (N'Historico', N'Operacional', N'Previsao', N'Dados')");
+                        });
+                });
+
             modelBuilder.Entity("BarcaLog.Domain.Entidades.Condutor", b =>
                 {
                     b.Property<int>("Id")
@@ -229,6 +340,41 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                     b.HasKey("Codigo");
 
                     b.ToTable("Convenios", (string)null);
+                });
+
+            modelBuilder.Entity("BarcaLog.Domain.Entidades.EventoAlerta", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Acao")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("AlertaId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Autor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("Quando")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Texto")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AlertaId");
+
+                    b.ToTable("EventosAlerta", (string)null);
                 });
 
             modelBuilder.Entity("BarcaLog.Domain.Entidades.LinhaImportacao", b =>
@@ -1002,6 +1148,15 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                     b.Navigation("Transportadora");
                 });
 
+            modelBuilder.Entity("BarcaLog.Domain.Entidades.EventoAlerta", b =>
+                {
+                    b.HasOne("BarcaLog.Domain.Entidades.Alerta", null)
+                        .WithMany("Eventos")
+                        .HasForeignKey("AlertaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("BarcaLog.Domain.Entidades.LinhaImportacao", b =>
                 {
                     b.HasOne("BarcaLog.Domain.Entidades.LoteImportacao", null)
@@ -1081,6 +1236,11 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                     b.Navigation("Terminal");
 
                     b.Navigation("Transportadora");
+                });
+
+            modelBuilder.Entity("BarcaLog.Domain.Entidades.Alerta", b =>
+                {
+                    b.Navigation("Eventos");
                 });
 
             modelBuilder.Entity("BarcaLog.Domain.Entidades.Transportadora", b =>
