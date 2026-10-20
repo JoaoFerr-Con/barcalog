@@ -35,6 +35,8 @@ public interface IImportacaoRepositorio
     /// <summary>Lote rastreado (para alterar status/contagens).</summary>
     Task<LoteImportacao?> ObterLoteAsync(int id, CancellationToken ct = default);
     Task<Pagina<LoteImportacao>> ListarLotesAsync(FiltroLotesImportacao filtro, CancellationToken ct = default);
+    /// <summary>Última importação confirmada de cada terminal (quando e qual arquivo).</summary>
+    Task<Dictionary<string, (DateTime Quando, string Arquivo)>> UltimaConfirmadaPorTerminalAsync(CancellationToken ct = default);
     /// <summary>Outra importação do mesmo terminal confirmada depois de <paramref name="desdeUtc"/> (análise desatualizada).</summary>
     Task<LoteImportacao?> ConfirmadoDepoisAsync(string terminalId, DateTime desdeUtc, int ignorarLoteId, CancellationToken ct = default);
     Task<DateTime?> ConfirmadoComMesmoHashAsync(string hashSha256, string terminalId, int ignorarLoteId, CancellationToken ct = default);
@@ -68,6 +70,10 @@ public interface ITerminalRepositorio
 {
     Task<List<Terminal>> ListarAsync(CancellationToken ct = default);
     Task<Terminal?> ObterAsync(string id, CancellationToken ct = default);
+    /// <summary>Terminal rastreado, para alterar a capacidade.</summary>
+    Task<Terminal?> ObterParaAlterarAsync(string id, CancellationToken ct = default);
+    /// <summary>Linha única de parâmetros (criada pela migration).</summary>
+    Task<ParametrosOperacionais> ObterParametrosAsync(bool rastrear, CancellationToken ct = default);
 }
 
 public interface IMarcacaoRepositorio
@@ -78,6 +84,10 @@ public interface IMarcacaoRepositorio
     Task<List<RegistroMarcacao>> ListarRegistrosLiberadosAsync(CancellationToken ct = default);
     Task<HashSet<string>> ListarIdsExistentesAsync(IEnumerable<string> movimentoIds, CancellationToken ct = default);
     Task<Dictionary<string, Marcacao>> ObterVariasAsync(IEnumerable<string> movimentoIds, CancellationToken ct = default);
+    /// <summary>Marcações sem liberação, por terminal, com marcação no intervalo [inicio, fim).</summary>
+    Task<Dictionary<string, int>> ContarSemLiberacaoAsync(DateTime? inicio, DateTime? fim, CancellationToken ct = default);
+    /// <summary>Última marcação e última liberação recebidas de cada terminal.</summary>
+    Task<Dictionary<string, (DateTime? UltimaMarcacao, DateTime? UltimaLiberacao)>> UltimosEventosPorTerminalAsync(CancellationToken ct = default);
     /// <summary>Valores atuais dos movimentos informados (sem rastreamento), para comparar com uma planilha.</summary>
     Task<Dictionary<string, Domain.Regras.DadosMovimento>> ObterDadosAsync(IEnumerable<string> movimentoIds, CancellationToken ct = default);
     void Adicionar(Marcacao marcacao);

@@ -578,8 +578,12 @@ public static class MotorMetricas
 
         foreach (var t in VisaoPorTerminal(registros, capacidadePorTerminalId).Where(t => t.Status == "critico"))
         {
-            alertas.Add(new AlertaOperacional("critico", $"Ocupação crítica — {t.Terminal}",
-                $"Ocupação média de {JsMath.ToFixed(t.OcupacaoPct, 0)}% da capacidade nominal, com espera média de {Relatorio.FormatarHoras(t.EsperaMedia)}."));
+            // O terminal fica crítico por ocupação (≥ 90%) OU por espera média (≥ 20 h): o título diz qual foi.
+            alertas.Add(t.OcupacaoPct >= 90
+                ? new AlertaOperacional("critico", $"Ocupação crítica — {t.Terminal}",
+                    $"Ocupação média de {JsMath.ToFixed(t.OcupacaoPct, 0)}% da capacidade nominal, com espera média de {Relatorio.FormatarHoras(t.EsperaMedia)}.")
+                : new AlertaOperacional("critico", $"Espera média crítica — {t.Terminal}",
+                    $"Espera média de {Relatorio.FormatarHoras(t.EsperaMedia)} (limite: 20h). Ocupação média de {JsMath.ToFixed(t.OcupacaoPct, 0)}% da capacidade nominal."));
         }
 
         if (alertas.Count == 0)

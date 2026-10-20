@@ -14,6 +14,10 @@ public class AtualizarConvenioRequest
 /// <summary>Quantas linhas novas/complementares entram com cada sinal de qualidade.</summary>
 public sealed record AvisosImportacaoDto(int EsperaAcima72h, int SemLiberacao, int PossivelRemarcacao, int ConvenioNovo);
 
+/// <summary>
+/// Uma importação e o resultado da análise/confirmação. MesmoArquivoConfirmadoEm é
+/// preenchido quando um arquivo idêntico (mesmo SHA-256) já foi confirmado para o terminal.
+/// </summary>
 public sealed record LoteImportacaoDto(
     int Id,
     string Arquivo,
@@ -41,7 +45,6 @@ public sealed record LoteImportacaoDto(
     int Inseridos,
     int Atualizados,
     int Ignorados,
-    /// <summary>Preenchido quando um arquivo idêntico (mesmo SHA-256) já foi confirmado para o terminal.</summary>
     DateTime? MesmoArquivoConfirmadoEm);
 
 public sealed record LinhaImportacaoDto(

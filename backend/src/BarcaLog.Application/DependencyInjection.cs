@@ -23,6 +23,8 @@ public static class DependencyInjection
         services.AddScoped<ImportacaoMarcacoesServico>();
         services.AddScoped<ImportacaoPlanilhaServico>();
         services.AddScoped<ConvenioServico>();
+        services.AddScoped<IndicadoresServico>();
+        services.AddScoped<ConfiguracaoServico>();
         services.AddScoped<IntegracaoServico>();
         services.AddScoped<UsuarioServico>();
         services.AddScoped<AutenticacaoServico>();

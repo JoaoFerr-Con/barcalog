@@ -30,6 +30,16 @@ public class ImportacaoRepositorio(BarcaLogDbContext db) : IImportacaoRepositori
             .Where(l => l.HashSha256 == hashSha256 && l.TerminalId == terminalId && l.Status == StatusLoteImportacao.Confirmado && l.Id != ignorarLoteId)
             .OrderByDescending(l => l.ConcluidoEm).Select(l => l.ConcluidoEm).FirstOrDefaultAsync(ct);
 
+    public async Task<Dictionary<string, (DateTime Quando, string Arquivo)>> UltimaConfirmadaPorTerminalAsync(CancellationToken ct = default)
+    {
+        var lotes = await db.LotesImportacao.AsNoTracking()
+            .Where(l => l.Status == StatusLoteImportacao.Confirmado && l.ConcluidoEm != null)
+            .GroupBy(l => l.TerminalId)
+            .Select(g => g.OrderByDescending(l => l.ConcluidoEm).Select(l => new { l.TerminalId, l.ConcluidoEm, l.Arquivo }).First())
+            .ToListAsync(ct);
+        return lotes.ToDictionary(l => l.TerminalId, l => (l.ConcluidoEm!.Value, l.Arquivo));
+    }
+
     public Task<LoteImportacao?> ConfirmadoDepoisAsync(string terminalId, DateTime desdeUtc, int ignorarLoteId, CancellationToken ct = default) =>
         db.LotesImportacao.AsNoTracking()
             .Where(l => l.TerminalId == terminalId && l.Status == StatusLoteImportacao.Confirmado && l.ConcluidoEm > desdeUtc && l.Id != ignorarLoteId)

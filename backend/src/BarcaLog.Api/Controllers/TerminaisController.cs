@@ -16,5 +16,5 @@ public class TerminaisController(ITerminalRepositorio terminais) : ControllerBas
     /// <summary>Lista os terminais cadastrados.</summary>
     [HttpGet]
     public async Task<IEnumerable<TerminalDto>> Listar(CancellationToken ct) =>
-        (await terminais.ListarAsync(ct)).Select(t => new TerminalDto(t.Id, t.Nome, t.CapacidadeDiariaCarretas));
+        (await terminais.ListarAsync(ct)).Select(t => new TerminalDto(t.Id, t.Nome, t.CapacidadeDiariaCarretas, t.CapacidadeHoraria));
 }

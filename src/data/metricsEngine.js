@@ -714,10 +714,15 @@ export function alertasOperacionais(registros) {
   const terminais = visaoPorTerminal(registros);
   terminais.forEach(t => {
     if (t.status === "critico") {
-      alertas.push({
+      // Crítico por ocupação (≥ 90%) OU por espera média (≥ 20 h): o título diz qual foi.
+      alertas.push(t.ocupacaoPct >= 90 ? {
         nivel: "critico",
         titulo: `Ocupação crítica — ${t.terminal}`,
         detalhe: `Ocupação média de ${t.ocupacaoPct.toFixed(0)}% da capacidade nominal, com espera média de ${formatarHoras(t.esperaMedia)}.`
+      } : {
+        nivel: "critico",
+        titulo: `Espera média crítica — ${t.terminal}`,
+        detalhe: `Espera média de ${formatarHoras(t.esperaMedia)} (limite: 20h). Ocupação média de ${t.ocupacaoPct.toFixed(0)}% da capacidade nominal.`
       });
     }
   });

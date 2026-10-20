@@ -623,16 +623,70 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                         });
                 });
 
+            modelBuilder.Entity("BarcaLog.Domain.Entidades.ParametrosOperacionais", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("AtualizadoEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("AtualizadoPor")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("DiasSemDadosAlerta")
+                        .HasColumnType("int");
+
+                    b.Property<double>("LimiteEsperaLongaHoras")
+                        .HasColumnType("float");
+
+                    b.Property<double>("LimiteEsperaMedianaHoras")
+                        .HasColumnType("float");
+
+                    b.Property<double>("LimiteRazaoChegadaLiberacao")
+                        .HasColumnType("float");
+
+                    b.Property<double>("MetaLiberadas24hPct")
+                        .HasColumnType("float");
+
+                    b.Property<byte[]>("VersaoLinha")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ParametrosOperacionais", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Parametros_Faixas", "[LimiteEsperaMedianaHoras] > 0 AND [MetaLiberadas24hPct] BETWEEN 0 AND 100 AND [LimiteEsperaLongaHoras] > 0 AND [DiasSemDadosAlerta] > 0 AND [LimiteRazaoChegadaLiberacao] > 0");
+
+                            t.HasCheckConstraint("CK_Parametros_Unico", "[Id] = 1");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            DiasSemDadosAlerta = 2,
+                            LimiteEsperaLongaHoras = 72.0,
+                            LimiteEsperaMedianaHoras = 12.0,
+                            LimiteRazaoChegadaLiberacao = 1.3999999999999999,
+                            MetaLiberadas24hPct = 85.0
+                        });
+                });
+
             modelBuilder.Entity("BarcaLog.Domain.Entidades.Terminal", b =>
                 {
                     b.Property<string>("Id")
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
 
-                    b.Property<int>("CapacidadeDiariaCarretas")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasDefaultValue(1000);
+                    b.Property<int?>("CapacidadeDiariaCarretas")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CapacidadeHoraria")
+                        .HasColumnType("int");
 
                     b.Property<string>("Nome")
                         .IsRequired()
@@ -646,26 +700,25 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
 
                     b.ToTable("Terminais", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Terminais_Capacidade", "[CapacidadeDiariaCarretas] > 0");
+                            t.HasCheckConstraint("CK_Terminais_Capacidade", "[CapacidadeDiariaCarretas] IS NULL OR [CapacidadeDiariaCarretas] > 0");
+
+                            t.HasCheckConstraint("CK_Terminais_CapacidadeHoraria", "[CapacidadeHoraria] IS NULL OR [CapacidadeHoraria] > 0");
                         });
 
                     b.HasData(
                         new
                         {
                             Id = "unitapajos",
-                            CapacidadeDiariaCarretas = 1000,
                             Nome = "Unitapajós"
                         },
                         new
                         {
                             Id = "tgpm",
-                            CapacidadeDiariaCarretas = 1000,
                             Nome = "TGPM"
                         },
                         new
                         {
                             Id = "hidrovias",
-                            CapacidadeDiariaCarretas = 1000,
                             Nome = "Hidrovias"
                         });
                 });

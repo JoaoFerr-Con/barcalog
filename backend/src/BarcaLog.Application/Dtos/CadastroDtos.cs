@@ -3,7 +3,8 @@ using BarcaLog.Domain.Enums;
 
 namespace BarcaLog.Application.Dtos;
 
-public sealed record TerminalDto(string Id, string Nome, int CapacidadeDiariaCarretas);
+/// <summary>Capacidades nulas = ainda não configuradas pelo porto.</summary>
+public sealed record TerminalDto(string Id, string Nome, int? CapacidadeDiariaCarretas, int? CapacidadeHoraria = null);
 
 /// <summary>Status é sempre calculado: negativada se ≥1 carreta negativada.</summary>
 public sealed record TransportadoraDto(

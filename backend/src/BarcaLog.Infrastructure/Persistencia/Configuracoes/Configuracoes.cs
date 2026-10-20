@@ -8,18 +8,41 @@ public class TerminalConfiguracao : IEntityTypeConfiguration<Terminal>
 {
     public void Configure(EntityTypeBuilder<Terminal> b)
     {
-        b.ToTable("Terminais", t => t.HasCheckConstraint("CK_Terminais_Capacidade", "[CapacidadeDiariaCarretas] > 0"));
+        b.ToTable("Terminais", t =>
+        {
+            t.HasCheckConstraint("CK_Terminais_Capacidade", "[CapacidadeDiariaCarretas] IS NULL OR [CapacidadeDiariaCarretas] > 0");
+            t.HasCheckConstraint("CK_Terminais_CapacidadeHoraria", "[CapacidadeHoraria] IS NULL OR [CapacidadeHoraria] > 0");
+        });
         b.HasKey(x => x.Id);
         b.Property(x => x.Id).HasMaxLength(32);
         b.Property(x => x.Nome).HasMaxLength(100).IsRequired();
-        b.Property(x => x.CapacidadeDiariaCarretas).HasDefaultValue(Terminal.CapacidadeNominalPadrao);
         b.HasIndex(x => x.Nome).IsUnique();
 
-        // Os 3 terminais reais (mesmos ids de src/data/registry.js).
+        // Os 3 terminais reais. Capacidade em branco: o porto ainda não informou
+        // (o antigo 1.000/dia era um valor padrão, não medido).
         b.HasData(
-            new Terminal { Id = "unitapajos", Nome = "Unitapajós", CapacidadeDiariaCarretas = 1000 },
-            new Terminal { Id = "tgpm", Nome = "TGPM", CapacidadeDiariaCarretas = 1000 },
-            new Terminal { Id = "hidrovias", Nome = "Hidrovias", CapacidadeDiariaCarretas = 1000 });
+            new Terminal { Id = "unitapajos", Nome = "Unitapajós" },
+            new Terminal { Id = "tgpm", Nome = "TGPM" },
+            new Terminal { Id = "hidrovias", Nome = "Hidrovias" });
+    }
+}
+
+public class ParametrosOperacionaisConfiguracao : IEntityTypeConfiguration<ParametrosOperacionais>
+{
+    public void Configure(EntityTypeBuilder<ParametrosOperacionais> b)
+    {
+        b.ToTable("ParametrosOperacionais", t =>
+        {
+            t.HasCheckConstraint("CK_Parametros_Unico", "[Id] = 1");
+            t.HasCheckConstraint("CK_Parametros_Faixas",
+                "[LimiteEsperaMedianaHoras] > 0 AND [MetaLiberadas24hPct] BETWEEN 0 AND 100 AND [LimiteEsperaLongaHoras] > 0 AND [DiasSemDadosAlerta] > 0 AND [LimiteRazaoChegadaLiberacao] > 0");
+        });
+        b.HasKey(x => x.Id);
+        b.Property(x => x.Id).ValueGeneratedNever();
+        b.Property(x => x.AtualizadoEm).EmUtc();
+        b.Property(x => x.AtualizadoPor).HasMaxLength(200);
+        b.VersaoLinha();
+        b.HasData(new ParametrosOperacionais());
     }
 }
 

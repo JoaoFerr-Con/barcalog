@@ -24,6 +24,15 @@ public class TerminalRepositorio(BarcaLogDbContext db) : ITerminalRepositorio
 
     public Task<Terminal?> ObterAsync(string id, CancellationToken ct = default) =>
         db.Terminais.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct);
+
+    public Task<Terminal?> ObterParaAlterarAsync(string id, CancellationToken ct = default) =>
+        db.Terminais.FirstOrDefaultAsync(t => t.Id == id, ct);
+
+    public async Task<ParametrosOperacionais> ObterParametrosAsync(bool rastrear, CancellationToken ct = default)
+    {
+        var q = rastrear ? db.Parametros : db.Parametros.AsNoTracking();
+        return await q.SingleOrDefaultAsync(p => p.Id == ParametrosOperacionais.IdUnico, ct) ?? new ParametrosOperacionais();
+    }
 }
 
 public class MarcacaoRepositorio(BarcaLogDbContext db) : IMarcacaoRepositorio
@@ -72,6 +81,22 @@ public class MarcacaoRepositorio(BarcaLogDbContext db) : IMarcacaoRepositorio
             existentes.UnionWith(encontrados);
         }
         return existentes;
+    }
+
+    public async Task<Dictionary<string, int>> ContarSemLiberacaoAsync(DateTime? inicio, DateTime? fim, CancellationToken ct = default)
+    {
+        var q = db.Marcacoes.AsNoTracking().Where(m => m.DataLiberacao == null);
+        if (inicio is { } i) q = q.Where(m => m.DataMarcacao >= i);
+        if (fim is { } f) q = q.Where(m => m.DataMarcacao < f);
+        return await q.GroupBy(m => m.TerminalId).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N, ct);
+    }
+
+    public async Task<Dictionary<string, (DateTime? UltimaMarcacao, DateTime? UltimaLiberacao)>> UltimosEventosPorTerminalAsync(CancellationToken ct = default)
+    {
+        var linhas = await db.Marcacoes.AsNoTracking().GroupBy(m => m.TerminalId)
+            .Select(g => new { g.Key, M = g.Max(m => (DateTime?)m.DataMarcacao), L = g.Max(m => m.DataLiberacao) })
+            .ToListAsync(ct);
+        return linhas.ToDictionary(x => x.Key, x => (x.M, x.L));
     }
 
     public async Task<Dictionary<string, Domain.Regras.DadosMovimento>> ObterDadosAsync(IEnumerable<string> movimentoIds, CancellationToken ct = default)

@@ -6,7 +6,7 @@ namespace BarcaLog.Application.Servicos;
 
 internal static class Mapeamentos
 {
-    public static TerminalDto ParaDto(this Terminal t) => new(t.Id, t.Nome, t.CapacidadeDiariaCarretas);
+    public static TerminalDto ParaDto(this Terminal t) => new(t.Id, t.Nome, t.CapacidadeDiariaCarretas, t.CapacidadeHoraria);
 
     public static VeiculoDto ParaDto(this Veiculo v) => new(
         v.Id, v.Placa, v.TransportadoraId, v.Transportadora?.Nome, v.Modelo,
