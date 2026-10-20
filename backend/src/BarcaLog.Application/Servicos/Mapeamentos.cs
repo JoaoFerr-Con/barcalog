@@ -36,6 +36,6 @@ internal static class Mapeamentos
             m.MovimentoId, m.Senha, m.Convenio, m.CodConvenio, m.Operador, m.Carga, m.Ciclo,
             m.DataMarcacao, m.DataLiberacao, espera,
             espera is null ? null : JanelaPermanencia.Classificar(espera.Value).Chave,
-            m.TerminalId, m.Terminal?.Nome);
+            m.TerminalId, m.Terminal?.Nome, m.Origem, m.LoteImportacaoId, m.LinhaOrigem);
     }
 }

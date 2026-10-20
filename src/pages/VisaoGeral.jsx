@@ -1,669 +1,352 @@
-import { useState, useMemo } from "react";
-import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis,
-  CartesianGrid, Tooltip, Legend
-} from "recharts";
-import CartaoIndicador from "../components/CartaoIndicador.jsx";
-import SeletorEmpresa from "../components/SeletorEmpresa.jsx";
-import Modal from "../components/Modal.jsx";
-import GraficoLinhas from "../components/GraficoLinhas.jsx";
-import { usePainel, useMetrica, buscarRelatorio } from "../hooks/useMetricas.js";
+import { useMemo, useState } from "react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from "recharts";
+import { api, baixarArquivo } from "../api/cliente.js";
+import { useApi } from "../hooks/useApi.js";
 import { useAcao } from "../hooks/useAcao.js";
-import { baixarArquivo } from "../api/cliente.js";
-import { JANELAS, CAPACIDADE_DIARIA, TERMINAIS, nomeTerminal } from "../api/rotulos.js";
-import { formatarHoras } from "../utils/formatar.js";
-import { Carregando, ErroCarga } from "../components/EstadoCarga.jsx";
-import RelatorioImprimivel from "../components/RelatorioImprimivel.jsx";
+import { Carregando, ErroCarga, Vazio } from "../components/EstadoCarga.jsx";
+import { CabecalhoPagina, Cartao, Kpi, Selo, Icone, Aviso, Campo, HEX_TERMINAL } from "../components/ui.jsx";
+import RelatorioPeriodo from "../components/RelatorioPeriodo.jsx";
+import {
+  duracao, variacaoDuracao, numero, percentual, variacaoPct, mesCurto, mesLongo, limitesDoMes, mesAnterior,
+  dataCurta, dataHoraPorto, dataHoraLocal, formatarDataPtBR
+} from "../utils/formatar.js";
 
-const ABAS = [
-  { chave: "resumo", rotulo: "Resumo" },
-  { chave: "detalhes", rotulo: "Ranking & Detalhes" },
-  { chave: "operacional", rotulo: "Eficiência Operacional" },
-  { chave: "analises", rotulo: "Análises" }
-];
+// Visão Geral — central de operações. Todos os números vêm de
+// /api/v1/indicadores/* (regras em docs/INDICADORES.md). O período é o das
+// datas de MARCAÇÃO, horário do porto; a comparação é explícita.
 
-// Barra de distribuição D0…Estouro de um terminal (busca só quando a aba abre).
-function JanelasDoTerminal({ terminalId }) {
-  const { dados } = useMetrica("janelas-permanencia", { terminalId });
-  if (!dados || dados.every(j => j.total === 0)) return null;
+const I = "/api/v1/indicadores";
+const ROTULO_ORIGEM = { CargaInicial: "Carga inicial", Planilha: "Planilha", Integracao: "Integração" };
+const COR_PRIORIDADE = { Alta: "var(--critico)", Media: "var(--alto)", Baixa: "var(--serie-neutra)" };
+const SELO_TIPO = { Historico: ["info", "Histórico"], Operacional: ["critico", "Operacional"], Previsao: ["previsao", "Previsão"], Dados: ["neutro", "Dados"] };
+
+/** Mês mais recente em que TODOS os terminais têm dados até o fim do mês. */
+function mesPadrao(frescor) {
+  const ultimas = (frescor || []).map(f => f.ultimaMarcacao).filter(Boolean).sort();
+  if (!ultimas.length) return null;
+  const menor = ultimas[0].slice(0, 10);
+  const chave = menor.slice(0, 7);
+  return menor === limitesDoMes(chave)[1] ? chave : mesAnterior(chave);
+}
+
+function sentido(atual, anterior, menorMelhor = true) {
+  if (atual == null || anterior == null || atual === anterior) return "neutro";
+  return (atual < anterior) === menorMelhor ? "melhor" : "pior";
+}
+
+export default function VisaoGeral({ irPara }) {
+  const frescor = useApi(sinal => api.get(`${I}/frescor`, null, sinal), []);
+  const mensalTodos = useApi(sinal => api.get(`${I}/volume-mensal`, null, sinal), []);
+  const [escolha, setEscolha] = useState(null); // { mes } ou { de, ate }
+  const [terminalId, setTerminalId] = useState("");
+  const [comparar, setComparar] = useState("anterior");
+  const [executar, exportando] = useAcao();
+  const [imprimir, setImprimir] = useState(false);
+
+  const meses = useMemo(() => [...new Set((mensalTodos.dados || []).map(m => m.mes))].sort().reverse(), [mensalTodos.dados]);
+  const mes = escolha?.mes ?? (escolha ? null : mesPadrao(frescor.dados));
+  const [de, ate] = mes ? limitesDoMes(mes) : [escolha?.de, escolha?.ate];
+  const [cDe, cAte] = comparar === "anterior" && mes ? limitesDoMes(mesAnterior(mes)) : [null, null];
+  const rotuloPeriodo = mes ? mesLongo(mes) : de && ate ? `${formatarDataPtBR(de)} a ${formatarDataPtBR(ate)}` : "todo o período";
+  const rotuloComparacao = cDe ? mesLongo(mesAnterior(mes)) : null;
+
+  const pronto = !!de || !frescor.carregando;
+  const filtro = { terminalId, de, ate, compararDe: cDe, compararAte: cAte };
+  const chave = JSON.stringify(filtro);
+  const resumo = useApi(sinal => pronto ? api.get(`${I}/resumo`, filtro, sinal) : Promise.resolve(null), [chave, pronto]);
+  const terminais = useApi(sinal => pronto ? api.get(`${I}/terminais`, filtro, sinal) : Promise.resolve(null), [chave, pronto]);
+  const fluxo = useApi(sinal => pronto ? api.get(`${I}/fluxo-horario`, { terminalId, de, ate }, sinal) : Promise.resolve(null), [chave, pronto]);
+  const alertas = useApi(sinal => api.get("/api/v1/alertas", { tamanhoPagina: 4 }, sinal), []);
+  const agenda = useApi(sinal => api.get("/api/v1/agendamentos/resumo", null, sinal), []);
+  const portaria = useApi(sinal => api.get("/api/v1/portaria/operacao-agora", null, sinal), []);
+  const ultimos = useApi(sinal => api.get("/api/v1/marcacoes", { tamanhoPagina: 5 }, sinal), []);
+
+  const principais = [frescor, resumo, terminais];
+  const erro = principais.find(r => r.erro)?.erro;
+  if (erro) return <><CabecalhoPagina titulo="Visão Geral" /><ErroCarga erro={erro} aoTentarDeNovo={() => principais.forEach(r => r.recarregar())} /></>;
+
+  const a = resumo.dados?.atual;
+  const b = resumo.dados?.anterior;
+  const desatualizados = (frescor.dados || []).filter(f => f.desatualizado);
+  const limiteLonga = resumo.dados?.limiteEsperaLongaHoras ?? 72;
+  const basePrev = rotuloComparacao ? `em ${rotuloComparacao.split(" de ")[0]}` : "";
+
   return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>{nomeTerminal(terminalId)}</div>
-      <div style={{ display: "flex", gap: 2, borderRadius: 6, overflow: "hidden", height: 18 }} role="img" aria-label={dados.map(j => `${j.rotulo}: ${j.pct.toFixed(1)}%`).join(", ")}>
-        {dados.map(j => (
-          <div key={j.chave} title={`${j.rotulo}: ${j.pct.toFixed(1)}%`} style={{ flex: Math.max(j.pct, 0.5), background: JANELAS.find(x => x.chave === j.chave)?.cor }} />
-        ))}
+    <>
+      <CabecalhoPagina titulo="Visão Geral" subtitulo="Fluxo de carretas nos terminais · tempos medidos da marcação à liberação">
+        <Campo rotulo="Período">
+          <select value={mes ?? "personalizado"} onChange={e => setEscolha(e.target.value === "personalizado" ? { de: de || "", ate: ate || "" } : { mes: e.target.value })}>
+            {meses.map(m => <option key={m} value={m}>{mesLongo(m)}</option>)}
+            <option value="personalizado">Personalizado…</option>
+          </select>
+        </Campo>
+        {!mes && (
+          <>
+            <Campo rotulo="De"><input type="date" value={de || ""} onChange={e => setEscolha({ de: e.target.value, ate })} /></Campo>
+            <Campo rotulo="Até"><input type="date" value={ate || ""} min={de} onChange={e => setEscolha({ de, ate: e.target.value })} /></Campo>
+          </>
+        )}
+        <Campo rotulo="Terminal">
+          <select value={terminalId} onChange={e => setTerminalId(e.target.value)}>
+            <option value="">Todos os terminais</option>
+            {(frescor.dados || []).map(t => <option key={t.terminalId} value={t.terminalId}>{t.terminal}</option>)}
+          </select>
+        </Campo>
+        <Campo rotulo="Comparar com">
+          <select value={mes ? comparar : "nenhum"} disabled={!mes} onChange={e => setComparar(e.target.value)}>
+            <option value="anterior">Mês anterior</option>
+            <option value="nenhum">Sem comparação</option>
+          </select>
+        </Campo>
+        <button type="button" className="botao botao--secundario" disabled={exportando || !de}
+          onClick={() => executar(() => baixarArquivo("/api/v1/marcacoes/exportar", { terminalId, de, ate }, `marcacoes_${terminalId || "todos"}_${de}_${ate}.csv`), { sucesso: "CSV gerado." })}>
+          <Icone nome="download" /> CSV
+        </button>
+        <button type="button" className="botao botao--secundario" disabled={!a} onClick={() => setImprimir(true)}>
+          <Icone nome="print" /> PDF
+        </button>
+      </CabecalhoPagina>
+
+      {/* Atualização dos dados */}
+      {frescor.dados && (
+        <div className="aviso aviso--info num" role="status" style={{ flexWrap: "wrap", alignItems: "center" }}>
+          <b style={{ color: "var(--tinta)" }}>Dados disponíveis até</b>
+          {frescor.dados.map(f => <span key={f.terminalId}>{f.terminal} <b style={{ color: "var(--tinta)" }}>{f.ultimaMarcacao ? dataCurta(f.ultimaMarcacao) : "—"}</b></span>)}
+          {desatualizados.length > 0 && <Selo tipo="atencao" icone="warning">{desatualizados.length === frescor.dados.length ? "Todos os terminais sem dados recentes" : `${desatualizados.map(d => d.terminal).join(", ")} sem dados recentes`}</Selo>}
+          <span style={{ marginLeft: "auto" }}>
+            {(() => { const u = frescor.dados.map(f => f.ultimaImportacaoEm).filter(Boolean).sort().pop(); return u ? <>Última importação {dataHoraLocal(u)} · </> : null; })()}
+            <a href="#/importacao" onClick={e => { e.preventDefault(); irPara("importacao"); }}>importar planilhas</a>
+          </span>
+        </div>
+      )}
+
+      {/* Indicadores essenciais */}
+      <section aria-label={`Indicadores de ${rotuloPeriodo}`} className="grade-kpi">
+        {!a ? <Carregando texto="Calculando indicadores…" /> : <>
+          <Kpi rotulo="Movimentações" valor={numero(a.movimentacoes)}
+            comparacao={{ texto: variacaoPct(a.movimentacoes, b?.movimentacoes), sentido: "neutro", base: b ? `vs. ${numero(b.movimentacoes)} ${basePrev} · ${numero(a.mediaDiaria)}/dia` : `${numero(a.mediaDiaria)}/dia` }}
+            regra={`Marcações com data no período (${rotuloPeriodo}), liberadas ou não. Média/dia = movimentações ÷ ${resumo.dados.periodo?.dias ?? "—"} dias corridos.`} />
+          <Kpi rotulo="Espera mediana" valor={duracao(a.esperaMediana)}
+            comparacao={{ texto: variacaoDuracao(a.esperaMediana, b?.esperaMediana), sentido: sentido(a.esperaMediana, b?.esperaMediana), base: b ? `vs. ${duracao(b.esperaMediana)} ${basePrev}` : "metade esperou menos que isso" }}
+            regra="Mediana de (liberação − marcação) das carretas marcadas no período e já liberadas." />
+          <Kpi rotulo="Espera P90" valor={duracao(a.esperaP90)}
+            comparacao={{ texto: variacaoDuracao(a.esperaP90, b?.esperaP90), sentido: sentido(a.esperaP90, b?.esperaP90), base: "10% esperaram mais que isso" }}
+            regra="90º percentil de (liberação − marcação), por interpolação linear (igual ao PERCENTIL.INC do Excel)." />
+          <Kpi rotulo="Liberadas em até 24 h" valor={numero(a.liberadasAte24hPct, 1)} unidade="%"
+            comparacao={{ texto: b ? `${a.liberadasAte24hPct >= b.liberadasAte24hPct ? "+" : "−"}${numero(Math.abs(a.liberadasAte24hPct - b.liberadasAte24hPct), 1)} p.p.` : null, sentido: sentido(a.liberadasAte24hPct, b?.liberadasAte24hPct, false), base: b ? `vs. ${percentual(b.liberadasAte24hPct)} ${basePrev}` : "" }}
+            regra="Carretas com espera ≤ 24 h ÷ carretas liberadas no período. Meta configurável em Configurações." />
+          <Kpi rotulo={`Esperas acima de ${limiteLonga} h`} valor={numero(a.esperasLongas)} unidade="carretas"
+            comparacao={{ texto: b ? `${a.esperasLongas - b.esperasLongas > 0 ? "+" : a.esperasLongas < b.esperasLongas ? "−" : ""}${numero(Math.abs(a.esperasLongas - b.esperasLongas))}` : null, sentido: sentido(a.esperasLongas, b?.esperasLongas), base: b ? `vs. ${numero(b.esperasLongas)} ${basePrev}` : "" }}
+            regra={`Carretas liberadas com espera > ${limiteLonga} h — casos para investigar um a um. Limite configurável.`} />
+        </>}
+      </section>
+      {a && a.semLiberacao > 0 && <Aviso tipo="atencao">{numero(a.semLiberacao)} carreta(s) marcadas no período ainda sem liberação: contam em movimentações, mas não nas esperas.</Aviso>}
+
+      <div className="grade-2">
+        {/* Exigem atenção */}
+        <Cartao id="vg-alertas" titulo="Exigem atenção" acao={<a className="link" href="#/gargalos" onClick={e => { e.preventDefault(); irPara("gargalos"); }}>Todos os alertas</a>}>
+          {alertas.carregando && !alertas.dados ? <Carregando /> : !alertas.dados?.itens.length ? <Vazio icone="task_alt" titulo="Nenhum alerta aberto" texto="As regras são reavaliadas a cada 10 minutos e após cada importação." /> : (
+            <ul className="lista-alertas">
+              {alertas.dados.itens.map(al => (
+                <li key={al.id} className="item-alerta">
+                  <span className="ponto-estado" style={{ background: COR_PRIORIDADE[al.prioridade] }} aria-label={`Prioridade ${al.prioridade}`} />
+                  <div>
+                    <div className="linha-flex" style={{ gap: 6 }}>
+                      <Selo tipo={SELO_TIPO[al.tipo][0]}>{SELO_TIPO[al.tipo][1]}</Selo>
+                      <span className="item-alerta__meta">{al.terminal || "Todos"} · {al.periodo}</span>
+                    </div>
+                    <div className="item-alerta__titulo">{al.titulo}</div>
+                    <div className="item-alerta__evidencia">{al.evidencia}</div>
+                  </div>
+                  <span />
+                </li>
+              ))}
+            </ul>
+          )}
+        </Cartao>
+
+        {/* Situação agora */}
+        <Cartao id="vg-agora" titulo="Situação agora" acao={<span className="fraco" style={{ fontSize: 12 }}>hoje, {new Date().toLocaleDateString("pt-BR")}</span>}>
+          <div className="pilha" style={{ gap: 14 }}>
+            <div>
+              <div className="linha-flex" style={{ justifyContent: "space-between", marginBottom: 8, fontSize: 13 }}>
+                <b>Agendamentos do dia</b>
+                <a href="#/agendamentos" onClick={e => { e.preventDefault(); irPara("agendamentos"); }}>abrir agenda</a>
+              </div>
+              <div className="grade-kpi" style={{ gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: 8 }}>
+                {[["Previstos", agenda.dados?.total, null], ["Confirmados", agenda.dados?.confirmados, null], ["Em operação", agenda.dados?.emOperacao, "var(--navio-600)"], ["Atrasados", agenda.dados?.atrasados, "var(--critico-texto)"]].map(([r, n, cor]) => (
+                  <div key={r} style={{ border: "1px solid var(--borda)", borderRadius: 10, padding: "8px 12px" }}>
+                    <div className="num" style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, fontWeight: 600, color: cor || "var(--tinta)" }}>{n ?? "—"}</div>
+                    <div className="fraco" style={{ fontSize: 12 }}>{r}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {portaria.dados && (
+              <div>
+                <b style={{ fontSize: 13 }}>Carretas por situação na portaria</b>
+                <BarraSituacao d={portaria.dados} />
+              </div>
+            )}
+            <Aviso tipo="info"><b>Origem:</b> agenda e situação de portaria são registradas manualmente no BarcaLog (sem GPS ou sensor). Carretas marcadas e ainda não liberadas nos terminais aparecerão aqui quando a integração estiver ativa.</Aviso>
+          </div>
+        </Cartao>
       </div>
+
+      {/* Comparação entre terminais */}
+      <Cartao id="vg-terminais" titulo={`Comparação entre terminais · ${rotuloPeriodo}`}
+        acao={<span className="fraco" style={{ fontSize: 12 }}>{(terminais.dados || []).some(t => t.capacidadeDiaria) ? "" : "Ocupação não exibida: capacidade dos terminais não configurada"}</span>}>
+        {!terminais.dados ? <Carregando /> : (
+          <div className="tabela-wrap">
+            <table style={{ minWidth: 900 }}>
+              <thead>
+                <tr>
+                  <th scope="col">Terminal</th><th scope="col" className="num">Movimentações</th><th scope="col" className="num">Média/dia</th>
+                  <th scope="col" className="num">Pico diário</th><th scope="col" className="num">Espera mediana</th>
+                  {b && <th scope="col" className="num">vs. {rotuloComparacao?.split(" de ")[0]}</th>}
+                  <th scope="col" className="num">Espera P90</th><th scope="col" className="num">Liberadas ≤ 24 h</th>
+                  <th scope="col" className="num">Esperas &gt; {limiteLonga} h</th>
+                  {terminais.dados.some(t => t.capacidadeDiaria) && <th scope="col" className="num">Ocupação</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {terminais.dados.map(t => (
+                  <tr key={t.terminalId}>
+                    <th scope="row"><span className="linha-flex" style={{ gap: 8 }}><span className="ponto-legenda" style={{ background: HEX_TERMINAL[t.terminalId] }} />{t.terminal}</span></th>
+                    <td className="num">{numero(t.atual.movimentacoes)}</td>
+                    <td className="num">{numero(t.atual.mediaDiaria)}</td>
+                    <td className="num">{t.picoDiario ? <>{numero(t.picoDiario)} <span className="fraco">({dataCurta(t.picoData)})</span></> : "—"}</td>
+                    <td className="num" style={{ fontWeight: 600 }}>{duracao(t.atual.esperaMediana)}</td>
+                    {b && <td className="num"><b className={`kpi__nota ${""}`} style={{ color: sentido(t.atual.esperaMediana, t.anterior?.esperaMediana) === "pior" ? "var(--critico-texto)" : sentido(t.atual.esperaMediana, t.anterior?.esperaMediana) === "melhor" ? "var(--ok)" : "var(--tinta-suave)" }}>{variacaoDuracao(t.atual.esperaMediana, t.anterior?.esperaMediana) ?? "—"}</b></td>}
+                    <td className="num">{duracao(t.atual.esperaP90)}</td>
+                    <td className="num">{percentual(t.atual.liberadasAte24hPct)}</td>
+                    <td className="num">{numero(t.atual.esperasLongas)}</td>
+                    {terminais.dados.some(x => x.capacidadeDiaria) && <td className="num">{t.ocupacaoMediaPct != null ? percentual(t.ocupacaoMediaPct, 0) : <span className="fraco">não configurada</span>}</td>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Cartao>
+
+      {/* Histórico e fluxo */}
+      <div className="grade-2">
+        <Cartao id="vg-historico" titulo="Análise de Volume — Histórico" subtitulo={`Movimentações por mês${terminalId ? "" : " e terminal"} · meses parciais marcados com *`}>
+          <GraficoMensal dados={(mensalTodos.dados || []).filter(m => !terminalId || m.terminalId === terminalId)} mesDestacado={mes} />
+        </Cartao>
+        <Cartao id="vg-fluxo" titulo="Chegadas × liberações por hora" subtitulo={`Média por dia · ${rotuloPeriodo}${terminalId ? "" : " · todos os terminais"}`}>
+          <GraficoFluxo dados={fluxo.dados} />
+        </Cartao>
+      </div>
+
+      {/* Últimos registros */}
+      <Cartao id="vg-ultimos" titulo="Últimos registros recebidos" acao={<a className="link" href="#/movimentacoes" onClick={e => { e.preventDefault(); irPara("movimentacoes"); }}>Ver todas as movimentações</a>}>
+        {!ultimos.dados ? <Carregando /> : (
+          <div className="tabela-wrap">
+            <table style={{ minWidth: 760 }}>
+              <thead><tr><th scope="col">Movimento</th><th scope="col">Senha</th><th scope="col">Terminal</th><th scope="col">Convênio</th><th scope="col">Marcação</th><th scope="col">Liberação</th><th scope="col" className="num">Espera</th><th scope="col">Origem</th></tr></thead>
+              <tbody>
+                {ultimos.dados.itens.map(m => (
+                  <tr key={m.movimentoId}>
+                    <td className="id-mono">{m.movimentoId}</td><td className="id-mono">{m.senha}</td><td>{m.terminal}</td><td>{m.convenio}</td>
+                    <td className="num">{dataHoraPorto(m.dataMarcacao)}</td><td className="num">{m.dataLiberacao ? dataHoraPorto(m.dataLiberacao) : <Selo tipo="atencao">sem liberação</Selo>}</td>
+                    <td className="num">{duracao(m.esperaHoras)}</td><td><Selo>{ROTULO_ORIGEM[m.origem] || m.origem}</Selo></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Cartao>
+
+      {imprimir && a && (
+        <RelatorioPeriodo aoFechar={() => setImprimir(false)} periodo={rotuloPeriodo} comparacao={rotuloComparacao}
+          terminal={terminalId ? (frescor.dados || []).find(t => t.terminalId === terminalId)?.terminal : null}
+          resumo={resumo.dados} terminais={terminais.dados || []} mensal={(mensalTodos.dados || []).filter(m => !terminalId || m.terminalId === terminalId)}
+          alertas={alertas.dados?.itens || []} frescor={frescor.dados || []} />
+      )}
+    </>
+  );
+}
+
+function BarraSituacao({ d }) {
+  const partes = [
+    ["No pátio", d.noPatio, "var(--alto)"], ["Aguardando entrada", d.aguardando, "var(--serie-neutra)"],
+    ["Em operação", d.emOperacao, "var(--navio-600)"], ["Descarga finalizada", d.finalizados, "var(--serie-hidrovias)"]
+  ];
+  const total = partes.reduce((s, p) => s + p[1], 0);
+  if (!total) return <p className="fraco" style={{ fontSize: 13, marginTop: 6 }}>Nenhuma carreta com situação registrada.</p>;
+  return (
+    <>
+      <div role="img" aria-label={partes.map(p => `${p[1]} ${p[0].toLowerCase()}`).join(", ")} style={{ display: "flex", height: 12, borderRadius: 6, overflow: "hidden", gap: 2, marginTop: 8 }}>
+        {partes.filter(p => p[1] > 0).map(p => <div key={p[0]} style={{ flex: p[1], background: p[2] }} />)}
+      </div>
+      <div className="legenda num" style={{ marginTop: 8 }}>
+        {partes.map(p => <span key={p[0]}><span className="ponto-legenda" style={{ background: p[2] }} /><b style={{ color: "var(--tinta)" }}>{p[1]}</b> {p[0].toLowerCase()}</span>)}
+      </div>
+    </>
+  );
+}
+
+const ROTULO_TERMINAL = { unitapajos: "Unitapajós", tgpm: "TGPM", hidrovias: "Hidrovias" };
+
+function GraficoMensal({ dados, mesDestacado }) {
+  const linhas = useMemo(() => {
+    const porMes = {};
+    dados.forEach(m => {
+      const l = (porMes[m.mes] ||= { mes: m.mes, rotulo: mesCurto(m.mes), parcial: false });
+      l[m.terminalId] = m.movimentacoes;
+      l[`${m.terminalId}_mediana`] = m.esperaMediana;
+      if (m.parcial) { l.parcial = true; l[`${m.terminalId}_parcial`] = true; }
+    });
+    return Object.values(porMes).sort((x, y) => x.mes.localeCompare(y.mes)).map(l => ({ ...l, rotulo: l.parcial ? `${l.rotulo}*` : l.rotulo }));
+  }, [dados]);
+  const ids = [...new Set(dados.map(d => d.terminalId))].sort((x, y) => ["unitapajos", "tgpm", "hidrovias"].indexOf(x) - ["unitapajos", "tgpm", "hidrovias"].indexOf(y));
+  if (!dados.length) return <Vazio icone="bar_chart" titulo="Sem movimentações" />;
+  return (
+    <div role="img" aria-label={`Movimentações por mês: ${linhas.map(l => `${l.rotulo} ${ids.map(i => `${ROTULO_TERMINAL[i]} ${l[i] ?? 0}`).join(", ")}`).join("; ")}`}>
+      <ResponsiveContainer width="100%" height={260}>
+        <BarChart data={linhas} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barCategoryGap="22%">
+          <CartesianGrid vertical={false} stroke="#EEF1F5" />
+          <XAxis dataKey="rotulo" tick={{ fontSize: 11.5, fill: "#4A5870" }} tickLine={false} axisLine={{ stroke: "#CDD5E1" }} />
+          <YAxis tick={{ fontSize: 11, fill: "#6B7890" }} tickLine={false} axisLine={false} width={44} tickFormatter={v => v >= 1000 ? `${numero(v / 1000, 0)} mil` : v} />
+          <Tooltip cursor={{ fill: "#F1F5FB" }} formatter={(v, nome, { payload }) => [`${numero(v)} · mediana ${duracao(payload[`${nome}_mediana`])}${payload[`${nome}_parcial`] ? " (mês parcial)" : ""}`, ROTULO_TERMINAL[nome]]}
+            labelFormatter={(_, p) => p?.[0] ? mesLongo(p[0].payload.mes) : ""} contentStyle={{ borderRadius: 8, borderColor: "#E3E8EF", fontSize: 12.5 }} />
+          <Legend formatter={v => ROTULO_TERMINAL[v]} wrapperStyle={{ fontSize: 12.5 }} />
+          {ids.map(id => (
+            <Bar key={id} dataKey={id} fill={HEX_TERMINAL[id]} radius={[2, 2, 0, 0]} maxBarSize={14}>
+              {linhas.map(l => <Cell key={l.mes} fillOpacity={mesDestacado && l.mes !== mesDestacado ? 0.55 : 1} />)}
+            </Bar>
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
 
-export default function VisaoGeral() {
-  const [empresaId, setEmpresaId] = useState("todas");
-  const [aba, setAba] = useState("resumo");
-  const [modal, setModal] = useState(null);
-  const [relatorio, setRelatorio] = useState(null);
-  const [executar, exportando] = useAcao();
-  const painel = usePainel(empresaId);
-  const [mesFiltroPico, setMesFiltroPico] = useState("todos");
-  const picosApi = useMetrica("picos-entrada-saida", { terminalId: empresaId, mes: mesFiltroPico });
-
-  const d = painel.dados;
-  const dadosPicos = useMemo(() => (picosApi.dados?.entrada || []).map((h, i) => ({
-    hora: h.hora,
-    entrada: h.total,
-    saida: picosApi.dados.saida[i]?.total ?? 0
-  })), [picosApi.dados]);
-
-  if (painel.erro && !d) return <ErroCarga erro={painel.erro} aoTentarDeNovo={painel.recarregar} />;
-  if (!d) return <Carregando texto="Carregando indicadores…" />;
-  const {
-    kpis, porMes, porMesDet, porEmpresa, porOperador, porCarga, top10, recentes, preditiva,
-    tma, sla, scoreOp, recorrentes, janelas, desempenho, terminais, alertas, agora
-  } = d;
-  if (!kpis) return <p style={{ color: "var(--tinta-suave)", fontSize: 13 }}>Nenhum registro para essa empresa.</p>;
-  const picos = picosApi.dados || { picoEntrada: { hora: "—", total: 0 }, picoSaida: { hora: "—", total: 0 } };
-
-  const maiorMes = Math.max(...porMes.map(m => m.total), 1);
-  const maiorEmpresa = Math.max(...porEmpresa.map(e => e.total), 1);
-  const maiorOperador = Math.max(...porOperador.map(o => o.total), 1);
-  const maiorCarga = Math.max(...porCarga.map(c => c.total), 1);
-  const pctCapacidade = (kpis.mediaDiaria / CAPACIDADE_DIARIA) * 100;
-
-  // CSV gerado no servidor (com proteção contra injeção de fórmula).
-  function exportarRegistrosCSV() {
-    executar(() => baixarArquivo("/api/v1/marcacoes/exportar", { terminalId: empresaId }, `marcacoes_${empresaId}.csv`),
-      { erro: "Exportação falhou" });
-  }
-
-  // Relatório executivo: busca os dados só quando pedido, renderiza e abre a impressão.
-  function exportarPdf() {
-    executar(async () => {
-      setRelatorio(await buscarRelatorio(empresaId));
-      await new Promise(r => setTimeout(r, 300));
-      window.print();
-    }, { erro: "Relatório não gerado" });
-  }
-
-  function KpiClicavel({ rotulo, valor, icone, corIcone, corFundoIcone, nota, modalId }) {
-    return (
-      <div onClick={() => setModal(modalId)} style={{ cursor: "pointer" }}>
-        <CartaoIndicador rotulo={rotulo} valor={valor} icone={icone} corIcone={corIcone} corFundoIcone={corFundoIcone} nota={nota} />
-      </div>
-    );
-  }
-
+function GraficoFluxo({ dados }) {
+  if (!dados) return <Carregando />;
+  if (!dados.some(d => d.chegadasPorDia || d.liberacoesPorDia)) return <Vazio icone="schedule" titulo="Sem movimentações no período" />;
+  const linhas = dados.map(d => ({ ...d, rotulo: `${String(d.hora).padStart(2, "0")}h`, destaque: d.razao != null && d.razao >= 1.5 && d.chegadasPorDia >= 5 }));
+  const pico = [...linhas].sort((x, y) => y.chegadasPorDia - x.chegadasPorDia)[0];
   return (
-    <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
-        <div className="abas">
-          {ABAS.map(a => (
-            <button key={a.chave} onClick={() => setAba(a.chave)} className={`aba-botao ${aba === a.chave ? "ativo" : ""}`}>{a.rotulo}</button>
-          ))}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <SeletorEmpresa valor={empresaId} aoMudar={setEmpresaId} />
-          <button className="botao botao--fantasma botao-exportar" onClick={exportarRegistrosCSV} disabled={exportando} title="Exportar CSV">
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>download</span> CSV
-          </button>
-          <button className="botao botao--fantasma botao-exportar" onClick={exportarPdf} disabled={exportando} title="Exportar PDF">
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>picture_as_pdf</span> PDF
-          </button>
-        </div>
-      </div>
-
-      {aba === "resumo" && alertas.some(a => a.nivel === "critico" || a.nivel === "alto") && (
-        <div className="cartao" style={{ marginBottom: 16 }}>
-          <div className="cartao__cabecalho"><h3>Alertas Operacionais</h3><p>Gerados a partir do padrão histórico — detalhamento completo no módulo Previsão de Gargalos</p></div>
-          <div className="cartao__corpo">
-            {alertas.filter(a => a.nivel === "critico" || a.nivel === "alto").slice(0, 3).map((a, i) => {
-              const cores = { critico: { bg: "var(--vermelho-100)", cor: "var(--vermelho-500)", e: "🔴" }, alto: { bg: "#FFE4CC", cor: "#C2650B", e: "🟠" } };
-              const c = cores[a.nivel];
-              return (
-                <div key={i} style={{ display: "flex", gap: 10, padding: "8px 10px", marginBottom: 6, borderRadius: 8, background: c.bg }}>
-                  <span>{c.e}</span>
-                  <div>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: c.cor }}>{a.titulo}</div>
-                    <div style={{ fontSize: 11.5, color: "var(--tinta-suave)" }}>{a.detalhe}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {aba === "resumo" && (
-      <div className="cartao" style={{ marginBottom: 16 }}>
-        <div className="cartao__cabecalho" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div>
-            <h3>Operação Agora</h3>
-            <p>Status de portaria dos veículos cadastrados — informado pela operação, não vem de GPS/sensor</p>
-          </div>
-        </div>
-        <div className="cartao__corpo">
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            {[
-              { rotulo: "No Pátio", valor: agora.noPatio, cor: "var(--ambar-600)", fundo: "#FBEBD1" },
-              { rotulo: "Em Operação (No Porto)", valor: agora.emOperacao, cor: "var(--azul-500)", fundo: "var(--azul-100)" },
-              { rotulo: "Aguardando", valor: agora.aguardando, cor: "var(--tinta-suave)", fundo: "var(--superficie-alt)" },
-              { rotulo: "Descarga Finalizada", valor: agora.finalizados, cor: "var(--verde-500)", fundo: "var(--verde-100)" }
-            ].map(c => (
-              <div key={c.rotulo} style={{ flex: "1 1 140px", padding: "12px 14px", borderRadius: 12, background: c.fundo }}>
-                <div style={{ fontSize: 24, fontWeight: 700, color: c.cor, fontFamily: "'Space Grotesk', sans-serif" }}>{c.valor}</div>
-                <div style={{ fontSize: 11, color: "var(--tinta-suave)" }}>{c.rotulo}</div>
-              </div>
-            ))}
-          </div>
-          <p style={{ fontSize: 10.5, color: "var(--tinta-fraca)", marginTop: 10 }}>
-            Frota de {agora.total} veículos cadastrados (Gestão de Frotas). Detalhe completo em Portaria.
-          </p>
-        </div>
-      </div>
-      )}
-
-      {aba === "resumo" && (
-      <div className="cartao" style={{ marginBottom: 16 }}>
-        <div className="cartao__cabecalho"><h3>Visão por Terminal</h3><p>Volume, espera média e ocupação vs. capacidade nominal (1.000 carretas/dia)</p></div>
-        <div className="cartao__corpo">
-          <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-            {terminais.map(t => {
-              const cores = {
-                normal: { bg: "var(--verde-100)", cor: "var(--verde-500)", e: "🟢", rotulo: "Normal" },
-                atencao: { bg: "#FEF3C7", cor: "var(--ambar-600)", e: "🟡", rotulo: "Atenção" },
-                critico: { bg: "var(--vermelho-100)", cor: "var(--vermelho-500)", e: "🔴", rotulo: "Crítico" }
-              };
-              const c = cores[t.status];
-              return (
-                <div key={t.terminal} style={{ flex: "1 1 220px", padding: "14px 16px", borderRadius: 12, border: "1px solid var(--borda)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{t.terminal}</div>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 20, background: c.bg, color: c.cor }}>{c.e} {c.rotulo}</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--tinta-suave)", marginTop: 4 }}>{t.total.toLocaleString("pt-BR")} movimentações</div>
-                  <div style={{ display: "flex", gap: 18, marginTop: 10 }}>
-                    <div>
-                      <div style={{ fontSize: 10, color: "var(--tinta-fraca)", textTransform: "uppercase" }}>Espera média</div>
-                      <div style={{ fontSize: 15, fontWeight: 700 }}>{formatarHoras(t.esperaMedia)}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 10, color: "var(--tinta-fraca)", textTransform: "uppercase" }}>Ocupação</div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: t.ocupacaoPct > 80 ? "var(--vermelho-500)" : undefined }}>{t.ocupacaoPct.toFixed(0)}%</div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-      )}
-
-      <div className="grade-kpi">
-        <KpiClicavel rotulo="Total de Marcações" valor={kpis.total.toLocaleString("pt-BR")} icone="fact_check" corIcone="var(--navio-700)" corFundoIcone="var(--azul-100)" nota="Período importado" modalId="total" />
-        <KpiClicavel rotulo="Média Diária" valor={kpis.mediaDiaria.toFixed(1)} icone="calendar_month" corIcone="var(--ambar-600)" corFundoIcone="#FBEBD1" nota={`${kpis.diasOperados} dias operados`} modalId="media" />
-        <KpiClicavel rotulo="Tempo Médio de Espera" valor={formatarHoras(kpis.tempoMedioEspera)} icone="schedule" corIcone="var(--tinta-suave)" corFundoIcone="var(--superficie-alt)" nota="marcação → liberação" modalId="espera" />
-        <KpiClicavel rotulo="Mês Mais Movimentado" valor={kpis.mesMaisMovimentado.rotulo} icone="trending_up" corIcone="var(--verde-500)" corFundoIcone="var(--verde-100)" nota={`${kpis.mesMaisMovimentado.total.toLocaleString("pt-BR")} marcações`} modalId="mesMov" />
-      </div>
-
-      {/* ===== MODAIS DOS KPIs ===== */}
-      {modal === "total" && (
-        <Modal titulo="Total de Marcações" subtitulo="Decomposição do volume total por terminal e período" aoFechar={() => setModal(null)}>
-          <p style={{ fontSize: 13, color: "var(--tinta-suave)", marginBottom: 12 }}>
-            O total de <b>{kpis.total.toLocaleString("pt-BR")}</b> marcações representa todos os movimentos de entrada e saída registrados
-            nos terminais no período de {kpis.diasOperados} dias operados. Cada marcação é um veículo que entrou, foi processado e liberado.
-          </p>
-          {porEmpresa.map(e => (
-            <div key={e.empresa} style={{ marginBottom: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
-                <span>{e.empresa}</span>
-                <b>{e.total.toLocaleString("pt-BR")} ({((e.total / kpis.total) * 100).toFixed(1)}%)</b>
-              </div>
-              <div style={{ background: "var(--superficie-alt)", borderRadius: 6, height: 8 }}>
-                <div style={{ width: `${(e.total / maiorEmpresa) * 100}%`, background: "var(--navio-700)", height: "100%", borderRadius: 6 }} />
-              </div>
-            </div>
-          ))}
-        </Modal>
-      )}
-      {modal === "media" && (
-        <Modal titulo="Média Diária" subtitulo="Volume diário médio e utilização da capacidade" aoFechar={() => setModal(null)}>
-          <p style={{ fontSize: 13, color: "var(--tinta-suave)", marginBottom: 12 }}>
-            A média de <b>{kpis.mediaDiaria.toFixed(1)}</b> carretas/dia representa <b>{pctCapacidade.toFixed(1)}%</b> da capacidade
-            nominal de {CAPACIDADE_DIARIA.toLocaleString("pt-BR")} carretas/dia. Acima de 80% é sinal de alerta.
-          </p>
-          <table style={{ width: "100%", fontSize: 13 }}>
-            <thead><tr><th style={{ textAlign: "left" }}>Mês</th><th>Média/dia</th><th>% Capacidade</th></tr></thead>
-            <tbody>
-              {porMesDet.map(m => (
-                <tr key={m.chave}><td><b>{m.rotulo}</b></td><td>{m.mediaDiaria.toFixed(1)}</td><td style={{ color: m.mediaDiaria > CAPACIDADE_DIARIA * 0.8 ? "var(--vermelho-500)" : undefined }}>{((m.mediaDiaria / CAPACIDADE_DIARIA) * 100).toFixed(1)}%</td></tr>
-              ))}
-            </tbody>
-          </table>
-        </Modal>
-      )}
-      {modal === "espera" && (
-        <Modal titulo="Tempo Médio de Espera" subtitulo="TMA por terminal e distribuição por janelas" aoFechar={() => setModal(null)}>
-          <p style={{ fontSize: 13, color: "var(--tinta-suave)", marginBottom: 14 }}>
-            O tempo médio de <b>{formatarHoras(kpis.tempoMedioEspera)}</b> é o intervalo entre a marcação (entrada) e a liberação (saída) de cada veículo.
-            {sla && sla.piorou && ` O SLA piorou ${sla.variacaoPct.toFixed(1)}% no último mês comparado aos 3 anteriores.`}
-            {sla && sla.melhorou && ` O SLA melhorou ${Math.abs(sla.variacaoPct).toFixed(1)}% no último mês comparado aos 3 anteriores.`}
-          </p>
-          <h4 style={{ fontSize: 12.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--tinta-fraca)", marginBottom: 10 }}>TMA por Terminal</h4>
-          {tma.map(t => {
-            const maiorTMA = Math.max(...tma.map(x => x.tmaGeral), 1);
-            return (
-              <div key={t.terminal} style={{ marginBottom: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 3 }}>
-                  <span>{t.terminal}</span>
-                  <span><b>{formatarHoras(t.tmaGeral)}</b> {t.variacao !== null && <span style={{ color: t.variacao > 0 ? "var(--vermelho-500)" : "var(--verde-500)", fontSize: 11, fontWeight: 700 }}>({t.variacao > 0 ? "▲" : "▼"} {Math.abs(t.variacao).toFixed(1)}%)</span>}</span>
-                </div>
-                <div style={{ background: "var(--superficie-alt)", borderRadius: 6, height: 8 }}>
-                  <div style={{ width: `${(t.tmaGeral / maiorTMA) * 100}%`, background: "var(--navio-700)", height: "100%", borderRadius: 6 }} />
-                </div>
-              </div>
-            );
-          })}
-          <h4 style={{ fontSize: 12.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--tinta-fraca)", marginTop: 18, marginBottom: 10 }}>Distribuição por Janelas de Permanência</h4>
-          {janelas.map(j => (
-            <div key={j.chave} style={{ marginBottom: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
-                <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: j.cor, marginRight: 6 }} />{j.rotulo}</span>
-                <span><b>{j.total.toLocaleString("pt-BR")}</b> ({j.pct.toFixed(1)}%)</span>
-              </div>
-              <div style={{ background: "var(--superficie-alt)", borderRadius: 6, height: 6 }}>
-                <div style={{ width: `${Math.max(j.pct, 1)}%`, background: j.cor, height: "100%", borderRadius: 6 }} />
-              </div>
-            </div>
-          ))}
-        </Modal>
-      )}
-      {modal === "mesMov" && (
-        <Modal titulo={`Mês Mais Movimentado: ${kpis.mesMaisMovimentado.rotulo}`} subtitulo="Detalhamento do mês de pico" aoFechar={() => setModal(null)}>
-          <p style={{ fontSize: 13, color: "var(--tinta-suave)", marginBottom: 14 }}>
-            O mês de <b>{kpis.mesMaisMovimentado.rotulo}</b> teve <b>{kpis.mesMaisMovimentado.total.toLocaleString("pt-BR")}</b> marcações,
-            representando o maior volume do período — <b>{(((kpis.mesMaisMovimentado.total - kpis.mediaDiaria * 30.4) / (kpis.mediaDiaria * 30.4)) * 100).toFixed(0)}%</b> acima
-            da média mensal do período.
-          </p>
-          <GraficoLinhas
-            altura={140}
-            rotulosX={porMes.map(m => m.rotulo.replace("/", "\u200a/\u200a"))}
-            destacarIndices={[porMes.findIndex(m => m.chave === kpis.mesMaisMovimentado.chave)]}
-            series={[{ nome: "Marcações por mês", cor: "var(--ambar-500)", valores: porMes.map(m => m.total) }]}
-          />
-          <h4 style={{ fontSize: 12.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--tinta-fraca)", marginTop: 18, marginBottom: 8 }}>Top 3 Meses</h4>
-          {[...porMes].sort((a, b) => b.total - a.total).slice(0, 3).map((m, i) => (
-            <div key={m.chave} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--superficie-alt)", fontSize: 13 }}>
-              <span>#{i + 1} {m.rotulo}</span>
-              <b>{m.total.toLocaleString("pt-BR")}</b>
-            </div>
-          ))}
-        </Modal>
-      )}
-
-      {/* ===== ABA RESUMO ===== */}
-      {aba === "resumo" && (
-        <div className="grade-painel conteudo-pagina">
-          <div className="pilha">
-            <div className="cartao" style={{ cursor: "pointer" }} onClick={() => setModal("mesMov")}>
-              <div className="cartao__cabecalho">
-                <h3>Volume de Marcações por Mês <span className="material-symbols-outlined" style={{ fontSize: 14, verticalAlign: "middle", color: "var(--tinta-fraca)" }}>open_in_new</span></h3>
-                <p>Variação percentual mês a mês · clique pra ver o detalhamento do mês de pico</p>
-              </div>
-              <div className="cartao__corpo">
-                <div className="grafico-fluxo">
-                  {porMes.map((m, i) => {
-                    const anterior = porMes[i - 1];
-                    const variacao = anterior && anterior.total >= 100 ? ((m.total - anterior.total) / anterior.total) * 100 : null;
-                    return (
-                      <div key={m.chave} className="grafico-fluxo__col">
-                        <span className="grafico-fluxo__valor">{m.total.toLocaleString("pt-BR")}</span>
-                        {variacao !== null && (
-                          <span style={{ fontSize: 9.5, fontWeight: 700, color: variacao >= 0 ? "var(--verde-500)" : "var(--vermelho-500)", marginBottom: 2 }}>
-                            {variacao >= 0 ? "▲" : "▼"} {Math.abs(variacao).toFixed(0)}%
-                          </span>
-                        )}
-                        <div className="grafico-fluxo__barra" style={{ height: `${(m.total / maiorMes) * 100}%`, background: m.chave === kpis.mesMaisMovimentado.chave ? "var(--ambar-500)" : undefined }} />
-                        <span className="grafico-fluxo__rotulo">{m.rotulo}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <div className="cartao">
-              <div className="cartao__cabecalho">
-                <h3>Últimas Marcações</h3>
-                <p>Registros mais recentes no recorte selecionado</p>
-              </div>
-              <div className="cartao__corpo" style={{ overflowX: "auto" }}>
-                <table>
-                  <thead><tr><th>Movimento</th><th>Convênio</th>{empresaId === "todas" && <th>Empresa</th>}<th>Marcação</th><th>Espera</th></tr></thead>
-                  <tbody>
-                    {recentes.map(m => (
-                      <tr key={`${m.empresaId}-${m.id}`}>
-                        <td className="mono">{m.id}</td><td>{m.convenio}</td>
-                        {empresaId === "todas" && <td>{m.empresaNome}</td>}
-                        <td className="mono">{new Date(m.marcadoEm).toLocaleString("pt-BR")}</td>
-                        <td>{formatarHoras(m.esperaHoras)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <div className="pilha">
-            <div className="cartao">
-              <div className="cartao__cabecalho"><h3>Desempenho por Terminal</h3><p>Volume, participação, TMA e Taxa D0 (≤24h) — com variação vs mês anterior</p></div>
-              <div className="cartao__corpo" style={{ overflowX: "auto" }}>
-                <table style={{ fontSize: 12.5 }}>
-                  <thead>
-                    <tr>
-                      <th style={{ textAlign: "left" }}>Terminal</th>
-                      <th style={{ textAlign: "left" }}>Volume</th>
-                      <th>TMA</th>
-                      <th>Δ TMA</th>
-                      <th>Taxa D0</th>
-                      <th>Δ D0</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...desempenho].sort((a, b) => b.totalGeral - a.totalGeral).map(d => {
-                      const maiorVolumeDesempenho = Math.max(...desempenho.map(x => x.totalGeral), 1);
-                      return (
-                        <tr key={d.terminal}>
-                          <td><b>{d.terminal}</b></td>
-                          <td style={{ minWidth: 150 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ whiteSpace: "nowrap" }}>{d.totalGeral.toLocaleString("pt-BR")}</span>
-                              <div style={{ background: "var(--superficie-alt)", borderRadius: 6, height: 6, flex: 1, minWidth: 40 }}>
-                                <div style={{ width: `${(d.totalGeral / maiorVolumeDesempenho) * 100}%`, background: "var(--navio-700)", height: "100%", borderRadius: 6 }} />
-                              </div>
-                            </div>
-                          </td>
-                          <td>{formatarHoras(d.tmaAtual)}</td>
-                          <td style={{ color: d.deltaTMA === null ? "var(--tinta-fraca)" : d.deltaTMA > 0 ? "var(--vermelho-500)" : "var(--verde-500)", fontWeight: 700 }}>
-                            {d.deltaTMA === null ? "—" : `${d.deltaTMA > 0 ? "▲" : "▼"} ${Math.abs(d.deltaTMA).toFixed(1)}%`}
-                          </td>
-                          <td>{d.taxaD0Atual.toFixed(1)}%</td>
-                          <td style={{ color: d.deltaD0 === null ? "var(--tinta-fraca)" : d.deltaD0 >= 0 ? "var(--verde-500)" : "var(--vermelho-500)", fontWeight: 700 }}>
-                            {d.deltaD0 === null ? "—" : `${d.deltaD0 >= 0 ? "▲" : "▼"} ${Math.abs(d.deltaD0).toFixed(1)}pp`}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                <p style={{ fontSize: 11, color: "var(--tinta-fraca)", marginTop: 10 }}>
-                  TMA e Taxa D0 referentes ao último mês com dados. Δ TMA vermelho = piorou vs mês anterior. Δ D0 verde = mais veículos liberados dentro de 24h (pp = pontos percentuais).
-                </p>
-              </div>
-            </div>
-            <div className="cartao">
-              <div className="cartao__cabecalho"><h3>Marcações por Operador</h3></div>
-              <div className="cartao__corpo">
-                {porOperador.map(o => (
-                  <div key={o.operador} style={{ marginBottom: 12 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
-                      <span>{o.operador}</span><b>{o.total.toLocaleString("pt-BR")}</b>
-                    </div>
-                    <div style={{ background: "var(--superficie-alt)", borderRadius: 6, height: 8 }}>
-                      <div style={{ width: `${(o.total / maiorOperador) * 100}%`, background: "var(--ambar-500)", height: "100%", borderRadius: 6 }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===== ABA RANKING & DETALHES ===== */}
-      {aba === "detalhes" && (
-        <div className="grade-painel conteudo-pagina">
-          <div className="pilha">
-            <div className="cartao">
-              <div className="cartao__cabecalho"><h3>Ranking das Maiores Esperas</h3><p>Movimentos com maior diferença entre marcação e liberação — barra proporcional ao tempo</p></div>
-              <div className="cartao__corpo" style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ fontSize: 11, color: "var(--tinta-fraca)", textAlign: "left" }}>
-                      <th style={{ padding: "0 8px 8px 0", width: 28 }}>#</th>
-                      <th style={{ padding: "0 8px 8px 0" }}>Convênio</th>
-                      <th style={{ padding: "0 0 8px" }}></th>
-                      <th style={{ padding: "0 0 8px 8px", textAlign: "right" }}>Tempo</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {top10.map((m, i) => {
-                      const maiorEspera = top10[0].esperaHoras;
-                      const pctBarra = Math.max(6, (m.esperaHoras / maiorEspera) * 100);
-                      const cor = m.esperaHoras > 144 ? "var(--vermelho-500)" : m.esperaHoras > 48 ? "var(--ambar-500)" : "var(--verde-500)";
-                      return (
-                        <tr key={`${m.empresaId}-${m.id}`} style={{ borderBottom: "1px solid var(--superficie-alt)" }}>
-                          <td style={{ padding: "9px 8px 9px 0", fontSize: 13, fontWeight: 700, color: "var(--tinta-fraca)", verticalAlign: "middle" }}>#{i + 1}</td>
-                          <td style={{ padding: "9px 8px 9px 0", verticalAlign: "middle", minWidth: 150 }}>
-                            <div style={{ fontSize: 12.5, fontWeight: 600 }}>{m.convenio}</div>
-                            <div style={{ fontSize: 10.5, color: "var(--tinta-fraca)" }}>
-                              Senha {m.senha}{empresaId === "todas" ? ` · ${m.empresaNome}` : ""}
-                            </div>
-                          </td>
-                          <td style={{ padding: "9px 0", verticalAlign: "middle", width: "40%" }}>
-                            <div style={{ background: "var(--superficie-alt)", borderRadius: 6, height: 14, position: "relative", minWidth: 80 }}>
-                              <div style={{ width: `${pctBarra}%`, background: cor, height: "100%", borderRadius: 6 }} />
-                            </div>
-                          </td>
-                          <td style={{ padding: "9px 0 9px 8px", textAlign: "right", verticalAlign: "middle", whiteSpace: "nowrap" }}>
-                            <div style={{ fontSize: 14, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", color: cor }}>{formatarHoras(m.esperaHoras)}</div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                <div style={{ display: "flex", gap: 14, marginTop: 12, fontSize: 11, color: "var(--tinta-suave)" }}>
-                  <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "var(--verde-500)", marginRight: 4 }} />até 48h</span>
-                  <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "var(--ambar-500)", marginRight: 4 }} />48–144h</span>
-                  <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "var(--vermelho-500)", marginRight: 4 }} />acima de 144h (estouro crítico)</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="pilha">
-            <div className="cartao">
-              <div className="cartao__cabecalho"><h3>Marcações por Tipo de Carga</h3></div>
-              <div className="cartao__corpo">
-                {porCarga.map(c => (
-                  <div key={c.carga} style={{ marginBottom: 12 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}><span>{c.carga}</span><b>{c.total.toLocaleString("pt-BR")}</b></div>
-                    <div style={{ background: "var(--superficie-alt)", borderRadius: 6, height: 8 }}><div style={{ width: `${(c.total / maiorCarga) * 100}%`, background: "var(--ambar-500)", height: "100%", borderRadius: 6 }} /></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===== ABA EFICIÊNCIA OPERACIONAL ===== */}
-      {aba === "operacional" && (
-        <div className="grade-painel conteudo-pagina">
-          <div className="pilha">
-            <div className="cartao">
-              <div className="cartao__cabecalho">
-                <h3>Eficiência por Terminal</h3>
-                <p>TMA, Taxa D0 (liberados em até 24h) e tendência mensal — ajuda a identificar qual terminal está degradando</p>
-              </div>
-              <div className="cartao__corpo">
-                {desempenho.map(d => {
-                  const maiorTMASerie = Math.max(...d.serieTMA.map(s => s.valor), 1);
-                  return (
-                    <div key={d.terminal} style={{ marginBottom: 18, padding: "14px 16px", borderRadius: 12, background: "var(--superficie-alt)" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                        <h4 style={{ margin: 0, fontSize: 14 }}>{d.terminal}</h4>
-                        {d.deltaTMA !== null && (
-                          <span style={{ fontSize: 12, fontWeight: 700, color: d.deltaTMA > 0 ? "var(--vermelho-500)" : "var(--verde-500)" }}>
-                            TMA {d.deltaTMA > 0 ? "▲" : "▼"} {Math.abs(d.deltaTMA).toFixed(1)}% vs mês anterior
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 12 }}>
-                        <div>
-                          <div style={{ fontSize: 10.5, color: "var(--tinta-fraca)", textTransform: "uppercase" }}>TMA Geral</div>
-                          <div style={{ fontSize: 17, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif" }}>{formatarHoras(d.tmaGeral)}</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 10.5, color: "var(--tinta-fraca)", textTransform: "uppercase" }}>Taxa D0 (≤24h)</div>
-                          <div style={{ fontSize: 17, fontWeight: 700, color: d.taxaD0Geral > 80 ? "var(--verde-500)" : d.taxaD0Geral > 60 ? "var(--ambar-600)" : "var(--vermelho-500)" }}>{d.taxaD0Geral.toFixed(1)}%</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 10.5, color: "var(--tinta-fraca)", textTransform: "uppercase" }}>Volume Total</div>
-                          <div style={{ fontSize: 17, fontWeight: 700 }}>{d.totalGeral.toLocaleString("pt-BR")}</div>
-                        </div>
-                      </div>
-                      <div style={{ fontSize: 10.5, color: "var(--tinta-fraca)", marginBottom: 4 }}>Tendência de TMA por mês</div>
-                      <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 40 }}>
-                        {d.serieTMA.map(s => (
-                          <div key={s.mes} title={`${s.mes}: ${formatarHoras(s.valor)}`} style={{ flex: 1, height: `${Math.max(8, (s.valor / maiorTMASerie) * 100)}%`, background: "var(--navio-700)", borderRadius: "2px 2px 0 0" }} />
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          <div className="pilha">
-            <div className="cartao">
-              <div className="cartao__cabecalho"><h3>Distribuição de Janelas por Terminal</h3><p>D0 a Estouro Crítico (&gt;144h), por terminal</p></div>
-              <div className="cartao__corpo">
-                {(empresaId === "todas" ? TERMINAIS : TERMINAIS.filter(t => t.id === empresaId)).map(t => (
-                  <JanelasDoTerminal key={t.id} terminalId={t.id} />
-                ))}
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
-                  {JANELAS.map(j => (
-                    <span key={j.chave} style={{ fontSize: 10.5, color: "var(--tinta-suave)" }}>
-                      <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: j.cor, marginRight: 4 }} />{j.rotulo}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===== ABA ANÁLISES ===== */}
-      {aba === "analises" && (
-        <div className="grade-painel conteudo-pagina">
-          <div className="pilha">
-            <div className="cartao" style={{ borderStyle: "dashed" }}>
-              <div className="cartao__corpo" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span className="material-symbols-outlined" style={{ color: "var(--navio-700)" }}>warning</span>
-                <p style={{ fontSize: 12.5, color: "var(--tinta-suave)", margin: 0 }}>
-                  A análise preditiva de volume (com projeção e índice de risco por horário) agora tem módulo próprio:
-                  <b> Previsão de Gargalos</b>, no menu lateral — separado do histórico, pra não misturar dado real com projeção.
-                </p>
-              </div>
-            </div>
-            <div className="cartao">
-              <div className="cartao__cabecalho"><h3>Atraso Recorrente</h3><p>Convênios com 3+ marcações acima de 24h — padrão, não outlier</p></div>
-              <div className="cartao__corpo" style={{ overflowX: "auto" }}>
-                {recorrentes.length === 0 ? <p style={{ fontSize: 13, color: "var(--tinta-suave)" }}>Nenhum convênio com atraso recorrente.</p> : (
-                  <table><thead><tr><th>Convênio</th>{empresaId === "todas" && <th>Empresa</th>}<th>Ocorrências</th><th>Espera Média</th></tr></thead>
-                    <tbody>{recorrentes.map(r => (<tr key={r.convenio}><td>{r.convenio}</td>{empresaId === "todas" && <td>{r.empresaNome}</td>}<td><b>{r.ocorrencias}</b></td><td>{formatarHoras(r.esperaMedia)}</td></tr>))}</tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="pilha">
-            {sla && (
-              <div className="cartao">
-                <div className="cartao__cabecalho"><h3>Tendência de SLA</h3><p>Espera média do último mês vs média dos 3 anteriores</p></div>
-                <div className="cartao__corpo">
-                  <div style={{
-                    display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12,
-                    background: sla.piorou ? "var(--vermelho-100)" : sla.melhorou ? "var(--verde-100)" : "var(--superficie-alt)"
-                  }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 24, color: sla.piorou ? "var(--vermelho-500)" : sla.melhorou ? "var(--verde-500)" : "var(--tinta-suave)" }}>
-                      {sla.piorou ? "trending_up" : sla.melhorou ? "trending_down" : "trending_flat"}
-                    </span>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{sla.piorou ? "SLA piorando" : sla.melhorou ? "SLA melhorando" : "SLA estável"} ({sla.variacaoPct > 0 ? "+" : ""}{sla.variacaoPct.toFixed(1)}%)</div>
-                      <div style={{ fontSize: 12, color: "var(--tinta-suave)" }}>{sla.ultimoMesRotulo}: {formatarHoras(sla.esperaUltimoMes)} — anteriores: {formatarHoras(sla.esperaMediaAnterior)}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            <div className="cartao">
-              <div className="cartao__cabecalho"><h3>Score de Eficiência por Operador</h3><p>Volume (40%) + espera média (40%) + consistência (20%)</p></div>
-              <div className="cartao__corpo">
-                {scoreOp.map(o => (
-                  <div key={o.operador} style={{ marginBottom: 12 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}><span>{o.operador}</span><b>{o.score}/100</b></div>
-                    <div style={{ background: "var(--superficie-alt)", borderRadius: 6, height: 8 }}>
-                      <div style={{ width: `${o.score}%`, height: "100%", borderRadius: 6, background: o.score >= 70 ? "var(--verde-500)" : o.score >= 40 ? "var(--ambar-500)" : "var(--vermelho-500)" }} />
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--tinta-fraca)", marginTop: 3 }}>{o.total.toLocaleString("pt-BR")} marcações · espera média {formatarHoras(o.esperaMedia)}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="cartao">
-              <div className="cartao__cabecalho" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
-                <div>
-                  <h3>Horários de Pico — Entrada x Saída</h3>
-                  <p>Marcações (entrada) e liberações (saída) por hora do dia{mesFiltroPico !== "todos" ? ` — ${porMes.find(m => m.chave === mesFiltroPico)?.rotulo}` : " — período completo"}</p>
-                </div>
-                <select
-                  value={mesFiltroPico}
-                  onChange={e => setMesFiltroPico(e.target.value)}
-                  style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid var(--borda)", fontSize: 12.5, background: "#fff" }}
-                >
-                  <option value="todos">Todos os meses</option>
-                  {porMes.map(m => <option key={m.chave} value={m.chave}>{m.rotulo}</option>)}
-                </select>
-              </div>
-              <div className="cartao__corpo">
-                <div style={{ display: "flex", gap: 16, marginBottom: 14, fontSize: 12 }}>
-                  <div style={{ padding: "8px 12px", borderRadius: 10, background: "var(--azul-100)", flex: 1 }}>
-                    <div style={{ fontSize: 10.5, color: "var(--tinta-fraca)", textTransform: "uppercase" }}>Pico de Entrada</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: "var(--navio-700)" }}>{picos.picoEntrada.hora}h <span style={{ fontSize: 12, fontWeight: 400 }}>({picos.picoEntrada.total.toLocaleString("pt-BR")})</span></div>
-                  </div>
-                  <div style={{ padding: "8px 12px", borderRadius: 10, background: "var(--verde-100)", flex: 1 }}>
-                    <div style={{ fontSize: 10.5, color: "var(--tinta-fraca)", textTransform: "uppercase" }}>Pico de Saída</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: "var(--verde-500)" }}>{picos.picoSaida.hora}h <span style={{ fontSize: 12, fontWeight: 400 }}>({picos.picoSaida.total.toLocaleString("pt-BR")})</span></div>
-                  </div>
-                </div>
-                <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={dadosPicos} margin={{ top: 6, right: 8, left: -18, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--superficie-alt)" />
-                    <XAxis dataKey="hora" tick={{ fontSize: 10.5, fill: "var(--tinta-fraca)" }} axisLine={{ stroke: "var(--borda)" }} tickLine={false} />
-                    <YAxis tick={{ fontSize: 10.5, fill: "var(--tinta-fraca)" }} axisLine={false} tickLine={false} width={54} tickFormatter={v => v.toLocaleString("pt-BR")} />
-                    <Tooltip
-                      formatter={(valor, nome) => [valor?.toLocaleString ? valor.toLocaleString("pt-BR") : valor, nome]}
-                      labelFormatter={h => `${h}h`}
-                      contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid var(--borda)" }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 11.5 }} />
-                    <Line dataKey="entrada" name="Entrada (marcação)" stroke="var(--navio-700)" strokeWidth={2} dot={{ r: 2.5 }} />
-                    <Line dataKey="saida" name="Saída (liberação)" stroke="var(--verde-500)" strokeWidth={2} dot={{ r: 2.5 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <RelatorioImprimivel dados={relatorio} nomeRecorte={empresaId === "todas" ? "Todas as Empresas" : nomeTerminal(empresaId)} />
-    </>
+    <div role="img" aria-label={`Maior concentração de chegadas às ${pico.hora}h: ${numero(pico.chegadasPorDia, 1)} por dia contra ${numero(pico.liberacoesPorDia, 1)} liberações.`}>
+      <ResponsiveContainer width="100%" height={260}>
+        <BarChart data={linhas} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barGap={1} barCategoryGap="18%">
+          <CartesianGrid vertical={false} stroke="#EEF1F5" />
+          <XAxis dataKey="rotulo" tick={{ fontSize: 10.5, fill: "#4A5870" }} interval={2} tickLine={false} axisLine={{ stroke: "#CDD5E1" }} />
+          <YAxis tick={{ fontSize: 11, fill: "#6B7890" }} tickLine={false} axisLine={false} width={32} />
+          <Tooltip cursor={{ fill: "#F1F5FB" }} formatter={(v, nome) => [`${numero(v, 1)} por dia`, nome === "chegadasPorDia" ? "Marcações (chegadas)" : "Liberações"]}
+            contentStyle={{ borderRadius: 8, borderColor: "#E3E8EF", fontSize: 12.5 }} />
+          <Legend formatter={v => v === "chegadasPorDia" ? "Marcações (chegadas)" : "Liberações"} wrapperStyle={{ fontSize: 12.5 }} />
+          <Bar dataKey="chegadasPorDia" fill="#1F4E88" radius={[2, 2, 0, 0]}>
+            {linhas.map(l => <Cell key={l.hora} fill={l.destaque ? "#C2362D" : "#1F4E88"} />)}
+          </Bar>
+          <Bar dataKey="liberacoesPorDia" fill="#C9D3E3" radius={[2, 2, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+      <p className="fraco" style={{ fontSize: 12, marginTop: 4 }}>Em vermelho: horas com chegadas acima de 1,5× as liberações (e ao menos 5 por dia).</p>
+    </div>
   );
 }

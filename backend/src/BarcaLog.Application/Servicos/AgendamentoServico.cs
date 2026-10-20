@@ -32,10 +32,15 @@ public class AgendamentoServico(
     {
         var dia = data ?? relogio.HojeLocalPorto;
         var lista = await agendamentos.ListarDoDiaAsync(dia, terminalId, ct);
+        // Referência = capacidade por hora cadastrada (Configurações). Sem ela, não há
+        // nível: o painel mostra só a contagem. Todos os terminais = soma, se todos tiverem.
+        var cadastrados = await terminais.ListarAsync(ct);
+        var doFiltro = string.IsNullOrWhiteSpace(terminalId) ? cadastrados : cadastrados.Where(t => t.Id == terminalId).ToList();
+        int? capacidade = doFiltro.Count > 0 && doFiltro.All(t => t.CapacidadeHoraria is not null) ? doFiltro.Sum(t => t.CapacidadeHoraria!.Value) : null;
         var porHora = lista
-            .GroupBy(a => a.Hora)
+            .GroupBy(a => a.Hora.Hour)
             .OrderBy(g => g.Key)
-            .Select(g => new AgendamentosPorHoraDto(g.Key, g.Count(), g.Count() >= 3 ? "critico" : g.Count() >= 2 ? "atencao" : "normal"))
+            .Select(g => new AgendamentosPorHoraDto(new TimeOnly(g.Key, 0), g.Count(), NivelHora(g.Count(), capacidade), capacidade))
             .ToList();
         return new ResumoAgendamentosDto(
             dia,
@@ -45,6 +50,10 @@ public class AgendamentoServico(
             lista.Count(a => a.Status == StatusAgendamento.Atrasado),
             porHora);
     }
+
+    /// <summary>acima (passa da capacidade), no-limite (igual), normal; sem-capacidade quando não cadastrada.</summary>
+    public static string NivelHora(int total, int? capacidade) =>
+        capacidade is null ? "sem-capacidade" : total > capacidade ? "acima" : total == capacidade ? "no-limite" : "normal";
 
     public async Task<AgendamentoDto> CriarAsync(CriarAgendamentoRequest req, CancellationToken ct = default)
     {

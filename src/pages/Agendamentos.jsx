@@ -7,6 +7,7 @@ import { api, novaChaveIdempotencia, obterSessao } from "../api/cliente.js";
 import { STATUS_AGENDAMENTO, TERMINAIS, nomeTerminal } from "../api/rotulos.js";
 import { hojeISO } from "../utils/formatar.js";
 import { Carregando, ErroCarga, Vazio } from "../components/EstadoCarga.jsx";
+import { Cartao, Kpi } from "../components/ui.jsx";
 import { listarTransportadoras, listarVeiculos } from "../data/negativacaoStore.js";
 
 // Agendamentos persistidos na API. A API recusa: carreta negativada (N3),
@@ -21,6 +22,10 @@ const CORES_STATUS = {
   Finalizado: { bg: "var(--verde-100)", cor: "var(--verde-500)" },
   Atrasado: { bg: "var(--vermelho-100)", cor: "var(--vermelho-500)" },
   Cancelado: { bg: "var(--superficie-alt)", cor: "var(--tinta-fraca)" }
+};
+const NIVEL_HORA = {
+  acima: ["var(--critico)", "Acima da capacidade"], "no-limite": ["var(--alto)", "No limite"],
+  normal: ["var(--ok)", "Dentro da capacidade"], "sem-capacidade": ["var(--borda-forte)", null]
 };
 const CARGAS = ["Soja", "Milho", "Soja Segregado", "Caçamba", "Outro"];
 const JANELAS_CONFORMIDADE = [
@@ -55,7 +60,7 @@ export default function Agendamentos() {
     sinal => api.get("/api/v1/agendamentos", { data, terminalId: filtroTerminal, status: filtroStatus, tamanhoPagina: 500 }, sinal),
     [data, filtroTerminal, filtroStatus]
   );
-  const resumo = useApi(sinal => api.get("/api/v1/agendamentos/resumo", { data }, sinal), [data]);
+  const resumo = useApi(sinal => api.get("/api/v1/agendamentos/resumo", { data, terminalId: filtroTerminal }, sinal), [data, filtroTerminal]);
   const agendamentos = lista.dados?.itens ?? [];
 
   function recarregarTudo() {
@@ -89,46 +94,37 @@ export default function Agendamentos() {
   }
 
   const porHora = resumo.dados?.porHora ?? [];
+  const capacidade = porHora[0]?.capacidade ?? null;
   const agendamentoQr = useMemo(() => agendamentos.find(x => x.id === qrAberto), [agendamentos, qrAberto]);
 
   return (
     <>
       {(lista.erro || resumo.erro) && <ErroCarga erro={lista.erro || resumo.erro} aoTentarDeNovo={recarregarTudo} />}
 
-      <div className="grade-kpi" style={{ marginBottom: 16 }}>
-        {[
-          { rotulo: "Agendados no dia", valor: resumo.dados?.total, cor: undefined },
-          { rotulo: "Confirmados", valor: resumo.dados?.confirmados, cor: "var(--navio-700)" },
-          { rotulo: "Em Operação", valor: resumo.dados?.emOperacao, cor: "var(--verde-500)" },
-          { rotulo: "Atrasados", valor: resumo.dados?.atrasados, cor: "var(--vermelho-500)" }
-        ].map(k => (
-          <div key={k.rotulo} className="cartao"><div className="cartao__corpo">
-            <div style={{ fontSize: 11, color: "var(--tinta-fraca)", textTransform: "uppercase" }}>{k.rotulo}</div>
-            <div style={{ fontSize: 28, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", color: k.cor }}>{k.valor ?? "—"}</div>
-          </div></div>
-        ))}
-      </div>
+      <section className="grade-kpi" style={{ marginBottom: 16 }} aria-label="Resumo do dia">
+        <Kpi rotulo="Agendados no dia" valor={resumo.dados?.total ?? "—"} nota={data === hojeISO() ? "hoje" : data.split("-").reverse().join("/")} />
+        <Kpi rotulo="Confirmados" valor={resumo.dados?.confirmados ?? "—"} nota="confirmado, a caminho, aguardando, em operação ou finalizado" />
+        <Kpi rotulo="Em operação" valor={resumo.dados?.emOperacao ?? "—"} />
+        <Kpi rotulo="Atrasados" valor={resumo.dados?.atrasados ?? "—"} nota="status registrado manualmente" />
+      </section>
 
-      <div className="cartao" style={{ marginBottom: 16 }}>
-        <div className="cartao__cabecalho"><h3>Concentração por Horário</h3><p>Quantidade de agendamentos por horário — ajuda a ver sobreposição antes de confirmar</p></div>
-        <div className="cartao__corpo">
-          {porHora.length === 0 ? <p style={{ fontSize: 13, color: "var(--tinta-suave)" }}>Nenhum agendamento nesse dia.</p> : (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {porHora.map(h => (
-                <div key={h.hora} style={{
-                  padding: "8px 14px", borderRadius: 10,
-                  background: h.nivel === "critico" ? "var(--vermelho-100)" : h.nivel === "atencao" ? "#FEF3C7" : "var(--superficie-alt)"
-                }}>
-                  <div style={{ fontSize: 11, color: "var(--tinta-fraca)" }}>{h.hora}</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: h.nivel === "critico" ? "var(--vermelho-500)" : h.nivel === "atencao" ? "var(--ambar-600)" : "var(--tinta)" }}>
-                    {h.total} agend. {h.nivel === "critico" ? "⚠️" : ""}
-                  </div>
+      <Cartao id="ag-horas" titulo="Agendamentos por hora × capacidade"
+        subtitulo={capacidade ? `Capacidade cadastrada: ${capacidade} carretas por hora${filtroTerminal === "todos" ? " (soma dos terminais)" : ""}.` : "Capacidade por hora não configurada — a grade mostra só a contagem. Cadastre em Configurações › Capacidade."}>
+        {porHora.length === 0 ? <p className="fraco" style={{ fontSize: 13 }}>Nenhum agendamento nesse dia.</p> : (
+          <div className="faixa-horas" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(96px, 1fr))" }}>
+            {porHora.map(h => {
+              const [cor, rotulo] = NIVEL_HORA[h.nivel] || NIVEL_HORA["sem-capacidade"];
+              return (
+                <div key={h.hora} style={{ borderTop: `3px solid ${cor}` }}>
+                  <span className="fraco">{h.hora.slice(0, 2)}h–{String((Number(h.hora.slice(0, 2)) + 1) % 24).padStart(2, "0")}h</span>
+                  <b>{h.total}{h.capacidade ? <span className="fraco" style={{ fontWeight: 400, fontSize: 12.5 }}> / {h.capacidade}</span> : null}</b>
+                  {rotulo && <span>{rotulo}</span>}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+              );
+            })}
+          </div>
+        )}
+      </Cartao>
 
       <div className="cartao">
         <div className="cartao__cabecalho" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>

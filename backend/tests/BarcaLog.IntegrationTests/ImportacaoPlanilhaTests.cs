@@ -305,3 +305,39 @@ public class ImportacaoPlanilhaTests(ApiFixture api)
         return ms.ToArray();
     }
 }
+
+[Collection(ColecaoApi.Nome)]
+public class MovimentacoesTests(ApiFixture api)
+{
+    [SkippableFact]
+    public async Task Filtros_ordenacao_e_rastreabilidade_do_movimento()
+    {
+        Skip.IfNot(api.BancoDisponivel, api.MotivoIndisponivel);
+        var gestor = await api.ClienteAsync("Gestor");
+        string a = $"V{Dados.Proximo()}", b = $"V{Dados.Proximo()}", c = $"V{Dados.Proximo()}";
+        var csv = "COD_MOVIMENTO;SENHA;CONVENIO;COD_CONVENIO;CICLO;DATA_MARCACAO;HORA_MARCACAO;DATA_LIBERACAO;HORA_LIBERACAO\r\n" +
+                  $"{a};S1;HIDROVIAS - MILHO;;9;20020105;08:00:00;20020109;10:00:00\r\n" +   // 98 h
+                  $"{b};S2;HIDROVIAS - MILHO;;9;20020105;09:00:00;20020109;10:00:00\r\n" +   // 97 h, liberada junto
+                  $"{c};S3;HIDROVIAS - MILHO;;9;20020106;09:00:00;;\r\n";                    // aberta
+        using var form = new MultipartFormDataContent();
+        form.Add(new StringContent("hidrovias"), "terminalId");
+        form.Add(new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes(csv)), "arquivo", "rastreio_2002.csv");
+        var lote = await (await gestor.PostAsync("/api/v1/importacoes", form)).Content.ReadFromJsonAsync<LoteImportacaoDto>(Json.Opcoes);
+        Assert.True((await gestor.PostAsync($"/api/v1/importacoes/{lote!.Id}/confirmar", null)).IsSuccessStatusCode);
+
+        var periodo = "terminalId=hidrovias&de=2002-01-01&ate=2002-01-31";
+        var longas = await gestor.GetFromJsonAsync<Pagina<MarcacaoDto>>($"/api/v1/marcacoes?{periodo}&esperaAcimaHoras=72&ordenacao=espera_desc", Json.Opcoes);
+        Assert.Equal([a, b], longas!.Itens.Select(m => m.MovimentoId));
+        var abertas = await gestor.GetFromJsonAsync<Pagina<MarcacaoDto>>($"/api/v1/marcacoes?{periodo}&semLiberacao=true", Json.Opcoes);
+        Assert.Equal([c], abertas!.Itens.Select(m => m.MovimentoId));
+        var busca = await gestor.GetFromJsonAsync<Pagina<MarcacaoDto>>($"/api/v1/marcacoes?busca=S2&{periodo}", Json.Opcoes);
+        Assert.Equal([b], busca!.Itens.Select(m => m.MovimentoId));
+        Assert.Equal(HttpStatusCode.BadRequest, (await gestor.GetAsync("/api/v1/marcacoes?ordenacao=qualquer")).StatusCode);
+
+        var detalhe = await gestor.GetFromJsonAsync<MarcacaoDetalheDto>($"/api/v1/marcacoes/{a}/detalhe", Json.Opcoes);
+        Assert.Equal(OrigemMarcacao.Planilha, detalhe!.Movimento.Origem);
+        Assert.Equal("rastreio_2002.csv", detalhe.ArquivoOrigem);
+        Assert.Equal(2, detalhe.Movimento.LinhaOrigem);
+        Assert.Equal(1, detalhe.LiberadosNoMesmoInstante);
+    }
+}

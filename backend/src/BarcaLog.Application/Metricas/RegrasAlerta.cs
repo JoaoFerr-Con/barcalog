@@ -107,7 +107,7 @@ public static class RegrasAlerta
             $"esperas-longas:{id}:{mes:yyyy-MM}", TipoAlerta.Historico, "esperas-longas",
             longas.Count >= 10 ? PrioridadeAlerta.Alta : PrioridadeAlerta.Media,
             id, Mes(mes), $"{longas.Count} carreta(s) com espera acima de {Duracao(p.LimiteEsperaLongaHoras)}",
-            "Esperas acima do limite de espera longa", longas.Count.ToString(Br), "0",
+            "Carretas com espera acima do limite de espera longa", longas.Count.ToString(Br), $"nenhuma acima de {Duracao(p.LimiteEsperaLongaHoras)}",
             $"Maior espera: {Duracao(maior)}.{detalhe}",
             $"Movimentos de {nome} importados/integrados",
             "Registrar o motivo da retenção (falta de navio, chuva, manutenção) para separar causa operacional de erro de registro.");

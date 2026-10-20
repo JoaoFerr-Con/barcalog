@@ -47,7 +47,20 @@ public class MarcacaoRepositorio(BarcaLogDbContext db) : IMarcacaoRepositorio
         if (!string.IsNullOrWhiteSpace(f.Operador)) q = q.Where(m => m.Operador == f.Operador);
         if (!string.IsNullOrWhiteSpace(f.Carga)) q = q.Where(m => m.Carga == f.Carga);
         if (!string.IsNullOrWhiteSpace(f.Senha)) q = q.Where(m => m.Senha == f.Senha);
-        return q.OrderByDescending(m => m.DataMarcacao).ThenBy(m => m.MovimentoId).PaginarAsync(f, ct);
+        if (!string.IsNullOrWhiteSpace(f.Busca)) { var b = f.Busca.Trim(); q = q.Where(m => m.MovimentoId == b || m.Senha == b); }
+        if (!string.IsNullOrWhiteSpace(f.CodConvenio)) q = q.Where(m => m.CodConvenio == f.CodConvenio);
+        if (f.EsperaAcimaHoras is { } acima) q = q.Where(m => m.EsperaHoras > acima);
+        if (f.SemLiberacao == true) q = q.Where(m => m.DataLiberacao == null);
+        if (f.SemLiberacao == false) q = q.Where(m => m.DataLiberacao != null);
+        if (f.Origem is { } o) q = q.Where(m => m.Origem == o);
+        q = f.Ordenacao switch
+        {
+            "marcacao_asc" => q.OrderBy(m => m.DataMarcacao).ThenBy(m => m.MovimentoId),
+            "espera_desc" => q.OrderByDescending(m => m.EsperaHoras).ThenByDescending(m => m.DataMarcacao).ThenBy(m => m.MovimentoId),
+            "espera_asc" => q.OrderBy(m => m.EsperaHoras == null).ThenBy(m => m.EsperaHoras).ThenBy(m => m.MovimentoId),
+            _ => q.OrderByDescending(m => m.DataMarcacao).ThenBy(m => m.MovimentoId)
+        };
+        return q.PaginarAsync(f, ct);
     }
 
     public Task<Marcacao?> ObterAsync(string movimentoId, CancellationToken ct = default) =>
@@ -82,6 +95,9 @@ public class MarcacaoRepositorio(BarcaLogDbContext db) : IMarcacaoRepositorio
         }
         return existentes;
     }
+
+    public Task<int> ContarLiberadosEmAsync(string terminalId, DateTime liberacao, CancellationToken ct = default) =>
+        db.Marcacoes.AsNoTracking().CountAsync(m => m.TerminalId == terminalId && m.DataLiberacao == liberacao, ct);
 
     public async Task<Dictionary<string, int>> ContarSemLiberacaoAsync(DateTime? inicio, DateTime? fim, CancellationToken ct = default)
     {

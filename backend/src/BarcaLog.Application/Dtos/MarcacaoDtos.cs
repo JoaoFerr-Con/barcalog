@@ -15,6 +15,17 @@ public class FiltroMarcacoes : FiltroPaginado, IValidatableObject
     [StringLength(50)] public string? Operador { get; set; }
     [StringLength(50)] public string? Carga { get; set; }
     [StringLength(32)] public string? Senha { get; set; }
+    /// <summary>Número do movimento ou senha (exato).</summary>
+    [StringLength(32)] public string? Busca { get; set; }
+    [StringLength(32)] public string? CodConvenio { get; set; }
+    /// <summary>Só esperas acima de X horas (liberados).</summary>
+    [Range(0, 100_000)] public double? EsperaAcimaHoras { get; set; }
+    /// <summary>true = só marcações ainda sem liberação.</summary>
+    public bool? SemLiberacao { get; set; }
+    public Domain.Enums.OrigemMarcacao? Origem { get; set; }
+    /// <summary>marcacao_desc (padrão), marcacao_asc, espera_desc, espera_asc.</summary>
+    [RegularExpression("^(marcacao|espera)_(asc|desc)$", ErrorMessage = "Use marcacao_desc, marcacao_asc, espera_desc ou espera_asc.")]
+    public string? Ordenacao { get; set; }
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext) => ValidacaoPeriodo.Validar(De, Ate);
 }
@@ -46,7 +57,13 @@ public sealed record MarcacaoDto(
     double? EsperaHoras,
     string? Janela,
     string TerminalId,
-    string? Terminal);
+    string? Terminal,
+    Domain.Enums.OrigemMarcacao Origem = Domain.Enums.OrigemMarcacao.CargaInicial,
+    int? LoteImportacaoId = null,
+    int? LinhaOrigem = null);
+
+/// <summary>Movimento com a rastreabilidade completa: arquivo de origem e quantas carretas foram liberadas no mesmo instante.</summary>
+public sealed record MarcacaoDetalheDto(MarcacaoDto Movimento, string? ArquivoOrigem, DateTime? ImportadoEm, string? ImportadoPor, int LiberadosNoMesmoInstante);
 
 public enum TipoEventoIntegracao
 {

@@ -99,6 +99,8 @@ public interface IMarcacaoRepositorio
     Task<List<RegistroMarcacao>> ListarRegistrosLiberadosAsync(CancellationToken ct = default);
     Task<HashSet<string>> ListarIdsExistentesAsync(IEnumerable<string> movimentoIds, CancellationToken ct = default);
     Task<Dictionary<string, Marcacao>> ObterVariasAsync(IEnumerable<string> movimentoIds, CancellationToken ct = default);
+    /// <summary>Movimentos do terminal liberados exatamente em <paramref name="liberacao"/>.</summary>
+    Task<int> ContarLiberadosEmAsync(string terminalId, DateTime liberacao, CancellationToken ct = default);
     /// <summary>Marcações sem liberação, por terminal, com marcação no intervalo [inicio, fim).</summary>
     Task<Dictionary<string, int>> ContarSemLiberacaoAsync(DateTime? inicio, DateTime? fim, CancellationToken ct = default);
     /// <summary>Marcações ainda sem liberação marcadas antes de <paramref name="limite"/> (horário do porto).</summary>
