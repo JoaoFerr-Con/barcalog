@@ -15,7 +15,7 @@ const PARAMETROS = [
   ["metaLiberadas24hPct", "Meta de liberadas em até 24 h", "%", "Referência mostrada junto do indicador.", 1],
   ["limiteEsperaLongaHoras", "Espera longa", "horas", "Carretas acima disso entram em \"esperas longas\" e geram alerta.", 1],
   ["diasSemDadosAlerta", "Dias sem dados para alertar", "dias", "Alerta de dados desatualizados quando um terminal fica este tempo sem marcações importadas.", 1],
-  ["limiteRazaoChegadaLiberacao", "Razão chegadas ÷ liberações crítica", "×", "Usada na estimativa das próximas horas: a partir deste valor a faixa é marcada como crítica.", 0.1]
+  ["limiteRazaoChegadaLiberacao", "Limite de risco de fila", "× a capacidade de atendimento", "Na estimativa das próximas horas, a janela vira \"risco de fila\" quando a demanda prevista chega a este múltiplo da capacidade de atendimento (1,4 = 40% acima). Entre a capacidade e este limite, a janela fica em \"atenção\".", 0.1]
 ];
 
 export default function Configuracoes({ papel }) {

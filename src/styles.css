@@ -158,6 +158,29 @@
   .faixa-horas > div{ border:1px solid var(--borda); border-radius:10px; padding:8px 10px; font-size:12.5px; }
   .faixa-horas b{ display:block; font-size:15px; font-variant-numeric:tabular-nums; }
   .link{ color:var(--navio-600); }
+  /* Estimativa das próximas horas (Gargalos) */
+  .estimativa-resumo{ display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:12px; }
+  .estimativa-resumo > div{ display:flex; flex-direction:column; gap:2px; border:1px solid var(--borda); border-radius:10px; padding:12px 14px; font-size:12.5px; }
+  .estimativa-resumo__rotulo{ font-size:12.5px; color:var(--tinta-suave); font-weight:500; }
+  .estimativa-resumo b{ font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:600; color:var(--tinta); }
+  .estimativa-resumo b small{ font-family:'Inter',sans-serif; font-size:13px; font-weight:500; color:var(--tinta-suave); }
+  .estimativa-tendencia{ display:flex; align-items:center; gap:8px; margin:0; font-size:14px; font-weight:500; }
+  .estimativa-tendencia .material-symbols-outlined{ font-size:20px; color:var(--tinta-suave); }
+  .estimativa-janelas{ display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); gap:10px; }
+  .estimativa-janela{ display:flex; flex-direction:column; gap:8px; border:1px solid var(--borda); border-top:4px solid var(--borda-forte); border-radius:10px; padding:10px 12px; font-size:13px; }
+  .estimativa-janela.destaque{ box-shadow:0 0 0 2px var(--critico-fundo); }
+  .estimativa-janela .selo{ align-self:flex-start; }
+  .estimativa-janela__numeros{ display:flex; justify-content:space-between; align-items:baseline; gap:6px; flex-wrap:wrap; }
+  .estimativa-janela__numeros b{ font-family:'Space Grotesk',sans-serif; font-size:20px; }
+  .estimativa-janela__mensagem{ margin:0; font-size:12.5px; color:var(--tinta-suave); line-height:1.4; }
+  .estimativa-barra{ position:relative; height:10px; border-radius:5px; background:transparent; }
+  .estimativa-barra__capacidade{ position:absolute; left:0; top:0; bottom:0; border-radius:5px; background:#E3E8EF; border:1px solid #CDD5E1; }
+  .estimativa-barra__demanda{ position:absolute; left:0; top:2px; bottom:2px; border-radius:4px; }
+  .estimativa-barra__marca{ position:absolute; top:-3px; bottom:-3px; width:2px; margin-left:-1px; background:var(--tinta); border-radius:1px; }
+  .estimativa-legenda{ display:inline-block; width:18px; height:8px; border-radius:4px; vertical-align:middle; margin-right:4px; }
+  .estimativa-legenda--contorno{ background:#E3E8EF; border:1px solid #CDD5E1; }
+  .estimativa-como summary{ cursor:pointer; font-size:13px; color:var(--navio-600); font-weight:500; }
+  .estimativa-como p{ font-size:13px; color:var(--tinta-suave); margin:8px 0 0; max-width:820px; }
   td.num{ white-space:nowrap; }
   td input, td select{ min-height:34px; padding:4px 8px; border:1px solid var(--borda-forte); border-radius:8px; background:var(--superficie); font:inherit; font-size:13.5px; color:var(--tinta); max-width:100%; }
   td input:focus-visible, td select:focus-visible{ outline:2px solid var(--navio-600); outline-offset:1px; }
@@ -331,11 +354,14 @@
   /* ---------- Responsivo ---------- */
   .nav-mobile{ display:none; }
   .botao-menu-mobile{ display:none; }
+  @media (max-width: 1280px){ .estimativa-janelas{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
   @media (max-width: 900px){
     .grade-2{ grid-template-columns:1fr; }
     .grade-detalhe{ grid-template-columns:1fr; }
     .grade-detalhe > .painel-detalhe{ position:static; max-height:none; }
     .faixa-horas{ grid-template-columns:repeat(3, minmax(0,1fr)); }
+    .estimativa-resumo{ grid-template-columns:repeat(2, minmax(0,1fr)); }
+    .estimativa-janelas{ grid-template-columns:repeat(2, minmax(0,1fr)); }
     .definicoes{ grid-template-columns:1fr; }
   }
   @media (max-width: 768px){

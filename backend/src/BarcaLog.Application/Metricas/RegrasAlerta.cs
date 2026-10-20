@@ -17,7 +17,8 @@ public sealed record EntradaAlertas(
     IReadOnlyDictionary<string, DateTime?> UltimaMarcacaoPorTerminal,
     IReadOnlyList<(string MovimentoId, string TerminalId, DateTime DataMarcacao)> AbertasAntigas,
     IReadOnlyList<(string Placa, string TerminalId, TimeOnly Hora)> AgendamentosAtrasadosHoje,
-    DateTime AgoraLocalPorto);
+    DateTime AgoraLocalPorto,
+    IReadOnlyDictionary<string, int?>? CapacidadeHoraria = null);
 
 /// <summary>
 /// Regras transparentes de alerta. Cada uma diz o que mediu, o limite e de
@@ -25,11 +26,6 @@ public sealed record EntradaAlertas(
 /// </summary>
 public static class RegrasAlerta
 {
-    /// <summary>Faixa horária só entra na previsão com ao menos isso de chegadas por dia (evita ruído de horas vazias).</summary>
-    public const double ChegadasMinimasPorDiaNaFaixa = 5;
-    /// <summary>Janela do padrão histórico usado na previsão: últimos N dias com dados.</summary>
-    public const int DiasBasePrevisao = 30;
-    public const int HorasPrevisao = 6;
 
     private static readonly CultureInfo Br = CultureInfo.GetCultureInfo("pt-BR");
 
@@ -131,34 +127,41 @@ public static class RegrasAlerta
             $"Solicitar a {nome} as planilhas do período e importá-las (ou verificar a integração).");
     }
 
+    /// <summary>
+    /// Previsão de fila nas próximas horas de hoje, por terminal (EstimativaJanelas):
+    /// só janelas em "risco de fila" e com dados suficientes. Estimativa, não ocorrência.
+    /// </summary>
     private static IEnumerable<AlertaCandidato> RiscoHorario(EntradaAlertas e)
     {
         if (e.Liberadas.Count == 0) yield break;
-        var fimBase = e.Liberadas.Max(r => r.MarcadoEm).Date.AddDays(1);
-        var inicioBase = fimBase.AddDays(-DiasBasePrevisao);
-        var chegadas = e.Liberadas.Where(r => r.MarcadoEm >= inicioBase && r.MarcadoEm < fimBase).GroupBy(r => r.MarcadoEm.Hour).ToDictionary(g => g.Key, g => g.Count() / (double)DiasBasePrevisao);
-        var liberacoes = e.Liberadas.Where(r => r.LiberadoEm >= inicioBase && r.LiberadoEm < fimBase).GroupBy(r => r.LiberadoEm.Hour).ToDictionary(g => g.Key, g => g.Count() / (double)DiasBasePrevisao);
+        var terminais = e.Terminais.Select(t => new TerminalEstimativa(t.Id, t.Nome,
+            e.CapacidadeHoraria?.GetValueOrDefault(t.Id), e.UltimaMarcacaoPorTerminal.GetValueOrDefault(t.Id))).ToList();
+        var (_, porTerminal) = EstimativaJanelas.Calcular(e.Liberadas, terminais, e.AgoraLocalPorto,
+            e.Parametros.LimiteRazaoChegadaLiberacao, e.Parametros.DiasSemDadosAlerta);
         var hoje = e.AgoraLocalPorto.Date;
-        for (var i = 0; i < HorasPrevisao; i++)
+        foreach (var t in porTerminal)
         {
-            var momento = e.AgoraLocalPorto.AddHours(i);
-            if (momento.Date != hoje) break; // só o dia corrente
-            var h = momento.Hour;
-            var c = chegadas.GetValueOrDefault(h);
-            var l = liberacoes.GetValueOrDefault(h);
-            if (c < ChegadasMinimasPorDiaNaFaixa) continue;
-            var razao = l > 0 ? c / l : double.PositiveInfinity;
-            if (razao < e.Parametros.LimiteRazaoChegadaLiberacao) continue;
-            var faixa = $"{h:D2}h–{(h + 1) % 24:D2}h";
-            yield return new AlertaCandidato(
-                $"risco-horario:{hoje:yyyy-MM-dd}:{h:D2}", TipoAlerta.Previsao, "risco-horario",
-                razao >= 2 ? PrioridadeAlerta.Alta : PrioridadeAlerta.Media,
-                null, $"hoje, {faixa}", $"Mais chegadas do que liberações às {h}h",
-                "Razão chegadas ÷ liberações na faixa horária",
-                double.IsInfinity(razao) ? "sem liberações" : Num(razao, 2), Num(e.Parametros.LimiteRazaoChegadaLiberacao, 2),
-                $"De {inicioBase:dd/MM} a {fimBase.AddDays(-1):dd/MM}, às {h}h chegaram em média {Num(c)} carretas/dia e foram liberadas {Num(l)}. Estimativa a partir do padrão, não ocorrência.",
-                "Padrão histórico (todos os terminais)",
-                "Avaliar antecipar chamadas do pátio na hora anterior. Confirme com a fila real antes de agir.");
+            for (var i = 0; i < t.Janelas.Count; i++)
+            {
+                if (e.AgoraLocalPorto.AddHours(i).Date != hoje) break; // só o dia corrente
+                var j = t.Janelas[i];
+                if (j.Situacao != SituacaoJanela.Risco || j.Confiabilidade == Confiabilidade.Insuficiente) continue;
+                var faixa = EstimativaJanelas.Faixa(j.Hora);
+                var limitada = j.Confiabilidade == Confiabilidade.Limitada;
+                var prioridade = !limitada && j.DemandaPrevista >= 2 * j.CapacidadeAtendimento ? PrioridadeAlerta.Alta : PrioridadeAlerta.Media;
+                var referencia = j.FonteCapacidade == "cadastrada" ? "capacidade cadastrada" : "atendimento habitual (média de liberações nesta hora)";
+                yield return new AlertaCandidato(
+                    $"risco-horario:{t.TerminalId}:{hoje:yyyy-MM-dd}:{j.Hora:D2}", TipoAlerta.Previsao, "risco-horario", prioridade,
+                    t.TerminalId, $"hoje, {faixa}", $"Risco de fila às {j.Hora}h",
+                    "Demanda prevista × capacidade de atendimento",
+                    $"{Num(j.DemandaPrevista)} carretas previstas",
+                    $"{Num(j.CapacidadeAtendimento)} de {referencia}; risco a partir de {Num(e.Parametros.LimiteRazaoChegadaLiberacao, 1)}×",
+                    $"De {t.BaseDe:dd/MM} a {t.BaseAte:dd/MM}, às {j.Hora}h chegaram em média {Num(j.DemandaPrevista)} carretas por dia e foram liberadas {Num(j.AtendimentoObservado)}. "
+                    + "Estimativa pelo padrão histórico, não é ocorrência."
+                    + (limitada ? " Histórico limitado — estimativa com menor confiabilidade." : ""),
+                    "Padrão histórico do terminal",
+                    "Avaliar antecipar chamadas do pátio na hora anterior ou redistribuir agendamentos. Confirme com a fila real antes de agir.");
+            }
         }
     }
 

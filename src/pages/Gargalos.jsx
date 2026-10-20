@@ -3,6 +3,7 @@ import { api } from "../api/cliente.js";
 import { useApi } from "../hooks/useApi.js";
 import { useAcao } from "../hooks/useAcao.js";
 import { Carregando, ErroCarga, Vazio } from "../components/EstadoCarga.jsx";
+import EstimativaProximasHoras from "../components/EstimativaProximasHoras.jsx";
 import { CabecalhoPagina, Cartao, Selo, Icone, Aviso, Abas, Campo, Paginacao } from "../components/ui.jsx";
 import { numero, dataHoraLocal, formatarDataPtBR } from "../utils/formatar.js";
 
@@ -19,10 +20,6 @@ const TIPOS = {
 };
 const PRIORIDADE = { Alta: ["critico", "Alta"], Media: ["alto", "Média"], Baixa: ["neutro", "Baixa"] };
 const ESTADO = { Novo: ["info", "Novo"], EmAnalise: ["atencao", "Em análise"], Resolvido: ["ok", "Resolvido"], Descartado: ["neutro", "Descartado"] };
-const NIVEL_HORA = {
-  critico: ["var(--critico)", "Crítico"], alto: ["var(--alto)", "Alto"], atencao: ["var(--atencao)", "Atenção"],
-  normal: ["var(--ok)", "Normal"], "baixo-volume": ["var(--serie-neutra)", "Baixo volume"]
-};
 
 export default function Gargalos({ papel }) {
   const podeAgir = papel === "Operador" || papel === "Gestor";
@@ -69,7 +66,7 @@ export default function Gargalos({ papel }) {
 
       {resumo.dados?.ultimaAvaliacao && <p className="fraco" style={{ fontSize: 12.5, margin: "-6px 0 12px" }}>Última avaliação das regras: {dataHoraLocal(resumo.dados.ultimaAvaliacao)} · reavaliação automática a cada 10 minutos e após cada importação.</p>}
 
-      <ProximasHoras r={proximas} />
+      <EstimativaProximasHoras r={proximas} aoEscolherTerminal={id => mudar(() => setTerminalId(id))} />
 
       <Abas rotulo="Tipo de alerta" abas={abas} ativa={aba} aoMudar={id => mudar(() => setAba(id))} />
       {TIPOS[aba] && <p className="fraco" style={{ fontSize: 13, margin: "8px 0 12px" }}>{TIPOS[aba].texto}</p>}
@@ -115,30 +112,6 @@ export default function Gargalos({ papel }) {
         </div>
       </div>
     </>
-  );
-}
-
-function ProximasHoras({ r }) {
-  if (r.erro) return null;
-  if (!r.dados) return r.carregando ? <Carregando texto="Calculando próximas horas…" /> : null;
-  return (
-    <Cartao id="proximas-horas" titulo="Próximas 6 horas — estimativa"
-      subtitulo={`Chegadas e liberações médias por dia em cada faixa horária, no padrão de ${formatarDataPtBR(r.dados.baseDe)} a ${formatarDataPtBR(r.dados.baseAte)} (últimos dias com dados). Não é um registro do que está acontecendo agora.`}>
-      <div className="faixa-horas">
-        {r.dados.horas.map(h => {
-          const [cor, rotulo] = NIVEL_HORA[h.nivel] || ["var(--serie-neutra)", h.nivel];
-          return (
-            <div key={h.hora} style={{ borderTop: `3px solid ${cor}` }}>
-              <span className="fraco">{String(h.hora).padStart(2, "0")}h–{String((h.hora + 1) % 24).padStart(2, "0")}h</span>
-              <b>{h.razao != null ? `${numero(h.razao, 2)}×` : "—"}</b>
-              <span>{rotulo}</span>
-              <span className="fraco num" style={{ display: "block" }}>{numero(h.chegadasPorDia, 1)} cheg. · {numero(h.liberacoesPorDia, 1)} lib.</span>
-            </div>
-          );
-        })}
-      </div>
-      <p className="fraco" style={{ fontSize: 12, marginTop: 8 }}>Razão = chegadas ÷ liberações na faixa. Acima de 1 a fila tende a crescer. Faixas com menos chegadas que o mínimo aparecem como "baixo volume".</p>
-    </Cartao>
   );
 }
 

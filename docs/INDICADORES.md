@@ -52,6 +52,61 @@ liberações que **aconteceram** no período naquela hora ÷ dias corridos. A
 razão chegadas ÷ liberações acima de 1 indica que, historicamente, entra mais
 gente do que sai naquela faixa.
 
+## Estimativa das próximas horas (Gargalos e alertas)
+
+Código: `Application/Metricas/EstimativaJanelas.cs` (testes em `EstimativaJanelasTests`).
+É uma **média do que já aconteceu**, não um modelo preditivo: feriados, safra e
+navios atracados não entram. A tela diz isso e mostra a base usada.
+
+**Por terminal, para cada uma das próximas 6 janelas de uma hora:**
+
+| Termo na tela | Como é obtido |
+|---|---|
+| Demanda prevista | marcações naquela hora nos últimos 30 dias de dados do terminal ÷ dias com dados |
+| Atendimento habitual | liberações naquela hora no mesmo período ÷ dias com dados |
+| Capacidade de atendimento | capacidade por hora cadastrada em Configurações; sem ela, o atendimento habitual (a tela diz qual) |
+| Saldo de capacidade | capacidade − demanda (folga ou carretas acima). Estimativa de atendimento, não vagas físicas |
+
+A base termina no último dia com dados **de cada terminal** e divide pelos
+dias **com** registro: um dia sem nenhuma marcação no terminal é falta de dado,
+não dia parado. (Antes, a soma de todos os terminais terminava no último dia de
+qualquer terminal e dividia por 30 dias corridos — com um terminal atrasado na
+importação, a demanda dele aparecia subestimada.)
+
+**Situação da janela:**
+
+| Situação | Regra |
+|---|---|
+| Dentro da capacidade | demanda ≤ capacidade + 1 carreta, ou demanda prevista < 5 carretas na hora |
+| Atenção | demanda acima da capacidade (por 1 carreta ou mais), abaixo do limite de risco |
+| Risco de fila | demanda ≥ capacidade × limite de risco (parâmetro, padrão 1,4), ou capacidade zero com demanda relevante |
+| Dados insuficientes | menos de 7 dias com dados na base (não cobre o ciclo semanal) |
+
+- *Excesso menor que 1 carreta*: diferença de médias; carreta é indivisível.
+- *Menos de 5 carretas previstas*: mesmo sem nenhuma liberação na hora, o acúmulo
+  fica abaixo de 5 e é absorvido nas horas seguintes. Isso é **pouco movimento**
+  (com dados suficientes), diferente de **dados insuficientes**.
+- Faixa entre a capacidade e o limite de risco = atenção porque as liberações
+  acontecem em lote (97–98%) e a média horária oscila; o limite é ajustável.
+
+**Confiabilidade** (independente da situação): *limitada* quando os dados do
+terminal estão desatualizados (último registro há mais dias que "dias sem
+dados"), quando a base tem menos de 30 dias com dados, ou quando a hora teve
+menos de 30 chegadas registradas na base (amostra pequena). Pouco histórico não
+é tratado como pouca demanda.
+
+**Todos os terminais:** números somados, mas a situação da janela é a do terminal
+mais pressionado — as carretas não mudam de terminal. Terminais sem dados
+suficientes ficam fora da soma (e a tela avisa).
+
+**Resumo e tendência:** demanda e capacidade somadas no horizonte; o saldo em
+destaque é o da janela mais pressionada; a tendência descreve onde está a pior
+janela (agora, no meio ou no fim do horizonte) — sem limiar adicional.
+
+**Alerta de previsão** (`risco-horario`): por terminal, janelas de hoje em risco
+de fila e com dados suficientes. Prioridade alta só com demanda ≥ 2× a capacidade
+e confiabilidade normal.
+
 ## Frescor dos dados
 
 Por terminal: última marcação, última liberação e última importação
@@ -66,7 +121,7 @@ parâmetro "dias sem dados" (padrão 2).
 | Meta de liberadas em até 24 h | 85% | cor do indicador |
 | Limite de espera longa | 72 h | "esperas longas", aviso na importação |
 | Dias sem dados | 2 | aviso de dados desatualizados |
-| Razão chegadas ÷ liberações | 1,4 | risco por faixa horária |
+| Limite de risco de fila (× capacidade de atendimento) | 1,4 | estimativa das próximas horas e alerta de previsão |
 | Capacidade diária / por hora (por terminal) | não informada | ocupação, agenda |
 
 Os padrões são pontos de partida, não normas do porto.

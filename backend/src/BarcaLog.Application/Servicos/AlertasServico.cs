@@ -32,10 +32,11 @@ namespace BarcaLog.Application.Dtos
         [StringLength(1000), TextoSimples] public string? Texto { get; set; }
     }
 
-    /// <summary>Razão chegadas ÷ liberações nas próximas horas (padrão histórico — estimativa).</summary>
-    public sealed record RiscoHoraDto(int Hora, double ChegadasPorDia, double LiberacoesPorDia, double? Razao, string Nivel);
-
-    public sealed record ProximasHorasDto(DateOnly BaseDe, DateOnly BaseAte, IReadOnlyList<RiscoHoraDto> Horas);
+    /// <summary>
+    /// Estimativa das próximas horas pelo padrão histórico (não é previsão por modelo).
+    /// Geral = terminal filtrado ou todos somados; Terminais = cada terminal.
+    /// </summary>
+    public sealed record ProximasHorasDto(DateTime GeradoEm, int Horas, double LimiteRisco, EstimativaTerminal Geral, IReadOnlyList<EstimativaTerminal> Terminais);
 }
 
 namespace BarcaLog.Application.Servicos
@@ -135,36 +136,23 @@ namespace BarcaLog.Application.Servicos
                 lista.ToDictionary(t => t.Id, t => ultimos.TryGetValue(t.Id, out var u) ? u.UltimaMarcacao : null),
                 abertas,
                 atrasados,
-                agoraLocal);
+                agoraLocal,
+                lista.ToDictionary(t => t.Id, t => t.CapacidadeHoraria));
         }
 
         public async Task<ProximasHorasDto?> ProximasHorasAsync(string? terminalId, CancellationToken ct = default)
         {
             var parametros = await terminais.ObterParametrosAsync(false, ct);
-            var todos = await metricas.TodosLiberadosAsync(ct);
-            var registros = string.IsNullOrWhiteSpace(terminalId) ? todos : todos.Where(r => r.TerminalId == terminalId).ToList();
-            if (registros.Count == 0) return null;
-            var fim = registros.Max(r => r.MarcadoEm).Date.AddDays(1);
-            var inicio = fim.AddDays(-RegrasAlerta.DiasBasePrevisao);
-            double dias = RegrasAlerta.DiasBasePrevisao;
-            var c = registros.Where(r => r.MarcadoEm >= inicio && r.MarcadoEm < fim).GroupBy(r => r.MarcadoEm.Hour).ToDictionary(g => g.Key, g => g.Count() / dias);
-            var l = registros.Where(r => r.LiberadoEm >= inicio && r.LiberadoEm < fim).GroupBy(r => r.LiberadoEm.Hour).ToDictionary(g => g.Key, g => g.Count() / dias);
+            var lista = await terminais.ListarAsync(ct);
+            if (!string.IsNullOrWhiteSpace(terminalId) && lista.All(t => t.Id != terminalId)) return null;
+            var ultimos = await marcacoes.UltimosEventosPorTerminalAsync(ct);
+            var registros = await metricas.TodosLiberadosAsync(ct);
             var agora = relogio.AgoraLocalPorto;
-            var horas = Enumerable.Range(0, RegrasAlerta.HorasPrevisao).Select(i =>
-            {
-                var h = (agora.Hour + i) % 24;
-                var ch = c.GetValueOrDefault(h);
-                var li = l.GetValueOrDefault(h);
-                double? razao = li > 0 ? ch / li : null;
-                var limite = parametros.LimiteRazaoChegadaLiberacao;
-                var nivel = ch < RegrasAlerta.ChegadasMinimasPorDiaNaFaixa ? "baixo-volume"
-                    : razao is null ? "critico"
-                    : razao >= limite ? "critico"
-                    : razao >= (1 + limite) / 2 ? "alto"
-                    : razao >= 1 ? "atencao" : "normal";
-                return new RiscoHoraDto(h, Math.Round(ch, 1), Math.Round(li, 1), razao is null ? null : Math.Round(razao.Value, 2), nivel);
-            }).ToList();
-            return new ProximasHorasDto(DateOnly.FromDateTime(inicio), DateOnly.FromDateTime(fim.AddDays(-1)), horas);
+            var entrada = lista.Select(t => new TerminalEstimativa(t.Id, t.Nome, t.CapacidadeHoraria,
+                ultimos.TryGetValue(t.Id, out var u) ? u.UltimaMarcacao : null)).ToList();
+            var (geral, porTerminal) = EstimativaJanelas.Calcular(registros, entrada, agora, parametros.LimiteRazaoChegadaLiberacao, parametros.DiasSemDadosAlerta);
+            if (!string.IsNullOrWhiteSpace(terminalId)) geral = porTerminal.First(t => t.TerminalId == terminalId);
+            return new ProximasHorasDto(agora, EstimativaJanelas.HorasHorizonte, parametros.LimiteRazaoChegadaLiberacao, geral, porTerminal);
         }
 
         public async Task<Pagina<AlertaDto>> ListarAsync(FiltroAlertas f, CancellationToken ct = default)

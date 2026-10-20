@@ -82,7 +82,7 @@ public class RegrasAlertaTests
     }
 
     [Fact]
-    public void Previsao_so_para_faixas_de_hoje_com_volume_e_razao_acima_do_limite()
+    public void Previsao_so_para_janelas_de_hoje_em_risco_de_fila()
     {
         // Últimos 30 dias: às 16h chegam 10/dia e saem 4/dia; às 17h chegam 2/dia (volume baixo); às 18h 6 chegam e 6 saem.
         var registros = new List<RegistroMarcacao>();
@@ -96,11 +96,13 @@ public class RegrasAlertaTests
         }
         var alertas = RegrasAlerta.Avaliar(Entrada(registros, new DateTime(2026, 10, 20, 15, 30, 0), new DateTime(2026, 10, 19)));
         var a = Assert.Single(alertas, x => x.Tipo == TipoAlerta.Previsao);
-        Assert.Equal("risco-horario:2026-10-20:16", a.Chave);
+        Assert.Equal("risco-horario:hidrovias:2026-10-20:16", a.Chave);
+        Assert.Equal("hidrovias", a.TerminalId);
         Assert.Equal("hoje, 16h–17h", a.Periodo);
-        Assert.Equal("2,50", a.ValorObservado);
-        Assert.Equal(PrioridadeAlerta.Alta, a.Prioridade);
-        Assert.Contains("Estimativa a partir do padrão, não ocorrência", a.Evidencia);
+        Assert.Equal("Risco de fila às 16h", a.Titulo);
+        Assert.Equal("10,0 carretas previstas", a.ValorObservado);
+        Assert.Equal(PrioridadeAlerta.Alta, a.Prioridade); // 10 previstas ≥ 2 × 4 atendidas
+        Assert.Contains("Estimativa pelo padrão histórico, não é ocorrência", a.Evidencia);
 
         // Às 23h o dia acaba: nada de previsão para "amanhã".
         Assert.DoesNotContain(RegrasAlerta.Avaliar(Entrada(registros, new DateTime(2026, 10, 20, 23, 10, 0), new DateTime(2026, 10, 19))), x => x.Tipo == TipoAlerta.Previsao);
