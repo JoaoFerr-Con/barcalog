@@ -88,6 +88,7 @@ public class IntegracaoServico(
         {
             MovimentoId = id,
             TerminalId = terminalId,
+            Origem = Domain.Enums.OrigemMarcacao.Integracao,
             Senha = Exigir(e.Senha, "senha"),
             Convenio = Exigir(e.Convenio, "convenio"),
             CodConvenio = e.CodConvenio?.Trim(),

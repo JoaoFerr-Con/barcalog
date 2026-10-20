@@ -46,6 +46,9 @@ public static class DependencyInjection
         services.AddScoped<IAuditoriaRepositorio, AuditoriaRepositorio>();
         services.AddScoped<IAgendamentoRepositorio, AgendamentoRepositorio>();
         services.AddScoped<IUsuarioRepositorio, UsuarioRepositorio>();
+        services.AddScoped<IImportacaoRepositorio, ImportacaoRepositorio>();
+        services.AddScoped<IConvenioRepositorio, ConvenioRepositorio>();
+        services.AddSingleton<ILeitorPlanilha, Importacao.LeitorPlanilha>();
 
         services.AddSingleton<IHashSenha, HashSenha>();
         services.AddSingleton<IProtetorSegredos, ProtetorSegredosAesGcm>();

@@ -1,5 +1,63 @@
 namespace BarcaLog.Domain.Enums;
 
+/// <summary>De onde veio um movimento — exibido na tela para o usuário saber o que é manual, importado ou integrado.</summary>
+public enum OrigemMarcacao
+{
+    /// <summary>Datasets JSON originais (carga inicial do sistema).</summary>
+    CargaInicial,
+    /// <summary>Planilha XLSX/CSV confirmada por um Gestor (ver LoteImportacaoId).</summary>
+    Planilha,
+    /// <summary>Evento recebido de outro sistema via API Key.</summary>
+    Integracao
+}
+
+public enum FormatoArquivoImportacao
+{
+    Xlsx,
+    Csv
+}
+
+public enum StatusLoteImportacao
+{
+    /// <summary>Analisado, aguardando revisão/confirmação. Nada gravado em Marcacoes.</summary>
+    Analisado,
+    Confirmado,
+    Cancelado
+}
+
+public enum ClassificacaoLinhaImportacao
+{
+    /// <summary>Movimento que não existe — será inserido.</summary>
+    Novo,
+    /// <summary>Existe e só falta informação (código do convênio, liberação) — será completado.</summary>
+    Complementar,
+    /// <summary>Existe com valor diferente — exige decisão.</summary>
+    Conflito,
+    /// <summary>Linha inválida — não entra; motivo registrado.</summary>
+    Rejeitado
+}
+
+public enum DecisaoConflitoImportacao
+{
+    NaoSeAplica,
+    Pendente,
+    /// <summary>Gravar os valores da planilha.</summary>
+    Aplicar,
+    /// <summary>Manter o que já está no BarcaLog.</summary>
+    Manter
+}
+
+/// <summary>Sinais de qualidade: a linha entra, mas fica marcada para revisão.</summary>
+[Flags]
+public enum AvisoImportacao
+{
+    Nenhum = 0,
+    EsperaAcima72h = 1,
+    SemLiberacao = 2,
+    PossivelRemarcacao = 4,
+    ConvenioNovo = 8
+}
+
 /// <summary>Posição física da carreta no fluxo pátio → porto (nada a ver com negativação).</summary>
 public enum StatusPortaria
 {

@@ -74,6 +74,20 @@ public class MarcacaoRepositorio(BarcaLogDbContext db) : IMarcacaoRepositorio
         return existentes;
     }
 
+    public async Task<Dictionary<string, Domain.Regras.DadosMovimento>> ObterDadosAsync(IEnumerable<string> movimentoIds, CancellationToken ct = default)
+    {
+        var resultado = new Dictionary<string, Domain.Regras.DadosMovimento>(StringComparer.Ordinal);
+        foreach (var lote in movimentoIds.Distinct().Chunk(1000))
+        {
+            var linhas = await db.Marcacoes.AsNoTracking().Where(m => lote.Contains(m.MovimentoId))
+                .Select(m => new { m.MovimentoId, m.TerminalId, m.Senha, m.Convenio, m.CodConvenio, m.Ciclo, m.DataMarcacao, m.DataLiberacao })
+                .ToListAsync(ct);
+            foreach (var m in linhas)
+                resultado[m.MovimentoId] = new Domain.Regras.DadosMovimento(m.TerminalId, m.Senha, m.Convenio, m.CodConvenio, m.Ciclo, m.DataMarcacao, m.DataLiberacao);
+        }
+        return resultado;
+    }
+
     public async Task<Dictionary<string, Marcacao>> ObterVariasAsync(IEnumerable<string> movimentoIds, CancellationToken ct = default)
     {
         var resultado = new Dictionary<string, Marcacao>(StringComparer.Ordinal);

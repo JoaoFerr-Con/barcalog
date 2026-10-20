@@ -194,6 +194,123 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                         });
                 });
 
+            modelBuilder.Entity("BarcaLog.Domain.Entidades.Convenio", b =>
+                {
+                    b.Property<string>("Codigo")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Carga")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("Deduzido")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Nome")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Operador")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<byte[]>("VersaoLinha")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("Codigo");
+
+                    b.ToTable("Convenios", (string)null);
+                });
+
+            modelBuilder.Entity("BarcaLog.Domain.Entidades.LinhaImportacao", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("Avisos")
+                        .HasMaxLength(32)
+                        .HasColumnType("int");
+
+                    b.Property<string>("Carga")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("Ciclo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Classificacao")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("CodConvenio")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Convenio")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("DataLiberacao")
+                        .HasColumnType("datetime2(0)");
+
+                    b.Property<DateTime?>("DataMarcacao")
+                        .HasColumnType("datetime2(0)");
+
+                    b.Property<string>("Decisao")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int>("LoteId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Motivo")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("MovimentoId")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int>("NumeroLinha")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Operador")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Senha")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LoteId", "MovimentoId");
+
+                    b.HasIndex("LoteId", "Classificacao", "NumeroLinha");
+
+                    b.ToTable("LinhasImportacao", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_LinhasImportacao_Classificacao", "[Classificacao] IN (N'Novo', N'Complementar', N'Conflito', N'Rejeitado')");
+
+                            t.HasCheckConstraint("CK_LinhasImportacao_Decisao", "[Decisao] IN (N'NaoSeAplica', N'Pendente', N'Aplicar', N'Manter')");
+                        });
+                });
+
             modelBuilder.Entity("BarcaLog.Domain.Entidades.LogAuditoria", b =>
                 {
                     b.Property<long>("Id")
@@ -230,6 +347,130 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                     b.ToTable("LogsAuditoria", (string)null);
                 });
 
+            modelBuilder.Entity("BarcaLog.Domain.Entidades.LoteImportacao", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Arquivo")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<int>("Atualizados")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AvisosConvenioNovo")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AvisosEspera72h")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AvisosRemarcacao")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AvisosSemLiberacao")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ComAvisos")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Complementares")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ConcluidoEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ConcluidoPor")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("Conflitantes")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ConveniosNovos")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CriadoPor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Formato")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("HashSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
+                    b.Property<int>("Ignorados")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Iguais")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Inseridos")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Linhas")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("MarcacaoFinal")
+                        .HasColumnType("datetime2(0)");
+
+                    b.Property<DateTime?>("MarcacaoInicial")
+                        .HasColumnType("datetime2(0)");
+
+                    b.Property<int>("Novos")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Rejeitados")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<long>("TamanhoBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("TerminalId")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<byte[]>("VersaoLinha")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CriadoEm");
+
+                    b.HasIndex("TerminalId");
+
+                    b.HasIndex("HashSha256", "TerminalId", "Status");
+
+                    b.ToTable("LotesImportacao", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_LotesImportacao_Formato", "[Formato] IN (N'Xlsx', N'Csv')");
+
+                            t.HasCheckConstraint("CK_LotesImportacao_Status", "[Status] IN (N'Analisado', N'Confirmado', N'Cancelado')");
+                        });
+                });
+
             modelBuilder.Entity("BarcaLog.Domain.Entidades.Marcacao", b =>
                 {
                     b.Property<string>("MovimentoId")
@@ -264,10 +505,23 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                         .HasColumnType("decimal(10,2)")
                         .HasComputedColumnSql("CONVERT(decimal(10,2), ROUND(DATEDIFF(SECOND, [DataMarcacao], [DataLiberacao]) / 3600.0, 2))", true);
 
+                    b.Property<int?>("LinhaOrigem")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("LoteImportacaoId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Operador")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Origem")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)")
+                        .HasDefaultValue("CargaInicial");
 
                     b.Property<string>("Senha")
                         .IsRequired()
@@ -285,6 +539,8 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
 
                     b.HasIndex("DataMarcacao");
 
+                    b.HasIndex("LoteImportacaoId");
+
                     b.HasIndex("Senha");
 
                     b.HasIndex("TerminalId", "DataMarcacao");
@@ -294,6 +550,8 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                             t.HasCheckConstraint("CK_Marcacoes_Ciclo", "[Ciclo] >= 0");
 
                             t.HasCheckConstraint("CK_Marcacoes_Liberacao", "[DataLiberacao] IS NULL OR [DataLiberacao] >= [DataMarcacao]");
+
+                            t.HasCheckConstraint("CK_Marcacoes_Origem", "[Origem] IN (N'CargaInicial', N'Planilha', N'Integracao')");
                         });
                 });
 
@@ -691,8 +949,33 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                     b.Navigation("Transportadora");
                 });
 
+            modelBuilder.Entity("BarcaLog.Domain.Entidades.LinhaImportacao", b =>
+                {
+                    b.HasOne("BarcaLog.Domain.Entidades.LoteImportacao", null)
+                        .WithMany()
+                        .HasForeignKey("LoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BarcaLog.Domain.Entidades.LoteImportacao", b =>
+                {
+                    b.HasOne("BarcaLog.Domain.Entidades.Terminal", "Terminal")
+                        .WithMany()
+                        .HasForeignKey("TerminalId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Terminal");
+                });
+
             modelBuilder.Entity("BarcaLog.Domain.Entidades.Marcacao", b =>
                 {
+                    b.HasOne("BarcaLog.Domain.Entidades.LoteImportacao", null)
+                        .WithMany()
+                        .HasForeignKey("LoteImportacaoId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("BarcaLog.Domain.Entidades.Terminal", "Terminal")
                         .WithMany()
                         .HasForeignKey("TerminalId")

@@ -52,6 +52,8 @@ public class MarcacaoConfiguracao : IEntityTypeConfiguration<Marcacao>
                 stored: true);
 
         b.HasOne(x => x.Terminal).WithMany().HasForeignKey(x => x.TerminalId).OnDelete(DeleteBehavior.Restrict);
+        b.Property(x => x.Origem).HasDefaultValue(Domain.Enums.OrigemMarcacao.CargaInicial).HasSentinel((Domain.Enums.OrigemMarcacao)(-1));
+        b.HasOne<LoteImportacao>().WithMany().HasForeignKey(x => x.LoteImportacaoId).OnDelete(DeleteBehavior.Restrict);
 
         b.HasIndex(x => new { x.TerminalId, x.DataMarcacao });
         b.HasIndex(x => x.DataMarcacao);
