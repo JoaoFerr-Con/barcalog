@@ -61,7 +61,7 @@ Logs da execução local: `.logs/api.log` e `.logs/front.log`.
 |---|---|
 | "API indisponível" na tela de login | API não subiu — veja `.logs/api.log` ou `http://localhost:5080/health/ready` |
 | `health/ready` responde 503 | Banco parado: `sqllocaldb start MSSQLLocalDB`, `docker start barcalog-sql` ou, numa instância instalada, inicie o serviço no SQL Server Configuration Manager |
-| "Não consegui conectar em '.\\SQLEXPRESS'" | O nome da instância é outro: veja em SQL Server Configuration Manager → Serviços do SQL Server e passe `-Servidor "localhost\\NOME"` |
+| "Não consegui conectar em '.\SQLEXPRESS'" | O nome da instância é outro: veja em SQL Server Configuration Manager → Serviços do SQL Server e passe `-Servidor "localhost\NOME"` |
 | Porta 5080 ou 5173 em uso | Outra instância rodando — encerre-a antes |
 | `Login failed for user 'sa'` (Docker) | O volume do banco foi criado com outra senha: `cd backend && docker compose down -v` e rode o script de novo (apaga o banco local) |
 
