@@ -17,14 +17,14 @@ Arquitetura e decisões: [`ARCHITECTURE.md`](ARCHITECTURE.md) · Segurança:
 
 ## Rodar localmente (um comando)
 
-Pré-requisitos: **.NET 8 SDK**, **Node.js ≥ 20.19** e um SQL Server —
-**LocalDB** (Windows, vem com o Visual Studio ou o SQL Server Express) ou
-**Docker**.
+Pré-requisitos: **.NET 8 SDK**, **Node.js ≥ 20.19** e um SQL Server — um
+**SQL Server já instalado** (Express/Developer), o **LocalDB** ou o **Docker**.
 
 **Windows (PowerShell)**
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\iniciar-local.ps1               # LocalDB se existir, senão Docker
+powershell -ExecutionPolicy Bypass -File scripts\iniciar-local.ps1               # detecta: LocalDB, SQL Server instalado ou Docker
+powershell -ExecutionPolicy Bypass -File scripts\iniciar-local.ps1 -Servidor "localhost\SQLEXPRESS"   # instância específica (login do Windows)
 powershell -ExecutionPolicy Bypass -File scripts\iniciar-local.ps1 -Banco Docker
 ```
 
@@ -60,7 +60,8 @@ Logs da execução local: `.logs/api.log` e `.logs/front.log`.
 | Sintoma | Causa provável |
 |---|---|
 | "API indisponível" na tela de login | API não subiu — veja `.logs/api.log` ou `http://localhost:5080/health/ready` |
-| `health/ready` responde 503 | Banco parado: `sqllocaldb start MSSQLLocalDB` ou `docker start barcalog-sql` |
+| `health/ready` responde 503 | Banco parado: `sqllocaldb start MSSQLLocalDB`, `docker start barcalog-sql` ou, numa instância instalada, inicie o serviço no SQL Server Configuration Manager |
+| "Não consegui conectar em '.\\SQLEXPRESS'" | O nome da instância é outro: veja em SQL Server Configuration Manager → Serviços do SQL Server e passe `-Servidor "localhost\\NOME"` |
 | Porta 5080 ou 5173 em uso | Outra instância rodando — encerre-a antes |
 | `Login failed for user 'sa'` (Docker) | O volume do banco foi criado com outra senha: `cd backend && docker compose down -v` e rode o script de novo (apaga o banco local) |
 

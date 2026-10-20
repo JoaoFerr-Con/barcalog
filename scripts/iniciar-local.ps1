@@ -1,4 +1,4 @@
-# BarcaLog — sobe o ambiente local completo no Windows.
+﻿# BarcaLog — sobe o ambiente local completo no Windows.
 #
 #   powershell -ExecutionPolicy Bypass -File scripts\iniciar-local.ps1
 #   powershell -ExecutionPolicy Bypass -File scripts\iniciar-local.ps1 -Banco Docker
@@ -9,12 +9,17 @@
 #   SQL Server Express; usa a connection string de appsettings.Development.json.
 #   Docker — SQL Server 2022 em container (backend\docker-compose.yml), com
 #   senha aleatória gravada em backend\.env (ignorado pelo Git).
+#   Instancia — um SQL Server já instalado na máquina (Express, Developer…),
+#   com autenticação do Windows:
+#     ... iniciar-local.ps1 -Banco Instancia -Servidor "localhost\SQLEXPRESS"
+#   (sem -Servidor, tenta .\SQLEXPRESS e depois a instância padrão "localhost").
 #
 # Na primeira subida a API aplica as migrations, cria os usuários de teste e
 # importa os datasets reais (~1 min). Enter ou Ctrl+C encerra API e frontend.
 [CmdletBinding()]
 param(
-    [ValidateSet("Auto", "LocalDB", "Docker")] [string]$Banco = "Auto",
+    [ValidateSet("Auto", "LocalDB", "Instancia", "Docker")] [string]$Banco = "Auto",
+    [string]$Servidor = "",
     [switch]$SemFront
 )
 $ErrorActionPreference = "Stop"
@@ -36,8 +41,15 @@ if (-not $SemFront) {
     $v = (node -p "process.versions.node").Split(".") | ForEach-Object { [int]$_ }
     if ($v[0] -lt 20 -or ($v[0] -eq 20 -and $v[1] -lt 19)) { Falha "Node $(node -v) é antigo; o Vite 7 exige >= 20.19." }
 }
-if ($Banco -eq "Auto") { $Banco = if (Existe "sqllocaldb") { "LocalDB" } elseif (Existe "docker") { "Docker" } else { "" } }
-if (-not $Banco) { Falha "Nenhum SQL Server disponível: instale o SQL Server Express LocalDB ou o Docker Desktop." }
+function Get-ServicosSql { @(Get-Service -Name "MSSQLSERVER", "MSSQL$*" -ErrorAction SilentlyContinue) }
+if ($Banco -eq "Auto") {
+    $Banco = if ($Servidor) { "Instancia" }
+             elseif (Existe "sqllocaldb") { "LocalDB" }
+             elseif ((Get-ServicosSql).Count -gt 0) { "Instancia" }
+             elseif (Existe "docker") { "Docker" }
+             else { "" }
+}
+if (-not $Banco) { Falha "Nenhum SQL Server disponível: instale o SQL Server Express (ou o LocalDB) ou o Docker Desktop." }
 Write-Host "ok: dotnet $(dotnet --version), banco: $Banco"
 
 Passo "SQL Server ($Banco)"
@@ -48,6 +60,31 @@ if ($Banco -eq "LocalDB") {
     if ($LASTEXITCODE -ne 0) { Falha "Não consegui iniciar a instância MSSQLLocalDB." }
     Remove-Item Env:ConnectionStrings__BarcaLog -ErrorAction SilentlyContinue  # usa appsettings.Development.json
     Write-Host "LocalDB (mssqllocaldb) iniciado"
+}
+elseif ($Banco -eq "Instancia") {
+    if (-not $Servidor) {
+        $servicos = Get-ServicosSql
+        if ($servicos.Count -eq 0) { Falha "Nenhum serviço do SQL Server encontrado. Informe -Servidor ""maquina\INSTANCIA""." }
+        $Servidor = if ($servicos.Name -contains 'MSSQL$SQLEXPRESS') { ".\SQLEXPRESS" }
+                    elseif ($servicos.Name -contains "MSSQLSERVER") { "localhost" }
+                    else { ".\" + ($servicos[0].Name -replace '^MSSQL\$', '') }
+        $svc = $servicos | Where-Object { $_.Status -ne "Running" }
+        if ($svc) {
+            Write-Host "Serviços parados: $(($svc | ForEach-Object { $_.DisplayName }) -join ', ')" -ForegroundColor Yellow
+            Write-Host "Se a conexão falhar, inicie-o no 'SQL Server Configuration Manager' (botão direito > Iniciar)."
+        }
+    }
+    $env:ConnectionStrings__BarcaLog = "Server=$Servidor;Database=BarcaLog;Trusted_Connection=True;TrustServerCertificate=True"
+    try {
+        $cn = New-Object System.Data.SqlClient.SqlConnection("Server=$Servidor;Database=master;Integrated Security=True;TrustServerCertificate=True;Connect Timeout=8")
+        $cn.Open(); $cn.Close()
+    }
+    catch {
+        # Sem o operador ?? : o "powershell" do Windows é a versão 5.1.
+        $ex = $_.Exception; if ($ex.InnerException) { $ex = $ex.InnerException }
+        Falha "Não consegui conectar em '$Servidor' com o usuário do Windows: $($ex.Message)`nConfira o nome da instância no SQL Server Configuration Manager e rode com -Servidor ""localhost\NOME""."
+    }
+    Write-Host "conectado em $Servidor (autenticação do Windows)"
 }
 else {
     if (-not (Existe "docker")) { Falha "Docker não encontrado." }
