@@ -108,3 +108,24 @@ public class EstimativaJanelasTests
         Assert.Contains(geral.Motivos, m => m.StartsWith("Unitapajós"));
     }
 }
+
+public class TempoTipicoTests
+{
+    [Fact]
+    public void Tempo_tipico_e_a_mediana_dos_ultimos_30_dias_de_dados_do_terminal()
+    {
+        static RegistroMarcacao R(DateTime m, double h) => new($"m{m:yyyyMMddHHmm}{h}", "s", "C", "O", "C", 1, m, m.AddHours(h), h, "tgpm", "TGPM");
+        var regs = new List<RegistroMarcacao>
+        {
+            R(new DateTime(2026, 6, 1, 8, 0, 0), 500),  // fora da base (mais de 30 dias antes do último dia)
+            R(new DateTime(2026, 9, 10, 8, 0, 0), 2),
+            R(new DateTime(2026, 9, 20, 8, 0, 0), 4),
+            R(new DateTime(2026, 9, 30, 8, 0, 0), 90),  // espera longa não puxa a mediana como puxaria a média
+        };
+        var t = Assert.Single(BarcaLog.Application.Servicos.PortariaServico.TemposTipicos(regs, [new BarcaLog.Domain.Entidades.Terminal { Id = "tgpm", Nome = "TGPM" }]));
+        Assert.Equal(4, t.MedianaHoras);
+        Assert.Equal(3, t.Liberadas);
+        Assert.Equal(new DateOnly(2026, 9, 1), t.BaseDe);
+        Assert.Equal(new DateOnly(2026, 9, 30), t.BaseAte);
+    }
+}

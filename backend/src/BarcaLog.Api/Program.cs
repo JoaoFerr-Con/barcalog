@@ -205,6 +205,7 @@ builder.Services.AddSwaggerGen(o =>
         Description = "Chave de integração sistema-a-sistema."
     });
     o.OperationFilter<FiltroSegurancaSwagger>();
+    o.OperationFilter<FiltroDescontinuadoSwagger>();
     o.MapType<TimeOnly>(() => new OpenApiSchema { Type = "string", Format = "time", Example = new Microsoft.OpenApi.Any.OpenApiString("08:00") });
     o.SupportNonNullableReferenceTypes();
     o.CustomSchemaIds(t => t.FullName?.Replace("+", ".").Replace("BarcaLog.Application.", ""));

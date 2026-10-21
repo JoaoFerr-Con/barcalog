@@ -232,7 +232,8 @@ const ESTILO_STATUS = {
   [STATUS_PORTARIA.NoPorto]: { icone: "anchor", tipo: "operacao" },
   [STATUS_PORTARIA.NoPatio]: { icone: "warehouse", tipo: "atencao" },
   [STATUS_PORTARIA.Aguardando]: { icone: "schedule", tipo: "info" },
-  [STATUS_PORTARIA.DescargaFinalizada]: { icone: "task_alt", tipo: "ok" }
+  [STATUS_PORTARIA.DescargaFinalizada]: { icone: "task_alt", tipo: "ok" },
+  [STATUS_PORTARIA.ForaDoPorto]: { icone: "logout", tipo: "neutro" }
 };
 
 function PaginaCarretas() {

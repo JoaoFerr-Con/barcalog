@@ -3,9 +3,10 @@ import { QRCodeSVG } from "qrcode.react";
 import { useNegativacao } from "../hooks/useNegativacao.js";
 import { useApi } from "../hooks/useApi.js";
 import { api } from "../api/cliente.js";
-import { STATUS_PORTARIA, TERMINAIS, nomeTerminal } from "../api/rotulos.js";
+import { STATUS_PORTARIA, nomeTerminal } from "../api/rotulos.js";
 import { formatarHoras } from "../utils/formatar.js";
 import { Carregando, ErroCarga } from "../components/EstadoCarga.jsx";
+import { ResumoEstimativa } from "../components/EstimativaProximasHoras.jsx";
 import { buscarVeiculoPorPlaca, listarVeiculos } from "../data/negativacaoStore.js";
 
 function minutosDesde(iso) {
@@ -24,20 +25,18 @@ export default function Portaria() {
   const [naoEncontrado, setNaoEncontrado] = useState(false);
   const veiculos = listarVeiculos();
 
-  // Fila virtual, congestionamento e previsão de gargalo (próximas 6h) vêm
-  // prontos da API — calculados sobre as marcações reais. Atualiza a cada minuto.
+  // Fila virtual e congestionamento vêm prontos da API. O tempo típico é a
+  // mediana da espera no terminal (marcação → liberação, últimos 30 dias com
+  // dados) — referência do terminal, não medição da portaria. Atualiza a cada minuto.
   const fila = useApi(sinal => api.get("/api/v1/portaria/fila-virtual", null, sinal), [], { intervaloMs: 60_000 });
-  // Espera média histórica real por terminal (pra coluna "atraso" das chegadas).
-  const porTerminal = useApi(sinal => api.get("/api/v1/marcacoes/por-terminal", null, sinal), []);
+  // Mesma estimativa das próximas horas da tela Gargalos e alertas (uma regra só).
+  const proximas = useApi(sinal => api.get("/api/v1/alertas/proximas-horas", null, sinal), [], { intervaloMs: 600_000 });
 
-  const esperaMediaPorTerminal = useMemo(() => {
+  const tempoTipicoPorTerminal = useMemo(() => {
     const mapa = {};
-    TERMINAIS.forEach(t => {
-      const encontrado = (porTerminal.dados || []).find(x => x.empresa === t.nome);
-      mapa[t.id] = encontrado ? encontrado.esperaMedia : null;
-    });
+    (fila.dados?.tempoTipico || []).forEach(t => { mapa[t.terminalId] = t.medianaHoras; });
     return mapa;
-  }, [porTerminal.dados]);
+  }, [fila.dados]);
 
   function aoBuscar(e) {
     e.preventDefault();
@@ -73,33 +72,12 @@ export default function Portaria() {
         </div>
       )}
 
-      {dadosFila?.previsaoGargalo?.length > 0 && (
-        <div className="cartao" style={{ marginBottom: 20 }}>
-          <div className="cartao__cabecalho">
-            <h3>Previsão de Gargalo — Próximas 6 Horas</h3>
-            <p>Baseado no padrão histórico de chegada e liberação por hora</p>
-          </div>
-          <div className="cartao__corpo">
-            {dadosFila.previsaoGargalo.map((a, i) => (
-              <div key={i} style={{
-                display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", marginBottom: 6, borderRadius: 10,
-                background: a.risco === "alto" ? "var(--vermelho-100)" : "#FEF3C7",
-                borderLeft: `3px solid ${a.risco === "alto" ? "var(--vermelho-500)" : "var(--ambar-500)"}`
-              }}>
-                <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 18, color: a.risco === "alto" ? "var(--vermelho-500)" : "var(--ambar-600)" }}>
-                  {a.risco === "alto" ? "error" : "warning"}
-                </span>
-                <span style={{ fontSize: 12.5 }}>{a.mensagem}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <div style={{ marginBottom: 20 }}><ResumoEstimativa r={proximas} /></div>
 
       <div className="cartao" style={{ marginBottom: 20 }}>
         <div className="cartao__cabecalho">
           <h3>Fila virtual</h3>
-          <p>Veículos parados agora, na ordem de chegada — com estimativa baseada na média histórica real do terminal</p>
+          <p>Carretas com situação "No pátio" ou "Aguardando", na ordem em que entraram nessa situação. A estimativa usa o tempo típico de espera do terminal (mediana dos últimos 30 dias com dados) — é uma referência do terminal, não uma medição da portaria.</p>
         </div>
         <div className="cartao__corpo" style={{ overflowX: "auto" }}>
           {!dadosFila ? (fila.carregando ? <Carregando /> : null) : dadosFila.fila.length === 0 ? (
@@ -107,7 +85,7 @@ export default function Portaria() {
           ) : (
             <table>
               <thead>
-                <tr><th scope="col">#</th><th scope="col">Placa</th><th scope="col">Transportadora</th><th scope="col">Situação</th><th scope="col">Há quanto tempo</th><th scope="col">Estimativa (média do terminal)</th></tr>
+                <tr><th scope="col">#</th><th scope="col">Placa</th><th scope="col">Transportadora</th><th scope="col">Situação</th><th scope="col">Há quanto tempo</th><th scope="col">Estimativa pelo tempo típico do terminal</th></tr>
               </thead>
               <tbody>
                 {dadosFila.fila.map(item => (
@@ -119,10 +97,10 @@ export default function Portaria() {
                     <td className="mono">{formatarMinutos(item.minutosDecorridos)}</td>
                     <td>
                       {item.minutosRestantesEstimados === null
-                        ? "sem histórico"
-                        : item.jaAlemDaMedia
-                          ? <span style={{ color: "var(--verde-500)", fontWeight: 600 }}>já além da média</span>
-                          : `~${formatarMinutos(item.minutosRestantesEstimados)} restantes`}
+                        ? "sem histórico do terminal"
+                        : item.alemDoTempoTipico
+                          ? <span style={{ color: "var(--critico-texto)", fontWeight: 600 }}>já passou do tempo típico ({formatarHoras(item.tempoTipicoTerminalHoras)})</span>
+                          : `cerca de ${formatarMinutos(item.minutosRestantesEstimados)} até o tempo típico`}
                     </td>
                   </tr>
                 ))}
@@ -134,28 +112,28 @@ export default function Portaria() {
 
       <div className="cartao" style={{ marginBottom: 20 }}>
         <div className="cartao__cabecalho">
-          <h3>Chegadas de hoje</h3>
-          <p>Situação e atraso de cada veículo da frota cadastrada, comparado à espera média real do terminal</p>
+          <h3>Frota cadastrada — situação na portaria</h3>
+          <p>Todas as carretas cadastradas, pela hora em que entraram na situação atual. Para quem está no pátio, aguardando ou no porto, o tempo além do tempo típico de espera do terminal.</p>
         </div>
         <div className="cartao__corpo" style={{ overflowX: "auto" }}>
           {!negativacao.carregado ? <Carregando /> : (
             <table>
-              <thead><tr><th scope="col">Horário</th><th scope="col">Placa</th><th scope="col">Transportadora</th><th scope="col">Terminal</th><th scope="col">Situação</th><th scope="col">Atraso</th></tr></thead>
+              <thead><tr><th scope="col">Na situação desde</th><th scope="col">Placa</th><th scope="col">Transportadora</th><th scope="col">Terminal</th><th scope="col">Situação</th><th scope="col">Além do tempo típico</th></tr></thead>
               <tbody>
                 {[...veiculos].sort((a, b) => new Date(a.statusPortariaDesde) - new Date(b.statusPortariaDesde)).map(v => {
                   const decorrido = minutosDesde(v.statusPortariaDesde);
-                  const mediaTerminalMin = esperaMediaPorTerminal[v.terminal] != null ? esperaMediaPorTerminal[v.terminal] * 60 : null;
+                  const mediaTerminalMin = tempoTipicoPorTerminal[v.terminal] != null ? tempoTipicoPorTerminal[v.terminal] * 60 : null;
                   const emAndamento = [STATUS_PORTARIA.NoPatio, STATUS_PORTARIA.Aguardando, STATUS_PORTARIA.NoPorto].includes(v.statusPortaria);
                   const atrasoMin = emAndamento && mediaTerminalMin != null ? decorrido - mediaTerminalMin : null;
                   return (
                     <tr key={v.id}>
-                      <td className="mono">{new Date(v.statusPortariaDesde).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</td>
+                      <td className="mono">{new Date(v.statusPortariaDesde).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
                       <td className="mono">{v.placa}</td>
                       <td>{v.transportadora}</td>
                       <td>{nomeTerminal(v.terminal)}</td>
                       <td>{v.statusPortaria}</td>
                       <td>
-                        {atrasoMin === null ? "—" : atrasoMin <= 0 ? <span style={{ color: "var(--verde-500)" }}>dentro da média</span> : <span style={{ color: "var(--vermelho-500)", fontWeight: 600 }}>+{formatarMinutos(Math.round(atrasoMin))}</span>}
+                        {atrasoMin === null ? "—" : atrasoMin <= 0 ? <span style={{ color: "var(--verde-500)" }}>dentro do tempo típico</span> : <span style={{ color: "var(--vermelho-500)", fontWeight: 600 }}>+{formatarMinutos(Math.round(atrasoMin))}</span>}
                       </td>
                     </tr>
                   );
