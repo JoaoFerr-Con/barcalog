@@ -24,6 +24,13 @@ public class Marcacao
     public string TerminalId { get; set; } = null!;
     public Terminal? Terminal { get; set; }
 
+    /// <summary>Carga inicial, planilha importada ou integração.</summary>
+    public Enums.OrigemMarcacao Origem { get; set; } = Enums.OrigemMarcacao.CargaInicial;
+    /// <summary>Lote de importação que criou o movimento (Origem = Planilha).</summary>
+    public int? LoteImportacaoId { get; set; }
+    /// <summary>Linha da planilha de origem (1 = cabeçalho).</summary>
+    public int? LinhaOrigem { get; set; }
+
     /// <summary>
     /// Coluna calculada no banco: (DataLiberacao − DataMarcacao) em horas,
     /// arredondada em 2 casas — mesma regra do campo esperaHoras dos JSON.

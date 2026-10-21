@@ -63,11 +63,15 @@ autenticação não toca nas regras.
 
 **Login** — rate limit por IP → busca usuário → verifica hash (ou hash fictício) → falha: `UPDATE` atômico do contador + auditoria → MFA (TOTP, consumo atômico do passo) → token com `ver` e, se for o caso, restrição.
 
+**Importação de planilha** — `POST /api/v1/importacoes` lê o XLSX/CSV, grava as linhas em staging (`LinhasImportacao`, SqlBulkCopy) e classifica cada uma (novo, completa dados, conflito, rejeitada) sem tocar em `Marcacoes` → o Gestor decide os conflitos → `confirmar` aplica tudo numa transação (SQL set-based), recusa análise obsoleta (outro lote confirmado depois) e reavalia os alertas. Detalhes em `docs/IMPORTACAO.md`.
+
+**Alertas** — `AvaliacaoPeriodicaAlertas` (a cada `Alertas:IntervaloMinutos`, padrão 10) e cada importação confirmada rodam `RegrasAlerta` sobre os dados; o alerta é criado, atualizado ou marcado como "deixou de ocorrer", e cada mudança vira um `EventoAlerta`. Tipos: histórico, operacional, previsão, dados.
+
 **Toda requisição autenticada** — assinatura/emissor/validade do JWT → `ver` confere com o banco (cache 30 s) → política do endpoint (papel + sem restrição) → rate limit por usuário.
 
 ## Dados
 
-Tabelas: `Terminais`, `Marcacoes` (103k+, PK `MovimentoId`, índices por terminal+data, data, senha, convênio), `Transportadoras`, `Veiculos` (placa única), `Condutores`, `Ocorrencias`, `Contestacoes`, `Agendamentos`, `Usuarios`, `LogsAuditoria`, `ChavesIdempotencia`. Todas as FKs com `Restrict` (nada apaga em cascata histórico), exceto `Ocorrencia.CondutorId` (`SET NULL`).
+Tabelas: `Terminais`, `Marcacoes` (103k+, PK `MovimentoId`, índices por terminal+data, data, senha, convênio), `Transportadoras`, `Veiculos` (placa única), `Condutores`, `Ocorrencias`, `Contestacoes`, `Agendamentos`, `Usuarios`, `LogsAuditoria`, `ChavesIdempotencia`, `Convenios`, `LotesImportacao`, `LinhasImportacao` (staging), `Alertas`, `EventosAlerta`, `ParametrosOperacionais` (linha única). Cada marcação guarda a origem (`CargaInicial`, `Planilha` com lote e linha, `Integracao`). Todas as FKs com `Restrict` (nada apaga em cascata histórico), exceto `Ocorrencia.CondutorId` (`SET NULL`).
 
 Migrations versionadas em `backend/src/BarcaLog.Infrastructure/Persistencia/Migrations`. Em produção: aplicar com o usuário de migração (`dotnet run -- migrar`), nunca na subida da API. Usuários de menor privilégio e backup: `backend/database/*.sql`.
 
@@ -83,4 +87,9 @@ Migrations versionadas em `backend/src/BarcaLog.Infrastructure/Persistencia/Migr
 
 - `backend/tests/BarcaLog.UnitTests` — regras de domínio, métricas, TOTP (vetores da RFC), CNPJ/placa, política de senha.
 - `backend/tests/BarcaLog.IntegrationTests` — API inteira contra SQL Server real: fluxos de negócio, autenticação/autorização, ataques (força bruta, token adulterado, `alg: none`, SQLi, enum inválido, upload malicioso, corpo gigante), concorrência (aprovações e contestações paralelas), idempotência, headers, CORS, LGPD.
-- `backend/tools/verificar-fidelidade.mjs` — métricas da API × JS original.
+- `backend/tools/verificar-fidelidade.mjs` — métricas legadas da API × JS original (banco novo, só com a carga JSON).
+- Interface: smoke test com Playwright descrito em `docs/INTERFACE.md`.
+
+## Documentos
+
+`docs/INDICADORES.md` (regras dos indicadores e alertas), `docs/IMPORTACAO.md` (planilhas), `docs/INTERFACE.md` (telas), `docs/PROTHEUS.md` (integração: o que falta).

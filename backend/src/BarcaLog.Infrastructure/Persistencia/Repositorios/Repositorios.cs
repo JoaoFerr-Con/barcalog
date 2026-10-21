@@ -22,8 +22,20 @@ public class TerminalRepositorio(BarcaLogDbContext db) : ITerminalRepositorio
     public Task<List<Terminal>> ListarAsync(CancellationToken ct = default) =>
         db.Terminais.AsNoTracking().OrderBy(t => t.Nome).ToListAsync(ct);
 
+    public Task<bool> ExistemDadosExemploAsync(CancellationToken ct = default) =>
+        db.Transportadoras.AnyAsync(t => Seed.DbSeeder.CnpjsExemplo.Contains(t.Cnpj), ct);
+
     public Task<Terminal?> ObterAsync(string id, CancellationToken ct = default) =>
         db.Terminais.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct);
+
+    public Task<Terminal?> ObterParaAlterarAsync(string id, CancellationToken ct = default) =>
+        db.Terminais.FirstOrDefaultAsync(t => t.Id == id, ct);
+
+    public async Task<ParametrosOperacionais> ObterParametrosAsync(bool rastrear, CancellationToken ct = default)
+    {
+        var q = rastrear ? db.Parametros : db.Parametros.AsNoTracking();
+        return await q.SingleOrDefaultAsync(p => p.Id == ParametrosOperacionais.IdUnico, ct) ?? new ParametrosOperacionais();
+    }
 }
 
 public class MarcacaoRepositorio(BarcaLogDbContext db) : IMarcacaoRepositorio
@@ -38,7 +50,20 @@ public class MarcacaoRepositorio(BarcaLogDbContext db) : IMarcacaoRepositorio
         if (!string.IsNullOrWhiteSpace(f.Operador)) q = q.Where(m => m.Operador == f.Operador);
         if (!string.IsNullOrWhiteSpace(f.Carga)) q = q.Where(m => m.Carga == f.Carga);
         if (!string.IsNullOrWhiteSpace(f.Senha)) q = q.Where(m => m.Senha == f.Senha);
-        return q.OrderByDescending(m => m.DataMarcacao).ThenBy(m => m.MovimentoId).PaginarAsync(f, ct);
+        if (!string.IsNullOrWhiteSpace(f.Busca)) { var b = f.Busca.Trim(); q = q.Where(m => m.MovimentoId == b || m.Senha == b); }
+        if (!string.IsNullOrWhiteSpace(f.CodConvenio)) q = q.Where(m => m.CodConvenio == f.CodConvenio);
+        if (f.EsperaAcimaHoras is { } acima) q = q.Where(m => m.EsperaHoras > acima);
+        if (f.SemLiberacao == true) q = q.Where(m => m.DataLiberacao == null);
+        if (f.SemLiberacao == false) q = q.Where(m => m.DataLiberacao != null);
+        if (f.Origem is { } o) q = q.Where(m => m.Origem == o);
+        q = f.Ordenacao switch
+        {
+            "marcacao_asc" => q.OrderBy(m => m.DataMarcacao).ThenBy(m => m.MovimentoId),
+            "espera_desc" => q.OrderByDescending(m => m.EsperaHoras).ThenByDescending(m => m.DataMarcacao).ThenBy(m => m.MovimentoId),
+            "espera_asc" => q.OrderBy(m => m.EsperaHoras == null).ThenBy(m => m.EsperaHoras).ThenBy(m => m.MovimentoId),
+            _ => q.OrderByDescending(m => m.DataMarcacao).ThenBy(m => m.MovimentoId)
+        };
+        return q.PaginarAsync(f, ct);
     }
 
     public Task<Marcacao?> ObterAsync(string movimentoId, CancellationToken ct = default) =>
@@ -72,6 +97,47 @@ public class MarcacaoRepositorio(BarcaLogDbContext db) : IMarcacaoRepositorio
             existentes.UnionWith(encontrados);
         }
         return existentes;
+    }
+
+    public Task<int> ContarLiberadosEmAsync(string terminalId, DateTime liberacao, CancellationToken ct = default) =>
+        db.Marcacoes.AsNoTracking().CountAsync(m => m.TerminalId == terminalId && m.DataLiberacao == liberacao, ct);
+
+    public async Task<Dictionary<string, int>> ContarSemLiberacaoAsync(DateTime? inicio, DateTime? fim, CancellationToken ct = default)
+    {
+        var q = db.Marcacoes.AsNoTracking().Where(m => m.DataLiberacao == null);
+        if (inicio is { } i) q = q.Where(m => m.DataMarcacao >= i);
+        if (fim is { } f) q = q.Where(m => m.DataMarcacao < f);
+        return await q.GroupBy(m => m.TerminalId).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N, ct);
+    }
+
+    public async Task<List<(string MovimentoId, string TerminalId, DateTime DataMarcacao)>> ListarAbertasMarcadasAntesDeAsync(DateTime limite, CancellationToken ct = default)
+    {
+        var linhas = await db.Marcacoes.AsNoTracking().Where(m => m.DataLiberacao == null && m.DataMarcacao < limite)
+            .OrderBy(m => m.DataMarcacao).Take(5000)
+            .Select(m => new { m.MovimentoId, m.TerminalId, m.DataMarcacao }).ToListAsync(ct);
+        return linhas.Select(l => (l.MovimentoId, l.TerminalId, l.DataMarcacao)).ToList();
+    }
+
+    public async Task<Dictionary<string, (DateTime? UltimaMarcacao, DateTime? UltimaLiberacao)>> UltimosEventosPorTerminalAsync(CancellationToken ct = default)
+    {
+        var linhas = await db.Marcacoes.AsNoTracking().GroupBy(m => m.TerminalId)
+            .Select(g => new { g.Key, M = g.Max(m => (DateTime?)m.DataMarcacao), L = g.Max(m => m.DataLiberacao) })
+            .ToListAsync(ct);
+        return linhas.ToDictionary(x => x.Key, x => (x.M, x.L));
+    }
+
+    public async Task<Dictionary<string, Domain.Regras.DadosMovimento>> ObterDadosAsync(IEnumerable<string> movimentoIds, CancellationToken ct = default)
+    {
+        var resultado = new Dictionary<string, Domain.Regras.DadosMovimento>(StringComparer.Ordinal);
+        foreach (var lote in movimentoIds.Distinct().Chunk(1000))
+        {
+            var linhas = await db.Marcacoes.AsNoTracking().Where(m => lote.Contains(m.MovimentoId))
+                .Select(m => new { m.MovimentoId, m.TerminalId, m.Senha, m.Convenio, m.CodConvenio, m.Ciclo, m.DataMarcacao, m.DataLiberacao })
+                .ToListAsync(ct);
+            foreach (var m in linhas)
+                resultado[m.MovimentoId] = new Domain.Regras.DadosMovimento(m.TerminalId, m.Senha, m.Convenio, m.CodConvenio, m.Ciclo, m.DataMarcacao, m.DataLiberacao);
+        }
+        return resultado;
     }
 
     public async Task<Dictionary<string, Marcacao>> ObterVariasAsync(IEnumerable<string> movimentoIds, CancellationToken ct = default)

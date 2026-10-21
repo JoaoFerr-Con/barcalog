@@ -66,7 +66,7 @@ export default function Portaria() {
             <div>
               <div style={{ fontWeight: 700, fontSize: 14, color: "var(--vermelho-500)" }}>Alerta de congestionamento</div>
               <div style={{ fontSize: 12.5, color: "var(--tinta-suave)" }}>
-                {dadosFila.noPatio} carretas No Pátio agora — no limite ou acima de {dadosFila.limiarCongestionamento} pra operação fluida.
+                {dadosFila.noPatio} carretas no pátio agora — o limite configurado de {dadosFila.limiarCongestionamento} para uma operação fluida foi atingido.
               </div>
             </div>
           </div>
@@ -98,7 +98,7 @@ export default function Portaria() {
 
       <div className="cartao" style={{ marginBottom: 20 }}>
         <div className="cartao__cabecalho">
-          <h3>Fila Virtual</h3>
+          <h3>Fila virtual</h3>
           <p>Veículos parados agora, na ordem de chegada — com estimativa baseada na média histórica real do terminal</p>
         </div>
         <div className="cartao__corpo" style={{ overflowX: "auto" }}>
@@ -107,7 +107,7 @@ export default function Portaria() {
           ) : (
             <table>
               <thead>
-                <tr><th scope="col">#</th><th scope="col">Placa</th><th scope="col">Transportadora</th><th scope="col">Status</th><th scope="col">Há quanto tempo</th><th scope="col">Estimativa (média do terminal)</th></tr>
+                <tr><th scope="col">#</th><th scope="col">Placa</th><th scope="col">Transportadora</th><th scope="col">Situação</th><th scope="col">Há quanto tempo</th><th scope="col">Estimativa (média do terminal)</th></tr>
               </thead>
               <tbody>
                 {dadosFila.fila.map(item => (
@@ -134,13 +134,13 @@ export default function Portaria() {
 
       <div className="cartao" style={{ marginBottom: 20 }}>
         <div className="cartao__cabecalho">
-          <h3>Chegadas de Hoje</h3>
-          <p>Status e atraso de cada veículo da frota cadastrada, comparado à espera média real do terminal</p>
+          <h3>Chegadas de hoje</h3>
+          <p>Situação e atraso de cada veículo da frota cadastrada, comparado à espera média real do terminal</p>
         </div>
         <div className="cartao__corpo" style={{ overflowX: "auto" }}>
           {!negativacao.carregado ? <Carregando /> : (
             <table>
-              <thead><tr><th scope="col">Horário</th><th scope="col">Placa</th><th scope="col">Transportadora</th><th scope="col">Terminal</th><th scope="col">Status</th><th scope="col">Atraso</th></tr></thead>
+              <thead><tr><th scope="col">Horário</th><th scope="col">Placa</th><th scope="col">Transportadora</th><th scope="col">Terminal</th><th scope="col">Situação</th><th scope="col">Atraso</th></tr></thead>
               <tbody>
                 {[...veiculos].sort((a, b) => new Date(a.statusPortariaDesde) - new Date(b.statusPortariaDesde)).map(v => {
                   const decorrido = minutosDesde(v.statusPortariaDesde);
@@ -226,7 +226,7 @@ export default function Portaria() {
           {!resultado && (
             <div>
               <p style={{ fontSize: 12.5, fontWeight: 700, color: "var(--tinta-suave)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>
-                Veículos cadastrados — clique pra selecionar
+                Veículos cadastrados — clique para selecionar
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {veiculos.map(v => (

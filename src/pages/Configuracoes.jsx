@@ -1,20 +1,143 @@
-// Módulo de Configurações — em desenvolvimento.
-// Regras e parâmetros operacionais (capacidade por terminal, limite de
-// congestionamento, janelas de funcionamento) hoje ficam no backend
-// (appsettings / cadastro de terminais). Uma tela editável precisa de
-// endpoints próprios, restritos ao Gestor e auditados.
-export default function Configuracoes() {
+import { useEffect, useState } from "react";
+import { api } from "../api/cliente.js";
+import { useApi } from "../hooks/useApi.js";
+import { useAcao } from "../hooks/useAcao.js";
+import { Carregando, ErroCarga, Vazio } from "../components/EstadoCarga.jsx";
+import { Cartao, Selo, Aviso, Campo, Abas } from "../components/ui.jsx";
+import { dataHoraLocal } from "../utils/formatar.js";
+
+// Configurações operacionais: capacidade dos terminais, limites usados pelos
+// indicadores e alertas, e revisão dos convênios. Leitura para todos os perfis
+// internos; edição só para Gestor (o backend valida e registra em auditoria).
+
+const PARAMETROS = [
+  ["limiteEsperaMedianaHoras", "Espera mediana — limite de alerta", "horas", "Alerta histórico quando a mediana do último mês completo passa deste valor.", 0.5],
+  ["metaLiberadas24hPct", "Meta de liberadas em até 24 h", "%", "Referência mostrada junto do indicador.", 1],
+  ["limiteEsperaLongaHoras", "Espera longa", "horas", "Carretas acima disso entram em \"esperas longas\" e geram alerta.", 1],
+  ["diasSemDadosAlerta", "Dias sem dados para alertar", "dias", "Alerta de dados desatualizados quando um terminal fica este tempo sem marcações importadas.", 1],
+  ["limiteRazaoChegadaLiberacao", "Limite de risco de fila", "× a capacidade de atendimento", "Na estimativa das próximas horas, a janela vira \"risco de fila\" quando a demanda prevista chega a este múltiplo da capacidade de atendimento (1,4 = 40% acima). Entre a capacidade e este limite, a janela fica em \"atenção\".", 0.1]
+];
+
+export default function Configuracoes({ papel }) {
+  const gestor = papel === "Gestor";
+  const [aba, setAba] = useState("capacidade");
+  const config = useApi(sinal => api.get("/api/v1/configuracoes", null, sinal), []);
+
   return (
-    <div className="cartao">
-      <div className="cartao__corpo" style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", padding: "48px 24px" }}>
-        <span className="material-symbols-outlined" style={{ fontSize: 40, color: "var(--navio-700)", marginBottom: 12 }}>settings</span>
-        <h3 style={{ marginBottom: 8 }}>Configurações</h3>
-        <p style={{ fontSize: 13, color: "var(--tinta-suave)", maxWidth: 480 }}>
-          Em desenvolvimento. Parâmetros como capacidade por terminal (hoje: 1.000 carretas/dia) e limite de
-          congestionamento (hoje: 3 carretas no pátio) são definidos no servidor. A edição por tela ainda não
-          está disponível — alterações são feitas pela equipe técnica, com registro em auditoria.
-        </p>
-      </div>
+    <div className="pilha">
+      {!gestor && <Aviso tipo="info">Somente leitura. Alterações são feitas pelo perfil Gestor e ficam registradas na auditoria.</Aviso>}
+      <Abas rotulo="Seções de configuração" ativa={aba} aoMudar={setAba}
+        abas={[{ id: "capacidade", rotulo: "Capacidade dos terminais" }, { id: "parametros", rotulo: "Limites e metas" }, { id: "convenios", rotulo: "Convênios" }]} />
+      {aba === "convenios" ? <Convenios gestor={gestor} />
+        : config.erro ? <ErroCarga erro={config.erro} aoTentarDeNovo={config.recarregar} />
+        : !config.dados ? <Carregando />
+        : aba === "capacidade" ? <Capacidades terminais={config.dados.terminais} gestor={gestor} aoSalvar={config.recarregar} />
+        : <Parametros p={config.dados.parametros} gestor={gestor} aoSalvar={config.recarregar} />}
     </div>
+  );
+}
+
+function Capacidades({ terminais, gestor, aoSalvar }) {
+  return (
+    <Cartao id="cap" titulo="Capacidade dos terminais"
+      subtitulo="Sem capacidade informada, o painel não calcula ocupação e a agenda não compara agendamentos com limite — nenhum valor é presumido.">
+      <div className="tabela-wrap">
+        <table style={{ minWidth: 640 }}>
+          <thead><tr><th scope="col">Terminal</th><th scope="col">Carretas por dia</th><th scope="col">Carretas por hora</th>{gestor && <th scope="col"><span className="sr-only">Ações</span></th>}</tr></thead>
+          <tbody>{terminais.map(t => <LinhaCapacidade key={t.id} t={t} gestor={gestor} aoSalvar={aoSalvar} />)}</tbody>
+        </table>
+      </div>
+    </Cartao>
+  );
+}
+
+function LinhaCapacidade({ t, gestor, aoSalvar }) {
+  const [dia, setDia] = useState(t.capacidadeDiariaCarretas ?? "");
+  const [hora, setHora] = useState(t.capacidadeHoraria ?? "");
+  const [executar, salvando] = useAcao();
+  useEffect(() => { setDia(t.capacidadeDiariaCarretas ?? ""); setHora(t.capacidadeHoraria ?? ""); }, [t]);
+  const mudou = String(dia) !== String(t.capacidadeDiariaCarretas ?? "") || String(hora) !== String(t.capacidadeHoraria ?? "");
+  const vazio = <Selo tipo="atencao">não informada</Selo>;
+
+  function salvar() {
+    const corpo = { capacidadeDiariaCarretas: dia === "" ? null : Number(dia), capacidadeHoraria: hora === "" ? null : Number(hora) };
+    executar(() => api.put(`/api/v1/configuracoes/terminais/${t.id}`, corpo), { sucesso: `Capacidade de ${t.nome} salva.` }).then(ok => { if (ok) aoSalvar(); });
+  }
+
+  return (
+    <tr>
+      <th scope="row">{t.nome}</th>
+      <td>{gestor ? <input type="number" min={1} max={100000} value={dia} onChange={e => setDia(e.target.value)} aria-label={`Carretas por dia — ${t.nome}`} placeholder="não informada" style={{ width: 140 }} /> : (t.capacidadeDiariaCarretas ?? vazio)}</td>
+      <td>{gestor ? <input type="number" min={1} max={10000} value={hora} onChange={e => setHora(e.target.value)} aria-label={`Carretas por hora — ${t.nome}`} placeholder="não informada" style={{ width: 140 }} /> : (t.capacidadeHoraria ?? vazio)}</td>
+      {gestor && <td><button type="button" className="botao botao--secundario botao--pequeno" disabled={!mudou || salvando} onClick={salvar}>Salvar</button></td>}
+    </tr>
+  );
+}
+
+function Parametros({ p, gestor, aoSalvar }) {
+  const [valores, setValores] = useState(p);
+  const [executar, salvando] = useAcao();
+  useEffect(() => setValores(p), [p]);
+  const mudou = PARAMETROS.some(([k]) => String(valores[k]) !== String(p[k]));
+
+  function salvar(e) {
+    e.preventDefault();
+    const corpo = Object.fromEntries(PARAMETROS.map(([k]) => [k, Number(valores[k])]));
+    executar(() => api.put("/api/v1/configuracoes/parametros", corpo), { sucesso: "Parâmetros salvos. Os alertas usam os novos valores na próxima avaliação." }).then(ok => { if (ok) aoSalvar(); });
+  }
+
+  return (
+    <Cartao id="par" titulo="Limites e metas" subtitulo={p.atualizadoEm ? `Última alteração: ${dataHoraLocal(p.atualizadoEm)} por ${p.atualizadoPor}` : "Valores padrão de instalação — revise com a operação."}>
+      <form onSubmit={salvar} className="pilha" style={{ gap: 14, maxWidth: 640 }}>
+        {PARAMETROS.map(([k, rotulo, unidade, ajuda, passo]) => (
+          <Campo key={k} rotulo={`${rotulo} (${unidade})`} ajuda={ajuda}>
+            <input type="number" step={passo} value={valores[k]} disabled={!gestor} required
+              onChange={e => setValores(v => ({ ...v, [k]: e.target.value }))} style={{ maxWidth: 180 }} />
+          </Campo>
+        ))}
+        {gestor && <div><button type="submit" className="botao botao--primario" disabled={!mudou || salvando}>Salvar parâmetros</button></div>}
+      </form>
+    </Cartao>
+  );
+}
+
+function Convenios({ gestor }) {
+  const r = useApi(sinal => api.get("/api/v1/convenios", null, sinal), []);
+  const [soDeduzidos, setSoDeduzidos] = useState(true);
+  if (r.erro) return <ErroCarga erro={r.erro} aoTentarDeNovo={r.recarregar} />;
+  if (!r.dados) return <Carregando />;
+  const lista = r.dados.filter(c => !soDeduzidos || c.deduzido);
+  return (
+    <Cartao id="conv" titulo="Convênios"
+      subtitulo="Operador e carga de convênios novos são deduzidos do nome na importação. Confirme ou corrija: os relatórios por operador e carga usam estes valores."
+      acao={<label className="linha-flex" style={{ fontSize: 13, gap: 6 }}><input type="checkbox" checked={soDeduzidos} onChange={e => setSoDeduzidos(e.target.checked)} /> Só os não revisados ({r.dados.filter(c => c.deduzido).length})</label>}>
+      {!lista.length ? <Vazio icone="task_alt" titulo={soDeduzidos ? "Todos os convênios já foram revisados" : "Nenhum convênio cadastrado"} /> : (
+        <div className="tabela-wrap">
+          <table style={{ minWidth: 720 }}>
+            <thead><tr><th scope="col">Código</th><th scope="col">Nome na planilha</th><th scope="col">Operador</th><th scope="col">Carga</th><th scope="col">Situação</th>{gestor && <th scope="col"><span className="sr-only">Ações</span></th>}</tr></thead>
+            <tbody>{lista.map(c => <LinhaConvenio key={c.codigo} c={c} gestor={gestor} aoSalvar={r.recarregar} />)}</tbody>
+          </table>
+        </div>
+      )}
+    </Cartao>
+  );
+}
+
+function LinhaConvenio({ c, gestor, aoSalvar }) {
+  const [operador, setOperador] = useState(c.operador);
+  const [carga, setCarga] = useState(c.carga);
+  const [executar, salvando] = useAcao();
+  function salvar() {
+    executar(() => api.put(`/api/v1/convenios/${encodeURIComponent(c.codigo)}`, { operador: operador.trim(), carga: carga.trim() }), { sucesso: `Convênio ${c.codigo} revisado.` }).then(ok => { if (ok) aoSalvar(); });
+  }
+  return (
+    <tr>
+      <td className="id-mono">{c.codigo}</td>
+      <td>{c.nome}</td>
+      <td>{gestor ? <input value={operador} maxLength={50} onChange={e => setOperador(e.target.value)} aria-label={`Operador do convênio ${c.codigo}`} /> : c.operador}</td>
+      <td>{gestor ? <input value={carga} maxLength={50} onChange={e => setCarga(e.target.value)} aria-label={`Carga do convênio ${c.codigo}`} /> : c.carga}</td>
+      <td>{c.deduzido ? <Selo tipo="atencao">deduzido do nome</Selo> : <Selo tipo="ok">revisado</Selo>}</td>
+      {gestor && <td><button type="button" className="botao botao--secundario botao--pequeno" disabled={salvando || !operador.trim() || !carga.trim()} onClick={salvar}>{c.deduzido ? "Confirmar" : "Salvar"}</button></td>}
+    </tr>
   );
 }

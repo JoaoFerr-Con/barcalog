@@ -168,7 +168,7 @@ export default function Negativacao() {
                 <table>
                   <thead>
                     <tr>
-                      <th scope="col">Nível</th><th scope="col">Placa</th><th scope="col">Transportadora</th><th scope="col">Descrição</th><th scope="col">Status</th><th scope="col">Data</th>
+                      <th scope="col">Nível</th><th scope="col">Placa</th><th scope="col">Transportadora</th><th scope="col">Descrição</th><th scope="col">Situação</th><th scope="col">Data</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -192,8 +192,8 @@ export default function Negativacao() {
         <div className="pilha">
           <div className="cartao">
             <div className="cartao__cabecalho">
-              <h3>Status das Transportadoras</h3>
-              <p>Não é a empresa que é negativada — são as carretas dela. O status aqui é calculado a partir das carretas de cada uma.</p>
+              <h3>Situação das transportadoras</h3>
+              <p>Não é a empresa que é negativada — são as carretas dela. A situação aqui é calculada a partir das carretas de cada uma.</p>
             </div>
             <div className="cartao__corpo">
               {transportadoras.map(t => {
@@ -233,7 +233,7 @@ export default function Negativacao() {
 
                     {aberta && (
                       <div style={{ paddingBottom: 10 }}>
-                        {frota.length === 0 && <p style={{ fontSize: 12.5, color: "var(--tinta-suave)", margin: "0 0 8px 26px" }}>Nenhuma carreta cadastrada pra essa transportadora.</p>}
+                        {frota.length === 0 && <p style={{ fontSize: 12.5, color: "var(--tinta-suave)", margin: "0 0 8px 26px" }}>Nenhuma carreta cadastrada para esta transportadora.</p>}
                         {frota.map(v => (
                           <div key={v.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0 6px 26px", gap: 8, flexWrap: "wrap" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

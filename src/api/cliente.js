@@ -159,9 +159,10 @@ async function lerErro(resposta) {
  * opcoes: { parametros, corpo, idempotencia (string), sinal (AbortSignal), resposta: "json" | "blob" | "vazia" }
  */
 export async function requisicao(metodo, caminho, opcoes = {}) {
-  const { parametros, corpo, idempotencia, sinal, resposta: tipoResposta = "json" } = opcoes;
+  const { parametros, corpo, formulario, idempotencia, sinal, resposta: tipoResposta = "json" } = opcoes;
   const cabecalhos = { Accept: tipoResposta === "blob" ? "*/*" : "application/json" };
-  if (corpo !== undefined) cabecalhos["Content-Type"] = "application/json";
+  // FormData (upload): o navegador define Content-Type com o boundary do multipart.
+  if (corpo !== undefined && !formulario) cabecalhos["Content-Type"] = "application/json";
   if (sessao?.token) cabecalhos.Authorization = `Bearer ${sessao.token}`;
   if (idempotencia) cabecalhos["Idempotency-Key"] = idempotencia;
 
@@ -170,7 +171,7 @@ export async function requisicao(metodo, caminho, opcoes = {}) {
     resposta = await fetch(montarUrl(caminho, parametros), {
       method: metodo,
       headers: cabecalhos,
-      body: corpo !== undefined ? JSON.stringify(corpo) : undefined,
+      body: formulario ?? (corpo !== undefined ? JSON.stringify(corpo) : undefined),
       signal: sinal,
       credentials: "omit" // sem cookies: autenticação só pelo cabeçalho
     });
@@ -203,7 +204,9 @@ export const api = {
   post: (caminho, corpo, idempotencia) => requisicao("POST", caminho, { corpo, idempotencia }),
   put: (caminho, corpo) => requisicao("PUT", caminho, { corpo }),
   patch: (caminho, corpo) => requisicao("PATCH", caminho, { corpo }),
-  del: caminho => requisicao("DELETE", caminho, { resposta: "vazia" })
+  del: caminho => requisicao("DELETE", caminho, { resposta: "vazia" }),
+  /** Envio de arquivo (multipart/form-data). */
+  enviar: (caminho, formulario, idempotencia) => requisicao("POST", caminho, { formulario, idempotencia })
 };
 
 /** Busca todas as páginas de uma listagem paginada (até `limitePaginas`). */

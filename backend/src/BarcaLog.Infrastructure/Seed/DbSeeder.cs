@@ -80,6 +80,10 @@ public class DbSeeder(
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>CNPJs das transportadoras fictícias do cadastro de exemplo — usados para avisar na tela que os dados são de demonstração.</summary>
+    public static readonly string[] CnpjsExemplo =
+        ["07.123.456/0001-98", "09.234.567/0001-05", "11.345.678/0001-22", "13.456.789/0001-31", "15.567.890/0001-95"];
+
     public async Task SemearDadosExemploAsync(CancellationToken ct = default)
     {
         if (await db.Transportadoras.AnyAsync(ct)) return;

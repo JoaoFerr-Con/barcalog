@@ -53,6 +53,10 @@ public class MarcacoesController(MarcacaoServico marcacoes, MetricasServico metr
         }
     }
 
+    /// <summary>Movimento com origem (arquivo/linha da importação) e quantas carretas foram liberadas no mesmo instante.</summary>
+    [HttpGet("{movimentoId:maxlength(32)}/detalhe")]
+    public Task<MarcacaoDetalheDto> Detalhe(string movimentoId, CancellationToken ct) => marcacoes.DetalharAsync(movimentoId, ct);
+
     /// <summary>Um movimento pelo id.</summary>
     [HttpGet("{movimentoId:maxlength(32)}")]
     public Task<MarcacaoDto> Obter(string movimentoId, CancellationToken ct) => marcacoes.ObterAsync(movimentoId, ct);

@@ -17,8 +17,26 @@ public class BarcaLogDbContext(DbContextOptions<BarcaLogDbContext> options) : Db
     public DbSet<Agendamento> Agendamentos => Set<Agendamento>();
     public DbSet<Usuario> Usuarios => Set<Usuario>();
     public DbSet<Idempotencia.ChaveIdempotencia> ChavesIdempotencia => Set<Idempotencia.ChaveIdempotencia>();
+    public DbSet<Convenio> Convenios => Set<Convenio>();
+    public DbSet<Alerta> Alertas => Set<Alerta>();
+    public DbSet<EventoAlerta> EventosAlerta => Set<EventoAlerta>();
+    public DbSet<ParametrosOperacionais> Parametros => Set<ParametrosOperacionais>();
+    public DbSet<LoteImportacao> LotesImportacao => Set<LoteImportacao>();
+    public DbSet<LinhaImportacao> LinhasImportacao => Set<LinhaImportacao>();
 
     public Task<int> SalvarAsync(CancellationToken ct = default) => SaveChangesAsync(ct);
+
+    public Task ExecutarEmTransacaoAsync(Func<CancellationToken, Task> acao, CancellationToken ct = default)
+    {
+        // Já dentro de uma transação (chamada aninhada): só executa.
+        if (Database.CurrentTransaction is not null) return acao(ct);
+        return Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var tx = await Database.BeginTransactionAsync(ct);
+            await acao(ct);
+            await tx.CommitAsync(ct);
+        });
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -40,6 +58,8 @@ public class BarcaLogDbContext(DbContextOptions<BarcaLogDbContext> options) : Db
             {
                 var tipo = Nullable.GetUnderlyingType(prop.ClrType) ?? prop.ClrType;
                 if (!tipo.IsEnum) continue;
+                // [Flags] guarda combinações (gravadas como número): não cabem num IN (...) de nomes.
+                if (tipo.IsDefined(typeof(FlagsAttribute), false)) continue;
                 var coluna = prop.GetColumnName();
                 var valores = string.Join(", ", Enum.GetNames(tipo).Select(n => $"N'{n}'"));
                 var nulo = prop.IsNullable ? $"[{coluna}] IS NULL OR " : "";

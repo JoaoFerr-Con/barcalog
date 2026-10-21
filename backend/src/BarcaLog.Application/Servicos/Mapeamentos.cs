@@ -6,7 +6,7 @@ namespace BarcaLog.Application.Servicos;
 
 internal static class Mapeamentos
 {
-    public static TerminalDto ParaDto(this Terminal t) => new(t.Id, t.Nome, t.CapacidadeDiariaCarretas);
+    public static TerminalDto ParaDto(this Terminal t) => new(t.Id, t.Nome, t.CapacidadeDiariaCarretas, t.CapacidadeHoraria);
 
     public static VeiculoDto ParaDto(this Veiculo v) => new(
         v.Id, v.Placa, v.TransportadoraId, v.Transportadora?.Nome, v.Modelo,
@@ -36,6 +36,6 @@ internal static class Mapeamentos
             m.MovimentoId, m.Senha, m.Convenio, m.CodConvenio, m.Operador, m.Carga, m.Ciclo,
             m.DataMarcacao, m.DataLiberacao, espera,
             espera is null ? null : JanelaPermanencia.Classificar(espera.Value).Chave,
-            m.TerminalId, m.Terminal?.Nome);
+            m.TerminalId, m.Terminal?.Nome, m.Origem, m.LoteImportacaoId, m.LinhaOrigem);
     }
 }

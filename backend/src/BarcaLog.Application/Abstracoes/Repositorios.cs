@@ -9,12 +9,88 @@ namespace BarcaLog.Application.Abstracoes;
 public interface IUnitOfWork
 {
     Task<int> SalvarAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Executa <paramref name="acao"/> numa única transação (com a estratégia de
+    /// nova tentativa do provedor: em falha transitória o bloco inteiro é repetido).
+    /// </summary>
+    Task ExecutarEmTransacaoAsync(Func<CancellationToken, Task> acao, CancellationToken ct = default);
+}
+
+/// <summary>Uma linha lida de planilha: número da linha (1 = cabeçalho) e valores por coluna normalizada.</summary>
+public sealed record LinhaPlanilha(int Numero, IReadOnlyDictionary<string, object?> Valores);
+
+/// <summary>Lê XLSX/CSV. Colunas normalizadas: MAIÚSCULAS, sem acento, espaços viram "_".</summary>
+public interface ILeitorPlanilha
+{
+    /// <summary>Colunas do cabeçalho (normalizadas) e as linhas seguintes, em ordem. Linhas totalmente vazias são puladas.</summary>
+    (IReadOnlyList<string> Colunas, IEnumerable<LinhaPlanilha> Linhas) Ler(Stream conteudo, FormatoArquivoImportacao formato);
+}
+
+public sealed record ResultadoAplicacaoLote(int Inseridos, int Complementados, int ConflitosAplicados);
+
+public interface IImportacaoRepositorio
+{
+    void AdicionarLote(LoteImportacao lote);
+    /// <summary>Lote rastreado (para alterar status/contagens).</summary>
+    Task<LoteImportacao?> ObterLoteAsync(int id, CancellationToken ct = default);
+    Task<Pagina<LoteImportacao>> ListarLotesAsync(FiltroLotesImportacao filtro, CancellationToken ct = default);
+    /// <summary>Última importação confirmada de cada terminal (quando e qual arquivo).</summary>
+    Task<Dictionary<string, (DateTime Quando, string Arquivo)>> UltimaConfirmadaPorTerminalAsync(CancellationToken ct = default);
+    /// <summary>Outra importação do mesmo terminal confirmada depois de <paramref name="desdeUtc"/> (análise desatualizada).</summary>
+    Task<LoteImportacao?> ConfirmadoDepoisAsync(string terminalId, DateTime desdeUtc, int ignorarLoteId, CancellationToken ct = default);
+    Task<DateTime?> ConfirmadoComMesmoHashAsync(string hashSha256, string terminalId, int ignorarLoteId, CancellationToken ct = default);
+    /// <summary>Gravação em massa das linhas de revisão (fora do change tracker).</summary>
+    Task GravarLinhasAsync(IReadOnlyList<LinhaImportacao> linhas, CancellationToken ct = default);
+    Task<Pagina<LinhaImportacao>> ListarLinhasAsync(int loteId, FiltroLinhasImportacao filtro, CancellationToken ct = default);
+    IAsyncEnumerable<LinhaImportacao> ListarLinhasParaRelatorioAsync(int loteId, CancellationToken ct = default);
+    Task<int> ContarConflitosPendentesAsync(int loteId, CancellationToken ct = default);
+    Task<int> DecidirConflitosAsync(int loteId, IReadOnlyCollection<long>? linhaIds, DecisaoConflitoImportacao decisao, CancellationToken ct = default);
+    /// <summary>
+    /// Grava no banco, em operações de conjunto, o que a análise decidiu:
+    /// insere os novos, completa campos vazios e aplica conflitos aprovados.
+    /// Precisa rodar dentro de <see cref="IUnitOfWork.ExecutarEmTransacaoAsync"/>.
+    /// </summary>
+    Task<ResultadoAplicacaoLote> AplicarAsync(LoteImportacao lote, CancellationToken ct = default);
+    Task RemoverLinhasAsync(int loteId, IReadOnlyCollection<ClassificacaoLinhaImportacao> classificacoes, CancellationToken ct = default);
+    /// <summary>Evento de auditoria explícito, para operações em massa que não passam pelo change tracker.</summary>
+    Task RegistrarEventoAsync(string autor, string acao, string detalhes, DateTime quandoUtc, CancellationToken ct = default);
+}
+
+public interface IAlertaRepositorio
+{
+    /// <summary>Alertas (rastreados, com eventos) pelas chaves das regras.</summary>
+    Task<Dictionary<string, Alerta>> ObterPorChavesAsync(IEnumerable<string> chaves, CancellationToken ct = default);
+    /// <summary>Alertas marcados como ativos (rastreados, com eventos).</summary>
+    Task<List<Alerta>> ListarAtivosAsync(CancellationToken ct = default);
+    Task<Pagina<Alerta>> ListarAsync(FiltroAlertas filtro, CancellationToken ct = default);
+    Task<Alerta?> ObterAsync(int id, CancellationToken ct = default);
+    Task<Alerta?> ObterParaAlterarAsync(int id, CancellationToken ct = default);
+    /// <summary>Abertos = ativos e ainda não resolvidos/descartados.</summary>
+    Task<Dictionary<TipoAlerta, int>> ContarAbertosPorTipoAsync(CancellationToken ct = default);
+    Task<DateTime?> UltimaAtualizacaoAsync(CancellationToken ct = default);
+    void Adicionar(Alerta alerta);
+}
+
+public interface IConvenioRepositorio
+{
+    Task<List<Convenio>> ListarAsync(CancellationToken ct = default);
+    Task<Convenio?> ObterAsync(string codigo, CancellationToken ct = default);
+    void Adicionar(Convenio convenio);
+    /// <summary>Operador e carga mais frequentes já gravados para cada nome de convênio (base histórica).</summary>
+    Task<Dictionary<string, (string Operador, string Carga)>> OperadorCargaPorNomeAsync(CancellationToken ct = default);
 }
 
 public interface ITerminalRepositorio
 {
     Task<List<Terminal>> ListarAsync(CancellationToken ct = default);
     Task<Terminal?> ObterAsync(string id, CancellationToken ct = default);
+    /// <summary>Terminal rastreado, para alterar a capacidade.</summary>
+    Task<Terminal?> ObterParaAlterarAsync(string id, CancellationToken ct = default);
+    /// <summary>Linha única de parâmetros (criada pela migration).</summary>
+    Task<ParametrosOperacionais> ObterParametrosAsync(bool rastrear, CancellationToken ct = default);
+    /// <summary>true se o banco contém o cadastro fictício de exemplo (placas, transportadoras, condutores…).</summary>
+    Task<bool> ExistemDadosExemploAsync(CancellationToken ct = default);
 }
 
 public interface IMarcacaoRepositorio
@@ -25,6 +101,16 @@ public interface IMarcacaoRepositorio
     Task<List<RegistroMarcacao>> ListarRegistrosLiberadosAsync(CancellationToken ct = default);
     Task<HashSet<string>> ListarIdsExistentesAsync(IEnumerable<string> movimentoIds, CancellationToken ct = default);
     Task<Dictionary<string, Marcacao>> ObterVariasAsync(IEnumerable<string> movimentoIds, CancellationToken ct = default);
+    /// <summary>Movimentos do terminal liberados exatamente em <paramref name="liberacao"/>.</summary>
+    Task<int> ContarLiberadosEmAsync(string terminalId, DateTime liberacao, CancellationToken ct = default);
+    /// <summary>Marcações sem liberação, por terminal, com marcação no intervalo [inicio, fim).</summary>
+    Task<Dictionary<string, int>> ContarSemLiberacaoAsync(DateTime? inicio, DateTime? fim, CancellationToken ct = default);
+    /// <summary>Marcações ainda sem liberação marcadas antes de <paramref name="limite"/> (horário do porto).</summary>
+    Task<List<(string MovimentoId, string TerminalId, DateTime DataMarcacao)>> ListarAbertasMarcadasAntesDeAsync(DateTime limite, CancellationToken ct = default);
+    /// <summary>Última marcação e última liberação recebidas de cada terminal.</summary>
+    Task<Dictionary<string, (DateTime? UltimaMarcacao, DateTime? UltimaLiberacao)>> UltimosEventosPorTerminalAsync(CancellationToken ct = default);
+    /// <summary>Valores atuais dos movimentos informados (sem rastreamento), para comparar com uma planilha.</summary>
+    Task<Dictionary<string, Domain.Regras.DadosMovimento>> ObterDadosAsync(IEnumerable<string> movimentoIds, CancellationToken ct = default);
     void Adicionar(Marcacao marcacao);
     void AdicionarVarias(IEnumerable<Marcacao> marcacoes);
     /// <summary>Descarta entidades já salvas do change tracker (importação em lote).</summary>

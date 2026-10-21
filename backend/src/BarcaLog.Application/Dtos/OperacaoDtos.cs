@@ -51,7 +51,8 @@ public class AtualizarStatusAgendamentoRequest
     [Required] public StatusAgendamento Status { get; set; }
 }
 
-public sealed record AgendamentosPorHoraDto(TimeOnly Hora, int Total, string Nivel);
+/// <summary>Agendamentos na faixa de uma hora (Hora = início da faixa) e a capacidade por hora cadastrada (nula = não configurada).</summary>
+public sealed record AgendamentosPorHoraDto(TimeOnly Hora, int Total, string Nivel, int? Capacidade);
 
 public sealed record ResumoAgendamentosDto(DateOnly? Data, int Total, int Confirmados, int EmOperacao, int Atrasados, IReadOnlyList<AgendamentosPorHoraDto> PorHora);
 

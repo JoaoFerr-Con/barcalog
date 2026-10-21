@@ -96,8 +96,12 @@ public class MetricasServico(IMarcacaoRepositorio marcacoes, ITerminalRepositori
         var listaTerminais = await terminais.ListarAsync(ct);
         return new ContextoMetricas(
             q.ToList(),
-            listaTerminais.ToDictionary(t => t.Id, t => (t.Nome, t.CapacidadeDiariaCarretas)));
+            listaTerminais.ToDictionary(t => t.Id, t => (t.Nome, t.CapacidadeDiariaCarretas ?? Domain.Entidades.Terminal.CapacidadeNominalPadrao)));
     }
+
+    /// <summary>Todos os movimentos liberados (cache), sem recorte.</summary>
+    public Task<IReadOnlyList<RegistroMarcacao>> TodosLiberadosAsync(CancellationToken ct = default) =>
+        cache.ObterAsync(marcacoes.ListarRegistrosLiberadosAsync, ct);
 
     public void InvalidarCache() => cache.MarcarDesatualizado();
 }
