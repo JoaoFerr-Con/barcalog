@@ -57,6 +57,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(config);
 builder.Services.AddScoped<IUsuarioAtual, UsuarioAtualHttp>();
+builder.Services.AddScoped<IEscopoUsuario, EscopoUsuarioHttp>();
 
 // ---------- Autenticação: JWT (usuários) + API Key (sistemas) ----------
 var jwt = config.GetSection(JwtOptions.Secao).Get<JwtOptions>() ?? new JwtOptions();
@@ -151,7 +152,11 @@ if (config.GetValue<bool>("Proxy:Habilitado"))
 
 // ---------- MVC / erros ----------
 builder.Services
-    .AddControllers(o => o.Filters.Add(new Microsoft.AspNetCore.Mvc.ProducesAttribute("application/json")))
+    .AddControllers(o =>
+    {
+        o.Filters.Add(new Microsoft.AspNetCore.Mvc.ProducesAttribute("application/json"));
+        o.Filters.Add<EscopoTerminalFiltro>();
+    })
     .AddJsonOptions(o =>
     {
         // Enum só por nome: "nivel": 7 é rejeitado em vez de gravar valor inexistente.

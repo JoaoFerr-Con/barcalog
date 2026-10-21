@@ -40,6 +40,8 @@ public class TerminalRepositorio(BarcaLogDbContext db) : ITerminalRepositorio
 
 public class MarcacaoRepositorio(BarcaLogDbContext db) : IMarcacaoRepositorio
 {
+    private static readonly DateTime DomingoReferencia = new(1900, 1, 7);
+
     public Task<Pagina<Marcacao>> ListarAsync(FiltroMarcacoes f, CancellationToken ct = default)
     {
         IQueryable<Marcacao> q = db.Marcacoes.AsNoTracking().Include(m => m.Terminal);
@@ -56,6 +58,12 @@ public class MarcacaoRepositorio(BarcaLogDbContext db) : IMarcacaoRepositorio
         if (f.SemLiberacao == true) q = q.Where(m => m.DataLiberacao == null);
         if (f.SemLiberacao == false) q = q.Where(m => m.DataLiberacao != null);
         if (f.Origem is { } o) q = q.Where(m => m.Origem == o);
+        if (!string.IsNullOrWhiteSpace(f.ConvenioExato)) q = q.Where(m => m.Convenio == f.ConvenioExato);
+        if (f.SemCodigoConvenio == true) q = q.Where(m => m.CodConvenio == null || m.CodConvenio == "");
+        if (f.SemCodigoConvenio == false) q = q.Where(m => m.CodConvenio != null && m.CodConvenio != "");
+        if (f.Hora is { } hora) q = q.Where(m => m.DataMarcacao.Hour == hora);
+        // 07/01/1900 foi domingo: dias desde então % 7 = dia da semana (0 = domingo), traduzido para DATEDIFF no SQL Server.
+        if (f.DiaSemana is { } dia) q = q.Where(m => EF.Functions.DateDiffDay(DomingoReferencia, m.DataMarcacao) % 7 == dia);
         q = f.Ordenacao switch
         {
             "marcacao_asc" => q.OrderBy(m => m.DataMarcacao).ThenBy(m => m.MovimentoId),
@@ -68,6 +76,27 @@ public class MarcacaoRepositorio(BarcaLogDbContext db) : IMarcacaoRepositorio
 
     public Task<Marcacao?> ObterAsync(string movimentoId, CancellationToken ct = default) =>
         db.Marcacoes.AsNoTracking().Include(m => m.Terminal).FirstOrDefaultAsync(m => m.MovimentoId == movimentoId, ct);
+
+    public async Task<List<Application.Metricas.RegistroAnalise>> ListarParaAnaliseAsync(FiltroAnaliseMovimentacoes f, DateTime inicio, DateTime fim, CancellationToken ct = default)
+    {
+        IQueryable<Marcacao> q = db.Marcacoes.AsNoTracking()
+            .Where(m => (m.DataMarcacao >= inicio && m.DataMarcacao < fim) || (m.DataLiberacao >= inicio && m.DataLiberacao < fim));
+        if (!string.IsNullOrWhiteSpace(f.TerminalId)) q = q.Where(m => m.TerminalId == f.TerminalId);
+        if (!string.IsNullOrWhiteSpace(f.Operador)) q = q.Where(m => m.Operador == f.Operador);
+        if (!string.IsNullOrWhiteSpace(f.Carga)) q = q.Where(m => m.Carga == f.Carga);
+        if (!string.IsNullOrWhiteSpace(f.Convenio)) q = q.Where(m => m.Convenio == f.Convenio);
+        if (f.Origem is { } o) q = q.Where(m => m.Origem == o);
+        var linhas = await q.Select(m => new
+        {
+            m.MovimentoId, m.Senha, m.TerminalId, Terminal = m.Terminal!.Nome, m.Convenio, m.CodConvenio, m.Operador, m.Carga,
+            m.DataMarcacao, m.DataLiberacao, m.EsperaHoras, m.Origem
+        }).ToListAsync(ct);
+        return linhas.Select(m => new Application.Metricas.RegistroAnalise(m.MovimentoId, m.Senha, m.TerminalId, m.Terminal, m.Convenio, m.CodConvenio,
+            m.Operador, m.Carga, m.DataMarcacao, m.DataLiberacao, m.EsperaHoras, m.Origem)).ToList();
+    }
+
+    public Task<DateTime?> UltimaMarcacaoAsync(string? terminalId, CancellationToken ct = default) =>
+        db.Marcacoes.AsNoTracking().Where(m => terminalId == null || m.TerminalId == terminalId).MaxAsync(m => (DateTime?)m.DataMarcacao, ct);
 
     public async Task<List<RegistroMarcacao>> ListarRegistrosLiberadosAsync(CancellationToken ct = default)
     {

@@ -12,8 +12,31 @@ public class LoginRequest
     [StringLength(10)] public string? CodigoMfa { get; set; }
 }
 
-/// <summary>TransportadoraId só vem preenchido para usuários do Portal (papel Transportadora).</summary>
-public sealed record UsuarioDto(int Id, string Nome, string Email, PapelUsuario Papel, bool Ativo, bool MfaAtivo, bool DeveTrocarSenha, bool Bloqueado, DateTime? UltimoLoginEm, int? TransportadoraId);
+/// <summary>
+/// TransportadoraId só vem preenchido para usuários do Portal (papel Transportadora).
+/// TerminalId = vínculo (escopo de dados, definido pelo Gestor). Preferencias = escolhas pessoais, que não dão acesso a nada.
+/// </summary>
+public sealed record UsuarioDto(int Id, string Nome, string Email, PapelUsuario Papel, bool Ativo, bool MfaAtivo, bool DeveTrocarSenha, bool Bloqueado, DateTime? UltimoLoginEm, int? TransportadoraId,
+    string? TerminalId = null, PreferenciasDto? Preferencias = null);
+
+/// <summary>
+/// TelaInicial: escolhida pelo usuário, ou null (usa o padrão do papel — TelaPadrao).
+/// TerminalPreferido: só filtra a tela já de entrada; nunca amplia o vínculo.
+/// </summary>
+public sealed record PreferenciasDto(string? TelaInicial, string TelaPadrao, string? TerminalPreferido);
+
+public class AtualizarPreferenciasRequest
+{
+    /// <summary>Chave de uma tela interna (visao-geral, gargalos, movimentacoes…) ou vazio para o padrão do papel.</summary>
+    [StringLength(40)] public string? TelaInicial { get; set; }
+    [StringLength(32)] public string? TerminalPreferido { get; set; }
+}
+
+public class DefinirTerminalUsuarioRequest
+{
+    /// <summary>Terminal ao qual o usuário fica vinculado; vazio = todos os terminais.</summary>
+    [StringLength(32)] public string? TerminalId { get; set; }
+}
 
 /// <summary>
 /// Restricao: null = acesso normal; "trocar-senha" = senha provisória, só dá

@@ -5,7 +5,7 @@ na véspera (base = últimos 30 dias com dados antes de D, dividida pelos dias c
 dados) e compara, hora a hora, com as chegadas e liberações reais de D.
 
 Uso (planilhas reais NÃO ficam no repositório):
-  python3 -I backend/tools/backtest_estimativa.py terminal=arquivo.xlsx [terminal=arquivo.xlsx ...] [--limite-risco 1.4] [--janela-horas 1|2|3|4|6] [--dias-base 30]
+  python3 -I backend/tools/backtest_estimativa.py terminal=arquivo.xlsx [terminal=arquivo.xlsx ...] [--limite-risco 1.4] [--janela-horas 1|2|3|4|6] [--dias-base 30] [--excluir-dias-parciais 0.2]
 
 Saídas: erro absoluto médio (carretas/hora), WAPE (soma |erro| ÷ soma real), viés,
 e acerto da classificação de "risco de fila" (precisão e cobertura).
@@ -30,14 +30,18 @@ def carregar(arquivo):
     return d[d.l.notna()]  # a estimativa usa só movimentos liberados (mesma base do sistema)
 
 
-def backtest(d, limite, janela=1, dias_base=DIAS_BASE):
+def backtest(d, limite, janela=1, dias_base=DIAS_BASE, fracao_parcial=0.0):
     d = d.assign(dm=d.m.dt.normalize(), hm=d.m.dt.hour // janela, dl=d.l.dt.normalize(), hl=d.l.dt.hour // janela)
     cheg = d.groupby(["dm", "hm"]).size()
     lib = d.groupby(["dl", "hl"]).size()
     dias = sorted(d.dm.unique())
+    por_dia = d.groupby("dm").size()
     linhas = []
     for dia in dias:
         base = [x for x in dias if dia - pd.Timedelta(days=dias_base) <= x < dia]
+        if fracao_parcial > 0 and base:
+            med = por_dia.loc[base].median()
+            base = [x for x in base if por_dia.loc[x] >= fracao_parcial * med]  # dia parcial fica fora
         if len(base) < min(DIAS_MIN, dias_base) or len([x for x in dias if x < dia]) < DIAS_BASE:
             continue
         anterior = base[-1]
@@ -57,9 +61,10 @@ def main():
     limite = float(sys.argv[sys.argv.index("--limite-risco") + 1]) if "--limite-risco" in sys.argv else 1.4
     janela = int(sys.argv[sys.argv.index("--janela-horas") + 1]) if "--janela-horas" in sys.argv else 1
     dias_base = int(sys.argv[sys.argv.index("--dias-base") + 1]) if "--dias-base" in sys.argv else DIAS_BASE
+    fracao = float(sys.argv[sys.argv.index("--excluir-dias-parciais") + 1]) if "--excluir-dias-parciais" in sys.argv else 0.0
     for par in args:
         terminal, arquivo = par.split("=", 1)
-        r = backtest(carregar(arquivo), limite, janela, dias_base)
+        r = backtest(carregar(arquivo), limite, janela, dias_base, fracao)
         erro = r.prev - r.real
         erro_ing = r.ingenua - r.real
         vp = ((r.sit_prev == "risco") & (r.sit_real == "risco")).sum()

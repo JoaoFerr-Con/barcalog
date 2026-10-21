@@ -84,7 +84,7 @@ public class ImportacoesController(ImportacaoPlanilhaServico servico, AlertasSer
     {
         var lote = await servico.ConfirmarAsync(id, ct);
         // Dados novos mudam os alertas; uma falha aqui não desfaz a importação (a avaliação periódica tenta de novo).
-        try { await alertas.AvaliarAsync(ct); }
+        try { await alertas.AvaliarAsync(Domain.Enums.OrigemAvaliacao.Importacao, ct); }
         catch (Exception ex) when (ex is not OperationCanceledException) { logger.LogError(ex, "Falha ao reavaliar alertas após a importação {Lote}", id); }
         return lote;
     }

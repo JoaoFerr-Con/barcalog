@@ -58,4 +58,31 @@ public class AlertasTests(ApiFixture api)
         var logs = await auditor.GetFromJsonAsync<Pagina<LogAuditoriaDto>>("/api/v1/auditoria?texto=Planilhas solicitadas ao terminal", Json.Opcoes);
         Assert.Contains(logs!.Itens, l => l.Acao == "Alerta resolvido");
     }
+
+    [SkippableFact]
+    public async Task Reavaliar_registra_o_resultado_mesmo_sem_mudanca_e_informa_dados_novos()
+    {
+        Skip.IfNot(api.BancoDisponivel, api.MotivoIndisponivel);
+        var operador = await api.ClienteAsync("Operador");
+
+        var primeira = await (await operador.PostAsync("/api/v1/alertas/avaliar", null)).Content.ReadFromJsonAsync<ResultadoAvaliacaoDto>(Json.Opcoes);
+        Assert.Equal("concluida", primeira!.Situacao);
+        Assert.Equal(OrigemAvaliacao.Manual, primeira.Origem);
+        Assert.Contains("operador@testes.local", primeira.Autor);
+        Assert.NotNull(primeira.Confiabilidade);
+
+        // Sem importação entre as duas: nenhum dado novo, nada muda, mas a avaliação fica registrada com nova hora.
+        var segunda = await (await operador.PostAsync("/api/v1/alertas/avaliar", null)).Content.ReadFromJsonAsync<ResultadoAvaliacaoDto>(Json.Opcoes);
+        Assert.Equal("concluida", segunda!.Situacao);
+        Assert.False(segunda.DadosNovos);
+        Assert.Equal(0, segunda.Criados + segunda.Alterados + segunda.Encerrados);
+        Assert.Equal("igual", segunda.Comparacao);
+        Assert.StartsWith("Nenhum dado novo", segunda.Resumo);
+        Assert.True(segunda.Inicio >= primeira.Inicio);
+
+        var resumo = await operador.GetFromJsonAsync<ResumoAlertasDto>("/api/v1/alertas/resumo", Json.Opcoes);
+        Assert.Equal(segunda.Inicio, resumo!.UltimaAvaliacao!.Value, TimeSpan.FromMilliseconds(5));
+        var historico = await operador.GetFromJsonAsync<Pagina<ResultadoAvaliacaoDto>>("/api/v1/alertas/avaliacoes?tamanhoPagina=2", Json.Opcoes);
+        Assert.Equal(segunda.Id, historico!.Itens[0].Id);
+    }
 }

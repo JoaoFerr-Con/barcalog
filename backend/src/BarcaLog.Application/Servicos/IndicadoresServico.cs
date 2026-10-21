@@ -19,7 +19,8 @@ public class IndicadoresServico(
     IMarcacaoRepositorio marcacoes,
     ITerminalRepositorio terminais,
     IImportacaoRepositorio importacoes,
-    RelogioOperacional relogio)
+    RelogioOperacional relogio,
+    IEscopoUsuario escopo)
 {
     private sealed record Recorte(PeriodoDto? Periodo, IReadOnlyList<RegistroMarcacao> Registros, IReadOnlyDictionary<string, int> SemLiberacao);
 
@@ -143,7 +144,7 @@ public class IndicadoresServico(
         var ultimos = await marcacoes.UltimosEventosPorTerminalAsync(ct);
         var importacoesPorTerminal = await importacoes.UltimaConfirmadaPorTerminalAsync(ct);
         var hoje = relogio.HojeLocalPorto;
-        return (await terminais.ListarAsync(ct)).Select(t =>
+        return (await terminais.ListarAsync(ct)).Where(t => escopo.PodeVerTerminal(t.Id)).Select(t =>
         {
             var u = ultimos.TryGetValue(t.Id, out var x) ? x : (null, null);
             int? dias = u.UltimaMarcacao is { } um ? hoje.DayNumber - DateOnly.FromDateTime(um).DayNumber : null;

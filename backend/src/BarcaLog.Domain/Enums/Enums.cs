@@ -162,3 +162,11 @@ public enum PapelUsuario
     /// <summary>Usuário externo do Portal: enxerga e contesta SÓ os dados da própria transportadora.</summary>
     Transportadora
 }
+
+/// <summary>O que disparou a avaliação das regras de alerta.</summary>
+public enum OrigemAvaliacao
+{
+    Automatica,
+    Manual,
+    Importacao
+}

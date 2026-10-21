@@ -27,8 +27,10 @@ export default function Configuracoes({ papel }) {
     <div className="pilha">
       {!gestor && <Aviso tipo="info">Somente leitura. Alterações são feitas pelo perfil Gestor e ficam registradas na auditoria.</Aviso>}
       <Abas rotulo="Seções de configuração" ativa={aba} aoMudar={setAba}
-        abas={[{ id: "capacidade", rotulo: "Capacidade dos terminais" }, { id: "parametros", rotulo: "Limites e metas" }, { id: "convenios", rotulo: "Convênios" }]} />
+        abas={[{ id: "capacidade", rotulo: "Capacidade dos terminais" }, { id: "parametros", rotulo: "Limites e metas" }, { id: "convenios", rotulo: "Convênios" },
+          ...(gestor ? [{ id: "usuarios", rotulo: "Acesso por terminal" }] : [])]} />
       {aba === "convenios" ? <Convenios gestor={gestor} />
+        : aba === "usuarios" && gestor ? <AcessoTerminal terminais={config.dados?.terminais || []} />
         : config.erro ? <ErroCarga erro={config.erro} aoTentarDeNovo={config.recarregar} />
         : !config.dados ? <Carregando />
         : aba === "capacidade" ? <Capacidades terminais={config.dados.terminais} gestor={gestor} aoSalvar={config.recarregar} />
@@ -138,6 +140,57 @@ function LinhaConvenio({ c, gestor, aoSalvar }) {
       <td>{gestor ? <input value={carga} maxLength={50} onChange={e => setCarga(e.target.value)} aria-label={`Carga do convênio ${c.codigo}`} /> : c.carga}</td>
       <td>{c.deduzido ? <Selo tipo="atencao">deduzido do nome</Selo> : <Selo tipo="ok">revisado</Selo>}</td>
       {gestor && <td><button type="button" className="botao botao--secundario botao--pequeno" disabled={salvando || !operador.trim() || !carga.trim()} onClick={salvar}>{c.deduzido ? "Confirmar" : "Salvar"}</button></td>}
+    </tr>
+  );
+}
+
+/**
+ * Vínculo de usuários internos a um terminal (Gestor). É permissão, não preferência:
+ * aplicado no servidor em todas as consultas por terminal, auditado, e encerra as
+ * sessões do usuário (o vínculo vai no token). Usuários do Portal não aparecem aqui.
+ */
+function AcessoTerminal({ terminais }) {
+  const usuarios = useApi(sinal => api.get("/api/v1/usuarios", { tamanhoPagina: 200, ativo: true }, sinal), []);
+  if (usuarios.erro) return <ErroCarga erro={usuarios.erro} aoTentarDeNovo={usuarios.recarregar} />;
+  if (!usuarios.dados) return <Carregando />;
+  const internos = usuarios.dados.itens.filter(u => u.papel !== "Transportadora");
+  return (
+    <Cartao id="acesso" titulo="Acesso por terminal"
+      subtitulo="Usuário vinculado vê e trata só os dados do seu terminal — o servidor aplica em todas as consultas. Sem vínculo, vê todos. Alterar encerra as sessões do usuário.">
+      {!internos.length ? <Vazio icone="group" titulo="Nenhum usuário interno ativo" /> : (
+        <div className="tabela-wrap">
+          <table style={{ minWidth: 640 }}>
+            <thead><tr><th scope="col">Usuário</th><th scope="col">Perfil</th><th scope="col">Terminal de acesso</th><th scope="col"><span className="sr-only">Ações</span></th></tr></thead>
+            <tbody>{internos.map(u => <LinhaAcesso key={u.id} u={u} terminais={terminais} aoSalvar={usuarios.recarregar} />)}</tbody>
+          </table>
+        </div>
+      )}
+    </Cartao>
+  );
+}
+
+function LinhaAcesso({ u, terminais, aoSalvar }) {
+  const [terminal, setTerminal] = useState(u.terminalId || "");
+  const [executar, salvando] = useAcao();
+  useEffect(() => setTerminal(u.terminalId || ""), [u]);
+  const mudou = terminal !== (u.terminalId || "");
+  return (
+    <tr>
+      <td><b>{u.nome}</b><br /><span className="fraco" style={{ fontSize: 12 }}>{u.email}</span></td>
+      <td>{u.papel}</td>
+      <td>
+        <select value={terminal} onChange={e => setTerminal(e.target.value)} aria-label={`Terminal de acesso de ${u.nome}`}>
+          <option value="">Todos os terminais</option>
+          {terminais.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
+        </select>
+      </td>
+      <td>
+        <button type="button" className="botao botao--primario" disabled={!mudou || salvando}
+          onClick={() => executar(async () => { await api.put(`/api/v1/usuarios/${u.id}/terminal`, { terminalId: terminal || null }); aoSalvar(); },
+            { sucesso: `Acesso de ${u.nome} alterado. As sessões desse usuário foram encerradas.` })}>
+          {salvando ? "Salvando…" : "Salvar"}
+        </button>
+      </td>
     </tr>
   );
 }

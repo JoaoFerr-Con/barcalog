@@ -33,7 +33,8 @@ public class ImportacaoPlanilhaServico(
     IContextoAuditoria auditoria,
     IUsuarioAtual usuario,
     MetricasServico metricas,
-    RelogioOperacional relogio)
+    RelogioOperacional relogio,
+    IEscopoUsuario escopo)
 {
     public const long TamanhoMaximoBytes = 50_000_000;
     private const int LoteConsulta = 5000;
@@ -404,7 +405,9 @@ public class ImportacaoPlanilhaServico(
     // ===================== Apoio =====================
 
     private async Task<LoteImportacao> ObterLoteAsync(int id, CancellationToken ct) =>
-        await importacoes.ObterLoteAsync(id, ct) ?? throw new NaoEncontradoException($"Importação {id} não encontrada.");
+        await importacoes.ObterLoteAsync(id, ct) is { } lote && escopo.PodeVerTerminal(lote.TerminalId)
+            ? lote
+            : throw new NaoEncontradoException($"Importação {id} não encontrada.");
 
     private static string Rotulo(StatusLoteImportacao s) => s switch
     {

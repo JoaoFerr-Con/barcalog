@@ -19,11 +19,20 @@ namespace BarcaLog.Api.Controllers;
 [Route("api/v1/marcacoes")]
 [Authorize(Policy = Politicas.Leitura)]
 [Produces("application/json")]
-public class MarcacoesController(MarcacaoServico marcacoes, MetricasServico metricas, ImportacaoMarcacoesServico importacao, IConfiguration configuracao, IWebHostEnvironment ambiente) : ControllerBase
+public class MarcacoesController(MarcacaoServico marcacoes, MetricasServico metricas, AnaliseMovimentacoesServico analise, ImportacaoMarcacoesServico importacao, IConfiguration configuracao, IWebHostEnvironment ambiente) : ControllerBase
 {
     /// <summary>Lista paginada de marcações (filtros: terminal, período, convênio, operador, carga, senha).</summary>
     [HttpGet]
     public Task<Pagina<MarcacaoDto>> Listar([FromQuery] FiltroMarcacoes filtro, CancellationToken ct) => marcacoes.ListarAsync(filtro, ct);
+
+    /// <summary>
+    /// Análise 360° do recorte: resumo com período anterior equivalente, série temporal, faixa horária,
+    /// dia da semana, dimensões (terminal, operador, carga, convênio, origem) e qualidade dos dados.
+    /// Sem período: os 30 dias até a última marcação. Regras: docs/INDICADORES.md ("Análise 360°").
+    /// </summary>
+    /// <response code="404">Nenhuma movimentação no recorte.</response>
+    [HttpGet("analise")]
+    public Task<ResultadoAnalise> Analise([FromQuery] FiltroAnaliseMovimentacoes filtro, CancellationToken ct) => analise.AnalisarAsync(filtro, ct);
 
     /// <summary>
     /// Exporta as marcações liberadas do recorte em CSV (separador ";", UTF-8

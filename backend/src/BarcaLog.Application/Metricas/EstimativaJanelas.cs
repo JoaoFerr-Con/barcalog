@@ -13,12 +13,42 @@ public static class SituacaoJanela
     public static int Gravidade(string s) => s switch { Risco => 3, Atencao => 2, Dentro => 1, _ => 0 };
 }
 
-/// <summary>Confiabilidade da estimativa.</summary>
+/// <summary>
+/// Confiabilidade da estimativa (docs/INDICADORES.md, "Confiabilidade"):
+/// confiavel = base completa, dados em dia e erro medido menor que o de repetir o dia anterior;
+/// limitada = utilizável, com restrição explicada; insuficiente = não há base para estimar;
+/// desatualizada = os dados pararam de chegar — exige importar ou corrigir a integração.
+/// </summary>
 public static class Confiabilidade
 {
-    public const string Normal = "normal";
+    public const string Confiavel = "confiavel";
     public const string Limitada = "limitada";
     public const string Insuficiente = "insuficiente";
+    public const string Desatualizada = "desatualizada";
+
+    /// <summary>Ordem para comparar (maior = melhor).</summary>
+    public static int Nivel(string c) => c switch { Confiavel => 3, Limitada => 2, Desatualizada => 1, _ => 0 };
+
+    /// <summary>Pior de várias (para a soma dos terminais).</summary>
+    public static string Pior(IEnumerable<string> lista) => lista.DefaultIfEmpty(Insuficiente).MinBy(Nivel)!;
+}
+
+/// <summary>Por que a confiabilidade não é "confiável", o que isso muda e o que fazer.</summary>
+/// <param name="Codigo">desatualizado | base-incompleta | erro-alto | erro-nao-medido | sem-base | sem-dados.</param>
+/// <param name="Terminal">Terminal a que o motivo se refere (na soma de todos).</param>
+/// <param name="Descricao">O que foi encontrado, com números.</param>
+/// <param name="Impacto">O que isso muda na leitura da estimativa.</param>
+/// <param name="Acao">O que fazer.</param>
+public sealed record MotivoConfiabilidade(string Codigo, string? Terminal, string Descricao, string Impacto, string Acao);
+
+/// <summary>Erro da estimativa medido nos dados do próprio terminal (backtest).</summary>
+/// <param name="DiasAvaliados">Dias reestimados como na véspera.</param>
+/// <param name="ErroPct">WAPE das chegadas por hora: soma dos erros ÷ soma do real, em %.</param>
+/// <param name="ErroIngenuoPct">WAPE de "repetir o mesmo horário do último dia com dados", em %.</param>
+public sealed record ErroMedido(int DiasAvaliados, double ErroPct, double ErroIngenuoPct)
+{
+    /// <summary>Critério objetivo: a estimativa não pode errar mais que a referência ingênua.</summary>
+    public bool NaoPiorQueIngenua => ErroPct <= ErroIngenuoPct;
 }
 
 /// <summary>Uma janela de uma hora: demanda prevista × capacidade de atendimento.</summary>
@@ -30,7 +60,7 @@ public static class Confiabilidade
 /// <param name="CapacidadeCadastrada">Capacidade por hora cadastrada (soma, quando todos os terminais somados têm); nula se não configurada.</param>
 /// <param name="Saldo">Capacidade − demanda. Positivo = folga; negativo = demanda acima da capacidade. Nulo sem dados.</param>
 /// <param name="Situacao">dentro | atencao | risco | insuficiente.</param>
-/// <param name="Confiabilidade">normal | limitada | insuficiente.</param>
+/// <param name="Confiabilidade">confiavel | limitada | insuficiente | desatualizada.</param>
 /// <param name="Mensagem">Conclusão em linguagem operacional, gerada a partir dos números.</param>
 /// <param name="ChegadasObservadas">Chegadas registradas nesta hora em toda a base (tamanho da amostra).</param>
 /// <param name="TerminaisEmRisco">Na visão de todos os terminais: quais estão em risco de fila nesta janela.</param>
@@ -61,13 +91,15 @@ public sealed record ResumoEstimativa(
 /// <param name="DiasComDados">Dias da base com ao menos uma marcação.</param>
 /// <param name="UltimoRegistro">Última marcação recebida.</param>
 /// <param name="Desatualizado">Último registro mais antigo que o limite de dias sem dados.</param>
-/// <param name="Confiabilidade">normal | limitada | insuficiente.</param>
-/// <param name="Motivos">Por que a confiabilidade não é normal.</param>
+/// <param name="Confiabilidade">confiavel | limitada | insuficiente | desatualizada.</param>
+/// <param name="Motivos">Por que a confiabilidade não é "confiável" (motivo, impacto, ação).</param>
+/// <param name="Erro">Erro medido nos dados do terminal (nulo na soma ou sem dias suficientes).</param>
 /// <param name="Janelas">As próximas janelas de uma hora.</param>
 /// <param name="Resumo">Resumo do horizonte.</param>
 public sealed record EstimativaTerminal(
     string? TerminalId, string Terminal, DateOnly? BaseDe, DateOnly? BaseAte, int DiasComDados, DateTime? UltimoRegistro,
-    bool Desatualizado, string Confiabilidade, IReadOnlyList<string> Motivos, IReadOnlyList<JanelaEstimada> Janelas, ResumoEstimativa Resumo);
+    bool Desatualizado, string Confiabilidade, IReadOnlyList<MotivoConfiabilidade> Motivos, ErroMedido? Erro,
+    IReadOnlyList<JanelaEstimada> Janelas, ResumoEstimativa Resumo);
 
 /// <summary>Terminal considerado na estimativa.</summary>
 /// <param name="Id">Id do terminal.</param>
@@ -166,27 +198,49 @@ public static class EstimativaJanelas
     {
         var ultimo = t.UltimaMarcacao ?? (regs.Count > 0 ? regs.Max(r => r.MarcadoEm) : null);
         if (regs.Count == 0)
-            return Vazio(t.Id, t.Nome, ultimo, horasJanela, ["Nenhum registro liberado deste terminal."]);
+            return Vazio(t.Id, t.Nome, ultimo, horasJanela, [new("sem-dados", t.Nome, "Nenhum movimento liberado deste terminal.",
+                "Não há como estimar.", "Importar as planilhas do terminal em Importação.")]);
 
         var fim = regs.Max(r => r.MarcadoEm).Date.AddDays(1);
         var inicio = fim.AddDays(-DiasBase);
         var naBase = regs.Where(r => r.MarcadoEm >= inicio && r.MarcadoEm < fim).ToList();
         var dias = naBase.Select(r => r.MarcadoEm.Date).Distinct().Count();
-        var desatualizado = ultimo is { } u && (agora.Date - u.Date).TotalDays > diasSemDados;
+        var diasSemRegistro = ultimo is { } u ? (int)(agora.Date - u.Date).TotalDays : (int?)null;
+        var desatualizado = diasSemRegistro > diasSemDados;
         var baseDe = DateOnly.FromDateTime(inicio);
         var baseAte = DateOnly.FromDateTime(fim.AddDays(-1));
 
         if (dias < DiasMinimosParaEstimar)
-            return Vazio(t.Id, t.Nome, ultimo, horasJanela, [$"Só {dias} dia(s) com dados na base — o mínimo para estimar é {DiasMinimosParaEstimar}."], baseDe, baseAte, dias, desatualizado);
+            return Vazio(t.Id, t.Nome, ultimo, horasJanela, [new("sem-base", t.Nome,
+                $"Só {dias} dia(s) com dados de {baseDe:dd/MM} a {baseAte:dd/MM}; o mínimo é {DiasMinimosParaEstimar} (uma semana de operação).",
+                "Não há base para uma estimativa responsável.", "Importar ao menos uma semana de planilhas do terminal.")], baseDe, baseAte, dias, desatualizado);
 
         // Divide pelos dias COM dados: um dia sem nenhuma marcação no terminal é falta de dado, não dia parado.
         var chegadas = naBase.GroupBy(r => r.MarcadoEm.Hour).ToDictionary(g => g.Key, g => g.Count());
         var liberacoes = regs.Where(r => r.LiberadoEm >= inicio && r.LiberadoEm < fim).GroupBy(r => r.LiberadoEm.Hour).ToDictionary(g => g.Key, g => g.Count());
+        var erro = MedirErro(regs);
 
-        var motivos = new List<string>();
-        if (desatualizado) motivos.Add($"Dados até {ultimo:dd/MM/yyyy}: a estimativa usa o padrão desse período e pode não refletir a operação atual.");
-        if (dias < DiasBase) motivos.Add($"Histórico de {dias} dias com dados (a base completa tem {DiasBase}).");
-        var confTerminal = motivos.Count > 0 ? Confiabilidade.Limitada : Confiabilidade.Normal;
+        var motivos = new List<MotivoConfiabilidade>();
+        if (desatualizado)
+            motivos.Add(new("desatualizado", t.Nome,
+                $"Último registro em {ultimo:dd/MM/yyyy}, há {diasSemRegistro} dias (limite: {diasSemDados}).",
+                $"A estimativa repete o padrão de {baseDe:dd/MM} a {baseAte:dd/MM}; mudanças recentes de safra ou de agenda não aparecem.",
+                "Importar as planilhas mais recentes do terminal (ou verificar a integração)."));
+        if (dias < DiasBase)
+            motivos.Add(new("base-incompleta", t.Nome,
+                $"{dias} dias com dados de {baseDe:dd/MM} a {baseAte:dd/MM} (a base completa tem {DiasBase}).",
+                "Médias com menos dias variam mais de um dia para outro.",
+                "Importar o período que falta, se existir."));
+        if (erro is null)
+            motivos.Add(new("erro-nao-medido", t.Nome,
+                $"Ainda não há dias suficientes para medir o erro (são necessários {DiasMinimosParaEstimar} dias anteriores a cada dia avaliado).",
+                "Não se sabe quanto a estimativa erra neste terminal.", "Importar mais histórico."));
+        else if (!erro.NaoPiorQueIngenua)
+            motivos.Add(new("erro-alto", t.Nome,
+                $"Nos últimos {erro.DiasAvaliados} dias com dados, a estimativa errou {erro.ErroPct:0.0}% das chegadas por hora, mais que repetir o dia anterior ({erro.ErroIngenuoPct:0.0}%).",
+                "Use como referência do padrão do horário, não como número exato de carretas.",
+                "Confirmar com a fila real antes de redistribuir agendamentos."));
+        var confTerminal = desatualizado ? Confiabilidade.Desatualizada : motivos.Count > 0 ? Confiabilidade.Limitada : Confiabilidade.Confiavel;
 
         var janelas = horasJanela.Select(h =>
         {
@@ -195,37 +249,78 @@ public static class EstimativaJanelas
             var observado = liberacoes.GetValueOrDefault(h) / (double)dias;
             var (capacidade, fonte) = t.CapacidadeHoraria is { } c ? ((double)c, "cadastrada") : (observado, "observada");
             var situacao = Classificar(demanda, capacidade, limiteRisco);
-            var conf = obs < ChegadasMinimasNaAmostra && confTerminal == Confiabilidade.Normal ? Confiabilidade.Limitada : confTerminal;
+            // Amostra pequena na hora (menos de 30 chegadas na base) rebaixa só a janela.
+            var conf = obs < ChegadasMinimasNaAmostra && confTerminal == Confiabilidade.Confiavel ? Confiabilidade.Limitada : confTerminal;
             return new JanelaEstimada(h, Math.Round(demanda, 1), Math.Round(capacidade, 1), fonte, Math.Round(observado, 1), t.CapacidadeHoraria,
                 Math.Round(capacidade - demanda, 1), situacao, conf, Mensagem(situacao, demanda, capacidade, fonte, observado), obs,
                 situacao == SituacaoJanela.Risco ? [t.Nome] : []);
         }).ToList();
 
-        return new EstimativaTerminal(t.Id, t.Nome, baseDe, baseAte, dias, ultimo, desatualizado, confTerminal, motivos, janelas, Resumir(janelas));
+        return new EstimativaTerminal(t.Id, t.Nome, baseDe, baseAte, dias, ultimo, desatualizado, confTerminal, motivos, erro, janelas, Resumir(janelas));
     }
 
-    private static EstimativaTerminal Vazio(string? id, string nome, DateTime? ultimo, List<int> horasJanela, List<string> motivos,
+    /// <summary>Quantos dos últimos dias com dados são reestimados para medir o erro.</summary>
+    public const int DiasMedicaoErro = 30;
+
+    /// <summary>
+    /// Backtest no próprio terminal: para cada um dos últimos <see cref="DiasMedicaoErro"/> dias com dados,
+    /// refaz a estimativa como na véspera (base = dias com dados nos 30 dias anteriores, mínimo
+    /// <see cref="DiasMinimosParaEstimar"/>) e compara, hora a hora, com as chegadas reais. Mesma conta de
+    /// backend/tools/backtest_estimativa.py. Nulo se nenhum dia puder ser avaliado.
+    /// </summary>
+    public static ErroMedido? MedirErro(IReadOnlyList<RegistroMarcacao> regs)
+    {
+        if (regs.Count == 0) return null;
+        var porDiaHora = regs.GroupBy(r => (r.MarcadoEm.Date, r.MarcadoEm.Hour)).ToDictionary(g => g.Key, g => g.Count());
+        var dias = regs.Select(r => r.MarcadoEm.Date).Distinct().OrderBy(d => d).ToList();
+        double erro = 0, erroIngenuo = 0, real = 0;
+        var avaliados = 0;
+        for (var i = Math.Max(0, dias.Count - DiasMedicaoErro); i < dias.Count; i++)
+        {
+            var dia = dias[i];
+            var baseDias = dias.Take(i).Where(d => d >= dia.AddDays(-DiasBase)).ToList();
+            if (baseDias.Count < DiasMinimosParaEstimar) continue;
+            var anterior = baseDias[^1];
+            avaliados++;
+            for (var h = 0; h < 24; h++)
+            {
+                var r = porDiaHora.GetValueOrDefault((dia, h));
+                var prev = baseDias.Sum(d => porDiaHora.GetValueOrDefault((d, h))) / (double)baseDias.Count;
+                erro += Math.Abs(prev - r);
+                erroIngenuo += Math.Abs(porDiaHora.GetValueOrDefault((anterior, h)) - r);
+                real += r;
+            }
+        }
+        if (avaliados == 0 || real == 0) return null;
+        return new ErroMedido(avaliados, Math.Round(erro / real * 100, 1), Math.Round(erroIngenuo / real * 100, 1));
+    }
+
+    private static EstimativaTerminal Vazio(string? id, string nome, DateTime? ultimo, List<int> horasJanela, List<MotivoConfiabilidade> motivos,
         DateOnly? de = null, DateOnly? ate = null, int dias = 0, bool desatualizado = false)
     {
         var janelas = horasJanela.Select(h => new JanelaEstimada(h, 0, 0, "observada", 0, null, null, SituacaoJanela.Insuficiente,
             Confiabilidade.Insuficiente, Mensagem(SituacaoJanela.Insuficiente, 0, 0, "observada", 0), 0, [])).ToList();
-        return new EstimativaTerminal(id, nome, de, ate, dias, ultimo, desatualizado, Confiabilidade.Insuficiente, motivos, janelas, Resumir(janelas));
+        return new EstimativaTerminal(id, nome, de, ate, dias, ultimo, desatualizado, Confiabilidade.Insuficiente, motivos, null, janelas, Resumir(janelas));
     }
 
     /// <summary>
     /// Todos os terminais: números somados, mas a situação de cada janela é a do terminal
-    /// em pior situação — carretas não migram de um terminal para outro.
+    /// em pior situação — carretas não migram de um terminal para outro. A confiabilidade
+    /// é a pior entre os terminais somados; os sem base ficam fora da soma, com motivo.
     /// </summary>
     private static EstimativaTerminal Somar(List<EstimativaTerminal> lista, List<int> horasJanela)
     {
         var validos = lista.Where(t => t.Confiabilidade != Confiabilidade.Insuficiente).ToList();
         if (validos.Count == 0)
-            return Vazio(null, "Todos os terminais", lista.Max(t => t.UltimoRegistro), horasJanela, ["Nenhum terminal com dados suficientes para estimar."]);
+            return Vazio(null, "Todos os terminais", lista.Max(t => t.UltimoRegistro), horasJanela,
+                lista.SelectMany(t => t.Motivos).ToList());
 
-        var motivos = lista.Where(t => t.Confiabilidade == Confiabilidade.Insuficiente).Select(t => $"{t.Terminal} sem dados suficientes — fora da soma.")
-            .Concat(validos.Where(t => t.Confiabilidade == Confiabilidade.Limitada).Select(t => $"{t.Terminal}: {string.Join(" ", t.Motivos)}"))
+        var motivos = lista.Where(t => t.Confiabilidade == Confiabilidade.Insuficiente)
+            .Select(t => new MotivoConfiabilidade("sem-base", t.Terminal, $"{t.Terminal} sem dados suficientes; ficou fora da soma.",
+                "Os totais não incluem este terminal.", t.Motivos.FirstOrDefault()?.Acao ?? "Importar as planilhas do terminal."))
+            .Concat(validos.SelectMany(t => t.Motivos))
             .ToList();
-        var conf = motivos.Count > 0 ? Confiabilidade.Limitada : Confiabilidade.Normal;
+        var conf = Confiabilidade.Pior(validos.Select(t => t.Confiabilidade).Append(motivos.Count > 0 ? Confiabilidade.Limitada : Confiabilidade.Confiavel));
         var janelas = horasJanela.Select((h, i) =>
         {
             var partes = validos.Select(t => t.Janelas[i]).ToList();
@@ -245,13 +340,13 @@ public static class EstimativaJanelas
                 SituacaoJanela.Atencao => $"Atenção em {string.Join(" e ", emAtencao)}. {pior.Mensagem}",
                 _ => Mensagem(SituacaoJanela.Dentro, demanda, capacidade, fonte, observado)
             };
-            var janelaConf = partes.Any(p => p.Confiabilidade == Confiabilidade.Limitada) ? Confiabilidade.Limitada : conf;
+            var janelaConf = Confiabilidade.Pior(partes.Select(p => p.Confiabilidade).Append(conf));
             return new JanelaEstimada(h, Math.Round(demanda, 1), Math.Round(capacidade, 1), fonte, Math.Round(observado, 1), cadastrada,
                 Math.Round(capacidade - demanda, 1), situacao, janelaConf, mensagem, partes.Sum(p => p.ChegadasObservadas), emRisco);
         }).ToList();
 
         return new EstimativaTerminal(null, "Todos os terminais", validos.Min(t => t.BaseDe), validos.Max(t => t.BaseAte),
-            validos.Max(t => t.DiasComDados), lista.Max(t => t.UltimoRegistro), validos.Any(t => t.Desatualizado), conf, motivos, janelas, Resumir(janelas));
+            validos.Max(t => t.DiasComDados), lista.Max(t => t.UltimoRegistro), validos.Any(t => t.Desatualizado), conf, motivos, null, janelas, Resumir(janelas));
     }
 
     /// <summary>Resumo e tendência do horizonte, sem limiares novos: só a ordem das janelas.</summary>

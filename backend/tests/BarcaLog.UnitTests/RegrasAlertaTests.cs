@@ -103,6 +103,10 @@ public class RegrasAlertaTests
         Assert.Equal("10,0 carretas previstas", a.ValorObservado);
         Assert.Equal(PrioridadeAlerta.Alta, a.Prioridade); // 10 previstas ≥ 2 × 4 atendidas
         Assert.Contains("Estimativa pelo padrão histórico, não é ocorrência", a.Evidencia);
+        // Cabe nas colunas (um texto longo demais derrubava a avaliação inteira com erro 500).
+        Assert.True(a.Limite.Length <= Alerta.Tamanho.Limite, a.Limite);
+        Assert.True(a.ValorObservado.Length <= Alerta.Tamanho.ValorObservado, a.ValorObservado);
+        Assert.True(a.Indicador.Length <= Alerta.Tamanho.Indicador, a.Indicador);
 
         // Às 23h o dia acaba: nada de previsão para "amanhã".
         Assert.DoesNotContain(RegrasAlerta.Avaliar(Entrada(registros, new DateTime(2026, 10, 20, 23, 10, 0), new DateTime(2026, 10, 19))), x => x.Tipo == TipoAlerta.Previsao);
@@ -131,5 +135,17 @@ public class RegrasAlertaTests
     public void Duracao_no_formato_do_painel(double horas, string texto)
     {
         Assert.Equal(texto, RegrasAlerta.Duracao(horas));
+    }
+
+    [Fact]
+    public void Texto_maior_que_a_coluna_e_ajustado_em_vez_de_derrubar_a_avaliacao()
+    {
+        var c = new AlertaCandidato("k", TipoAlerta.Previsao, "r", PrioridadeAlerta.Media, null, "hoje", "t", "i",
+            new string('9', 80), new string('x', 120), "e", "o", null);
+        var a = new Alerta();
+        BarcaLog.Application.Servicos.AlertasServico.Copiar(c, a);
+        Assert.Equal(Alerta.Tamanho.Limite, a.Limite.Length);
+        Assert.EndsWith("…", a.Limite);
+        Assert.Equal(Alerta.Tamanho.ValorObservado, a.ValorObservado.Length);
     }
 }
