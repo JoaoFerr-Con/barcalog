@@ -6,6 +6,7 @@ import { useAcao } from "../hooks/useAcao.js";
 import { Carregando, ErroCarga, Vazio } from "../components/EstadoCarga.jsx";
 import { CabecalhoPagina, Cartao, Kpi, Selo, Icone, Aviso, Campo, HEX_TERMINAL } from "../components/ui.jsx";
 import RelatorioPeriodo from "../components/RelatorioPeriodo.jsx";
+import AvisoDemonstracao from "../components/AvisoDemonstracao.jsx";
 import {
   duracao, variacaoDuracao, numero, percentual, variacaoPct, mesCurto, mesLongo, limitesDoMes, mesAnterior,
   dataCurta, dataHoraPorto, dataHoraLocal, formatarDataPtBR
@@ -188,7 +189,8 @@ export default function VisaoGeral({ irPara }) {
                 <BarraSituacao d={portaria.dados} />
               </div>
             )}
-            <Aviso tipo="info"><b>Origem:</b> agenda e situação de portaria são registradas manualmente no BarcaLog (sem GPS ou sensor). Carretas marcadas e ainda não liberadas nos terminais aparecerão aqui quando a integração estiver ativa.</Aviso>
+            <AvisoDemonstracao compacto />
+            <Aviso tipo="info"><b>Origem:</b> agenda e situação de portaria são registradas manualmente no BarcaLog (sem GPS ou sensor), não vêm das planilhas dos terminais.</Aviso>
           </div>
         </Cartao>
       </div>

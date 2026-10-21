@@ -17,6 +17,16 @@ exibidos vêm sempre da API; as regras de cálculo estão em
 - **Controles reais.** Todo clique é `<button>`, `<a>` ou campo de formulário; ações
   que gravam ficam visíveis só para o perfil autorizado (o backend valida de novo).
 
+## Dados de demonstração
+
+As planilhas dos terminais não trazem placa, transportadora, motorista, ocorrência,
+agendamento nem situação de portaria. Em desenvolvimento (`Seed:DadosExemplo`), o
+banco recebe um cadastro **fictício** para testar essas telas. Quando ele existe
+(`GET /api/v1/ambiente` → `dadosExemplo`), Portaria, Agendamentos, Negativação, Frota,
+Cadastros, o Portal do Transportador, o quadro "Situação agora" da Visão Geral e os
+alertas de agendamento atrasado mostram o aviso **"Dados de demonstração"**. Em
+produção `Seed:DadosExemplo` é obrigatoriamente `false`.
+
 ## Navegação
 
 Rotas por hash (`#/chave`), agrupadas em Operação, Dados, Controle e Administração.

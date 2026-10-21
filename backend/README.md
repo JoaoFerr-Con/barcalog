@@ -133,6 +133,7 @@ Lista completa e documentada no Swagger (`/swagger`). Resumo:
 | Auth | `POST /api/v1/auth/login`, `GET /api/v1/auth/me`, `POST /api/v1/auth/logout`, `POST /api/v1/auth/trocar-senha`, `POST /api/v1/auth/mfa/configurar`, `/mfa/ativar`, `/mfa/desativar` |
 | Usuários (Gestor) | `GET/POST /api/v1/usuarios`, `GET /api/v1/usuarios/{id}`, `PUT /{id}/papel`, `POST /{id}/desativar`, `/reativar`, `/redefinir-senha`, `/redefinir-mfa` |
 | Terminais | `GET /api/v1/terminais` |
+| Ambiente | `GET /api/v1/ambiente` → `{ dadosExemplo }` (o banco tem o cadastro fictício de exemplo) |
 | Marcações | `GET /api/v1/marcacoes` (paginado; `terminalId`, `de`, `ate`, `convenio`, `operador`, `carga`, `senha`, `busca`, `codConvenio`, `esperaAcimaHoras`, `semLiberacao`, `origem`, `ordenacao=marcacao_desc\|marcacao_asc\|espera_desc\|espera_asc`), `GET /api/v1/marcacoes/{movimentoId}`, `GET /api/v1/marcacoes/{movimentoId}/detalhe` (origem: arquivo, linha, lote, quem importou; liberados no mesmo instante), `GET /api/v1/marcacoes/exportar` (CSV das liberadas) |
 | Indicadores | `GET /api/v1/indicadores/resumo`, `/terminais`, `/volume-mensal`, `/fluxo-horario`, `/frescor` — `terminalId`, `de`, `ate`, `compararDe`, `compararAte`. Regras em [`docs/INDICADORES.md`](../docs/INDICADORES.md) |
 | Alertas | `GET /api/v1/alertas` (`tipo`, `estado`, `terminalId`, `somenteAbertos`), `/resumo`, `/proximas-horas`, `/{id}`; `POST /avaliar`, `/{id}/assumir`, `/{id}/acoes`, `/{id}/resolver`, `/{id}/descartar`, `/{id}/reabrir` (Operador/Gestor) |

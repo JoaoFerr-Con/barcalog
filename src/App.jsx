@@ -6,6 +6,7 @@ import Portaria from "./pages/Portaria.jsx";
 import { FormularioLogin, TelaRestricao } from "./components/Acesso.jsx";
 import { Carregando, ErroCarga, Vazio } from "./components/EstadoCarga.jsx";
 import { CabecalhoPagina, Icone, Selo } from "./components/ui.jsx";
+import AvisoDemonstracao from "./components/AvisoDemonstracao.jsx";
 import { useSessao, sair, iniciais } from "./auth/autenticacao.js";
 import { useNegativacao } from "./hooks/useNegativacao.js";
 import { useApi } from "./hooks/useApi.js";
@@ -34,10 +35,10 @@ const GRUPOS_NAV = [
   { nome: "Operação", itens: [
     { chave: "visao-geral", rotulo: "Visão Geral", icone: "dashboard", cabecalhoProprio: true,
       descricao: "Volume, esperas e alertas do período, comparação entre terminais e situação de hoje." },
-    { chave: "portaria", rotulo: "Portaria", icone: "door_front", titulo: "Portaria", sub: "Busca por placa, situação da carreta e fila no pátio (status informado pela portaria)",
+    { chave: "portaria", demonstracao: true, rotulo: "Portaria", icone: "door_front", titulo: "Portaria", sub: "Busca por placa, situação da carreta e fila no pátio (situação informada pela portaria)",
       descricao: "Busca um veículo pela placa e registra sua situação no pátio/porto." },
-    { chave: "agendamentos", rotulo: "Agendamentos", icone: "calendar_month", titulo: "Agendamentos", sub: "Agenda do dia por hora × capacidade cadastrada; status registrado pela operação",
-      descricao: "Agenda do dia por hora × capacidade cadastrada, com status e QR de cada agendamento." },
+    { chave: "agendamentos", demonstracao: true, rotulo: "Agendamentos", icone: "calendar_month", titulo: "Agendamentos", sub: "Agenda do dia por hora × capacidade cadastrada; situação registrada pela operação",
+      descricao: "Agenda do dia por hora × capacidade cadastrada, com situação e QR de cada agendamento." },
     { chave: "gargalos", rotulo: "Gargalos e alertas", icone: "warning", cabecalhoProprio: true, alertas: true,
       descricao: "Alertas com origem, evidência, limite e histórico de tratamento; previsão das próximas horas." }
   ]},
@@ -48,11 +49,11 @@ const GRUPOS_NAV = [
       descricao: "Planilhas dos terminais: análise, conflitos, confirmação e histórico." }
   ]},
   { nome: "Controle", itens: [
-    { chave: "negativacao", rotulo: "Negativação", icone: "gpp_maybe", titulo: "Negativação", sub: "Ocorrências N1/N2/N3, bloqueio automático N3 e contestações",
+    { chave: "negativacao", demonstracao: true, rotulo: "Negativação", icone: "gpp_maybe", titulo: "Negativação", sub: "Ocorrências N1/N2/N3, bloqueio automático N3 e contestações",
       descricao: "Registra ocorrências (N1/N2/N3), aplica bloqueio automático em infrações graves e analisa contestações." },
-    { chave: "carretas", rotulo: "Frota", icone: "local_shipping", titulo: "Frota", sub: "Carretas cadastradas e situação na portaria",
-      descricao: "Lista a frota cadastrada, com busca e o status de portaria de cada carreta." },
-    { chave: "frotas", rotulo: "Cadastros", icone: "badge", titulo: "Cadastros", sub: "Placas, transportadoras e condutores",
+    { chave: "carretas", demonstracao: true, rotulo: "Frota", icone: "local_shipping", titulo: "Frota", sub: "Carretas cadastradas e situação na portaria",
+      descricao: "Lista a frota cadastrada, com busca e a situação de portaria de cada carreta." },
+    { chave: "frotas", demonstracao: true, rotulo: "Cadastros", icone: "badge", titulo: "Cadastros", sub: "Placas, transportadoras e condutores",
       descricao: "Cadastro de placas, transportadoras e condutores usados pela Negativação e pela Portaria." },
     { chave: "auditoria", rotulo: "Auditoria", icone: "history", titulo: "Auditoria", sub: "Quem fez o quê e quando — registrado automaticamente pelo servidor",
       descricao: "Log de quem fez o quê e quando — toda gravação fica registrada automaticamente no servidor." }
@@ -67,7 +68,7 @@ const CHAVES = new Set(ITENS_NAV.map(i => i.chave));
 
 const PASSOS_TOUR = ITENS_NAV.map(item => ({ alvo: item.chave, titulo: item.rotulo, texto: item.descricao })).concat([
   { alvo: "recolher", titulo: "Recolher o menu", texto: "Recolhe a barra lateral para ganhar espaço — ficam só os ícones." },
-  { alvo: "portal", titulo: "Portal do Transportador", texto: "Abre a área externa (em /portal) onde a transportadora, com login próprio, consulta status, motivos de negativação e abre contestações." }
+  { alvo: "portal", titulo: "Portal do Transportador", texto: "Abre a área externa (em /portal) onde a transportadora, com login próprio, consulta a situação, os motivos de negativação e abre contestações." }
 ]);
 
 /** Página atual pelo endereço (#/movimentacoes): atualizar a página não perde a tela. */
@@ -156,6 +157,7 @@ function EstruturaBase({ usuario, pagina, definirPagina, aoAbrirPortal, children
           <main className="area-principal" id="conteudo">
             <div className="pagina" key={pagina}>
               {!item?.cabecalhoProprio && <CabecalhoPagina titulo={item?.titulo || item?.rotulo} subtitulo={item?.sub} />}
+              {item?.demonstracao && <div style={{ marginBottom: 16 }}><AvisoDemonstracao /></div>}
               {children}
             </div>
           </main>
@@ -274,7 +276,7 @@ function PaginaCarretas() {
         {filtradas.length === 0 ? <Vazio icone="local_shipping" titulo="Nenhuma carreta encontrada" /> : (
           <div className="tabela-wrap">
             <table>
-              <thead><tr><th scope="col">Placa</th><th scope="col">Transportadora</th><th scope="col">Terminal</th><th scope="col">Status atual</th></tr></thead>
+              <thead><tr><th scope="col">Placa</th><th scope="col">Transportadora</th><th scope="col">Terminal</th><th scope="col">Situação atual</th></tr></thead>
               <tbody>
                 {visiveis.map(c => {
                   const estilo = ESTILO_STATUS[c.statusPortaria] || { icone: "help", tipo: "neutro" };

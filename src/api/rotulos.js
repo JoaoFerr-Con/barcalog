@@ -2,10 +2,10 @@
 // que as telas exibem. Mantém um único lugar pra mudar texto de interface.
 
 export const STATUS_PORTARIA = {
-  NoPatio: "No Pátio",
+  NoPatio: "No pátio",
   Aguardando: "Aguardando",
-  NoPorto: "No Porto",
-  DescargaFinalizada: "Descarga Finalizada"
+  NoPorto: "No porto",
+  DescargaFinalizada: "Descarga finalizada"
 };
 
 export const STATUS_AGENDAMENTO = {

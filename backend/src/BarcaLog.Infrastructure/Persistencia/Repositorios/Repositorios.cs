@@ -22,6 +22,9 @@ public class TerminalRepositorio(BarcaLogDbContext db) : ITerminalRepositorio
     public Task<List<Terminal>> ListarAsync(CancellationToken ct = default) =>
         db.Terminais.AsNoTracking().OrderBy(t => t.Nome).ToListAsync(ct);
 
+    public Task<bool> ExistemDadosExemploAsync(CancellationToken ct = default) =>
+        db.Transportadoras.AnyAsync(t => Seed.DbSeeder.CnpjsExemplo.Contains(t.Cnpj), ct);
+
     public Task<Terminal?> ObterAsync(string id, CancellationToken ct = default) =>
         db.Terminais.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct);
 

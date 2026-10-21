@@ -89,6 +89,8 @@ public interface ITerminalRepositorio
     Task<Terminal?> ObterParaAlterarAsync(string id, CancellationToken ct = default);
     /// <summary>Linha única de parâmetros (criada pela migration).</summary>
     Task<ParametrosOperacionais> ObterParametrosAsync(bool rastrear, CancellationToken ct = default);
+    /// <summary>true se o banco contém o cadastro fictício de exemplo (placas, transportadoras, condutores…).</summary>
+    Task<bool> ExistemDadosExemploAsync(CancellationToken ct = default);
 }
 
 public interface IMarcacaoRepositorio

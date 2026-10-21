@@ -7,6 +7,7 @@ import { useSessao, sair } from "../auth/autenticacao.js";
 import { FormularioLogin, TelaRestricao } from "../components/Acesso.jsx";
 import { Carregando, ErroCarga } from "../components/EstadoCarga.jsx";
 import CartaoIndicador from "../components/CartaoIndicador.jsx";
+import AvisoDemonstracao from "../components/AvisoDemonstracao.jsx";
 
 // Portal do Transportador (área externa). Login próprio (papel Transportadora
 // na API) e todos os dados vêm de /api/v1/portal/*: o backend força o escopo
@@ -91,6 +92,7 @@ function FluxoNegativacao({ transportadora, ocorrencias }) {
 
   return (
     <>
+      <div style={{ marginBottom: 16 }}><AvisoDemonstracao /></div>
       <div className="cartao" style={{ marginBottom: 20 }}>
         <div className="cartao__cabecalho">
           <h3>Fluxo de negativação da empresa</h3>
@@ -234,7 +236,7 @@ function AbaOcorrenciasContestacoes({ ocorrencias, contestacoes, aoMudar }) {
         </div>
         <div className="cartao__corpo">
           {contestacoes.length === 0 && (
-            <EstadoVazio icone="folder_open" titulo="Nenhum chamado aberto" texto="Os chamados que você abrir aparecem aqui, com o status de análise da equipe do porto." />
+            <EstadoVazio icone="folder_open" titulo="Nenhum chamado aberto" texto="Os chamados que você abrir aparecem aqui, com a situação da análise da equipe do porto." />
           )}
           {contestacoes.map(c => (
             <div key={c.id} style={{ padding: "10px 0", borderBottom: "1px solid var(--superficie-alt)" }}>
@@ -261,7 +263,7 @@ function AbaOcorrenciasContestacoes({ ocorrencias, contestacoes, aoMudar }) {
             ? <EstadoVazio icone="verified" titulo="Nenhuma ocorrência" texto="Sua empresa não tem ocorrências registradas." />
             : (
               <table>
-                <thead><tr><th scope="col">Data</th><th scope="col">Nível</th><th scope="col">Placa</th><th scope="col">Descrição</th><th scope="col">Status</th></tr></thead>
+                <thead><tr><th scope="col">Data</th><th scope="col">Nível</th><th scope="col">Placa</th><th scope="col">Descrição</th><th scope="col">Situação</th></tr></thead>
                 <tbody>
                   {ocorrencias.map(o => (
                     <tr key={o.id}>
@@ -294,7 +296,7 @@ function AbaMinhaFrota({ transportadora, veiculos, condutores }) {
             ? <EstadoVazio icone="local_shipping" titulo="Nenhum veículo cadastrado" texto="Cadastros feitos pela equipe do porto aparecem aqui." />
             : (
               <table>
-                <thead><tr><th scope="col">Placa</th><th scope="col">Modelo</th><th scope="col">Status na portaria</th><th scope="col">Situação</th></tr></thead>
+                <thead><tr><th scope="col">Placa</th><th scope="col">Modelo</th><th scope="col">Situação na portaria</th><th scope="col">Negativação</th></tr></thead>
                 <tbody>
                   {veiculos.map(v => (
                     <tr key={v.id}>

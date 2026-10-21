@@ -79,7 +79,7 @@ export default function Agendamentos() {
     const chave = novaChaveIdempotencia();
     const novo = await executar(
       () => api.post("/api/v1/agendamentos", { ...form, data, transportadoraId: Number(form.transportadoraId), motorista: form.motorista || null }, chave),
-      { sucesso: a => `Agendamento ${a.codigo} criado pra ${a.placa} às ${a.hora}.`, erro: "Agendamento não criado" }
+      { sucesso: a => `Agendamento ${a.codigo} criado para ${a.placa} às ${a.hora}.`, erro: "Agendamento não criado" }
     );
     if (novo) {
       setForm(FORM_VAZIO);
@@ -130,7 +130,7 @@ export default function Agendamentos() {
         <div className="cartao__cabecalho" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
           <div>
             <h3>Agendamentos</h3>
-            <p>Filtre por dia, terminal ou status</p>
+            <p>Filtre por dia, terminal ou situação</p>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <input type="date" value={data} onChange={e => setData(e.target.value || hojeISO())} aria-label="Data" style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid var(--borda)", fontSize: 12.5 }} />
@@ -138,8 +138,8 @@ export default function Agendamentos() {
               <option value="todos">Todos os terminais</option>
               {TERMINAIS.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
             </select>
-            <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)} aria-label="Status" style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid var(--borda)", fontSize: 12.5 }}>
-              <option value="todos">Todos os status</option>
+            <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)} aria-label="Situação" style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid var(--borda)", fontSize: 12.5 }}>
+              <option value="todos">Todas as situações</option>
               {Object.entries(STATUS_AGENDAMENTO).map(([k, r]) => <option key={k} value={k}>{r}</option>)}
             </select>
             {podeEscrever && (

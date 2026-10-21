@@ -341,3 +341,16 @@ public class MovimentacoesTests(ApiFixture api)
         Assert.Equal(1, detalhe.LiberadosNoMesmoInstante);
     }
 }
+
+[Collection(ColecaoApi.Nome)]
+public class AmbienteTests(ApiFixture api)
+{
+    [SkippableFact]
+    public async Task Avisa_quando_o_banco_tem_o_cadastro_ficticio_de_exemplo()
+    {
+        Skip.IfNot(api.BancoDisponivel, api.MotivoIndisponivel);
+        var auditor = await api.ClienteAsync("Auditor");
+        var r = await auditor.GetFromJsonAsync<BarcaLog.Api.Controllers.AmbienteDto>("/api/v1/ambiente", Json.Opcoes);
+        Assert.True(r!.DadosExemplo); // a fixture liga Seed:DadosExemplo
+    }
+}

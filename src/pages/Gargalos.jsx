@@ -3,6 +3,7 @@ import { api } from "../api/cliente.js";
 import { useApi } from "../hooks/useApi.js";
 import { useAcao } from "../hooks/useAcao.js";
 import { Carregando, ErroCarga, Vazio } from "../components/EstadoCarga.jsx";
+import { useAmbiente } from "../hooks/useAmbiente.js";
 import EstimativaProximasHoras from "../components/EstimativaProximasHoras.jsx";
 import { CabecalhoPagina, Cartao, Selo, Icone, Aviso, Abas, Campo, Paginacao } from "../components/ui.jsx";
 import { numero, dataHoraLocal, formatarDataPtBR } from "../utils/formatar.js";
@@ -18,10 +19,13 @@ const TIPOS = {
   Previsao: { selo: "previsao", rotulo: "Previsão", texto: "Estimativa pelo padrão histórico — não é um fato." },
   Dados: { selo: "neutro", rotulo: "Dados", texto: "Qualidade ou atualização dos dados importados." }
 };
+// Regras que usam o cadastro de exemplo (agenda manual), não as planilhas dos terminais.
+const REGRAS_DEMONSTRACAO = new Set(["agendamento-atrasado"]);
 const PRIORIDADE = { Alta: ["critico", "Alta"], Media: ["alto", "Média"], Baixa: ["neutro", "Baixa"] };
 const ESTADO = { Novo: ["info", "Novo"], EmAnalise: ["atencao", "Em análise"], Resolvido: ["ok", "Resolvido"], Descartado: ["neutro", "Descartado"] };
 
 export default function Gargalos({ papel }) {
+  const demo = useAmbiente()?.dadosExemplo;
   const podeAgir = papel === "Operador" || papel === "Gestor";
   const [aba, setAba] = useState("todos");
   const [terminalId, setTerminalId] = useState("");
@@ -88,6 +92,7 @@ export default function Gargalos({ papel }) {
                         <span style={{ minWidth: 0 }}>
                           <span className="linha-flex" style={{ gap: 6 }}>
                             <Selo tipo={TIPOS[a.tipo].selo}>{TIPOS[a.tipo].rotulo}</Selo>
+                            {demo && REGRAS_DEMONSTRACAO.has(a.regra) && <Selo tipo="atencao" icone="science" titulo="Baseado no cadastro fictício de exemplo">dados de demonstração</Selo>}
                             <Selo tipo={PRIORIDADE[a.prioridade][0]}>Prioridade {PRIORIDADE[a.prioridade][1].toLowerCase()}</Selo>
                             <span className="item-alerta__meta">{a.terminal || "Todos os terminais"} · {a.periodo}</span>
                           </span>
@@ -116,6 +121,7 @@ export default function Gargalos({ papel }) {
 }
 
 function DetalheAlerta({ id, podeAgir, aoMudar }) {
+  const demo = useAmbiente()?.dadosExemplo;
   const r = useApi(sinal => api.get(`/api/v1/alertas/${id}`, null, sinal), [id]);
   const [texto, setTexto] = useState("");
   const [executar, enviando] = useAcao();
@@ -136,6 +142,7 @@ function DetalheAlerta({ id, podeAgir, aoMudar }) {
       <div className="pilha" style={{ gap: 14 }}>
         <div className="linha-flex" style={{ gap: 6 }}>
           <Selo tipo={TIPOS[a.tipo].selo}>{TIPOS[a.tipo].rotulo}</Selo>
+                            {demo && REGRAS_DEMONSTRACAO.has(a.regra) && <Selo tipo="atencao" icone="science" titulo="Baseado no cadastro fictício de exemplo">dados de demonstração</Selo>}
           <Selo tipo={PRIORIDADE[a.prioridade][0]}>Prioridade {PRIORIDADE[a.prioridade][1].toLowerCase()}</Selo>
           {!a.ativo && <Selo>Deixou de ocorrer</Selo>}
         </div>

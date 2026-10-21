@@ -1,6 +1,6 @@
 import { Cartao, Icone, Aviso } from "./ui.jsx";
 import { Carregando } from "./EstadoCarga.jsx";
-import { numero, formatarDataPtBR, dataHoraPorto } from "../utils/formatar.js";
+import { numero, formatarDataPtBR, dataHoraPorto, dataCurta } from "../utils/formatar.js";
 
 // Estimativa das próximas horas em linguagem operacional. Os números e as
 // conclusões vêm prontos de /api/v1/alertas/proximas-horas
@@ -18,13 +18,14 @@ const CONFIABILIDADE = {
   insuficiente: { rotulo: "Sem dados suficientes para estimar", icone: "help" }
 };
 const FONTE = {
-  cadastrada: "capacidade cadastrada em Configurações",
-  observada: "média de liberações nessas mesmas horas",
-  mista: "cadastrada onde existe; nos demais, média de liberações"
+  cadastrada: "capacidade por hora cadastrada em Configurações",
+  observada: "média das liberações registradas nessas mesmas horas e datas (não há capacidade cadastrada)",
+  mista: "capacidade cadastrada onde existe; nos demais terminais, média das liberações registradas"
 };
 
 const faixa = h => `${String(h).padStart(2, "0")}h–${String((h + 1) % 24).padStart(2, "0")}h`;
 const qtd = v => numero(Math.round(v ?? 0));
+const plural = (v, um, varios) => (Math.round(v ?? 0) === 1 ? um : varios);
 
 function SeloSituacao({ situacao, compacto }) {
   const s = SITUACAO[situacao] || SITUACAO.insuficiente;
@@ -73,23 +74,23 @@ export default function EstimativaProximasHoras({ r, aoEscolherTerminal }) {
             <div className="estimativa-resumo">
               <div>
                 <span className="estimativa-resumo__rotulo">Demanda prevista</span>
-                <b className="num">≈ {qtd(res.demandaPrevista)} <small>carretas</small></b>
-                <span className="fraco">{horizonte}</span>
+                <b className="num">{qtd(res.demandaPrevista)} <small>{plural(res.demandaPrevista, "carreta", "carretas")}</small></b>
+                <span className="fraco">{horizonte} · média das marcações registradas nessas horas nas planilhas dos terminais, de {dataCurta(geral.baseDe)} a {dataCurta(geral.baseAte)}</span>
               </div>
               <div>
                 <span className="estimativa-resumo__rotulo">Capacidade de atendimento</span>
-                <b className="num">≈ {qtd(res.capacidadeAtendimento)} <small>carretas</small></b>
+                <b className="num">{qtd(res.capacidadeAtendimento)} <small>{plural(res.capacidadeAtendimento, "carreta", "carretas")}</small></b>
                 <span className="fraco">{FONTE[fonte]}</span>
               </div>
               <div>
                 <span className="estimativa-resumo__rotulo">Saldo de capacidade</span>
                 {pressao
                   ? <>
-                      <b className="num" style={{ color: pressao.j.situacao === "risco" ? "var(--critico-texto)" : "var(--atencao-texto)" }}>≈ {qtd(-pressao.j.saldo)} <small>acima</small></b>
+                      <b className="num" style={{ color: pressao.j.situacao === "risco" ? "var(--critico-texto)" : "var(--atencao-texto)" }}>{qtd(-pressao.j.saldo)} <small>acima</small></b>
                       <span className="fraco">{geral.terminalId ? "" : `${pressao.terminal}, `}{faixa(pressao.j.hora)} · nas {horas} h, {res.saldo >= 0 ? `${qtd(res.saldo)} de folga no total` : `${qtd(-res.saldo)} acima no total`}</span>
                     </>
                   : <>
-                      <b className="num" style={{ color: "var(--ok)" }}>≈ {qtd(res.saldo)} <small>de folga</small></b>
+                      <b className="num" style={{ color: "var(--ok)" }}>{qtd(res.saldo)} <small>de folga</small></b>
                       <span className="fraco">atendimento estimado além da demanda nas {horas} h</span>
                     </>}
               </div>
@@ -120,8 +121,8 @@ export default function EstimativaProximasHoras({ r, aoEscolherTerminal }) {
                     {j.situacao !== "insuficiente" && (
                       <>
                         <div className="estimativa-janela__numeros num">
-                          <span><b>{qtd(j.demandaPrevista)}</b> previstas</span>
-                          <span className="fraco">atende ≈ {qtd(j.capacidadeAtendimento)}</span>
+                          <span><b>{qtd(j.demandaPrevista)}</b> {plural(j.demandaPrevista, "prevista", "previstas")}</span>
+                          <span className="fraco">capacidade {qtd(j.capacidadeAtendimento)}</span>
                         </div>
                         <div className="estimativa-barra" aria-hidden="true">
                           <span className="estimativa-barra__capacidade" style={{ width: `${(j.capacidadeAtendimento / escala) * 100}%` }} />
@@ -163,10 +164,10 @@ export default function EstimativaProximasHoras({ r, aoEscolherTerminal }) {
                       <th scope="row">{t.terminal}</th>
                       <td><SeloSituacao situacao={tr.piorSituacao} /></td>
                       <td>{sem ? <span className="fraco">{t.motivos[0]}</span> : tr.horaMaisCritica != null
-                        ? (() => { const jc = t.janelas.find(x => x.hora === tr.horaMaisCritica); return <>{faixa(jc.hora)} <span className="fraco num">· ≈ {qtd(-jc.saldo)} acima</span></>; })()
+                        ? (() => { const jc = t.janelas.find(x => x.hora === tr.horaMaisCritica); return <>{faixa(jc.hora)} <span className="fraco num">· {qtd(-jc.saldo)} acima</span></>; })()
                         : <span className="fraco">nenhuma · {qtd(tr.saldo)} de folga</span>}</td>
-                      <td className="num">{sem ? "—" : `≈ ${qtd(tr.demandaPrevista)}`}</td>
-                      <td className="num">{sem ? "—" : `≈ ${qtd(tr.capacidadeAtendimento)}`}</td>
+                      <td className="num">{sem ? "—" : `${qtd(tr.demandaPrevista)}`}</td>
+                      <td className="num">{sem ? "—" : `${qtd(tr.capacidadeAtendimento)}`}</td>
                       <td className="num">{t.ultimoRegistro ? formatarDataPtBR(t.ultimoRegistro) : "—"}{t.desatualizado && <> <span className="selo selo--atencao">desatualizado</span></>}</td>
                     </tr>
                   );

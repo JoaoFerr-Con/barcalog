@@ -18,3 +18,18 @@ public class TerminaisController(ITerminalRepositorio terminais) : ControllerBas
     public async Task<IEnumerable<TerminalDto>> Listar(CancellationToken ct) =>
         (await terminais.ListarAsync(ct)).Select(t => new TerminalDto(t.Id, t.Nome, t.CapacidadeDiariaCarretas, t.CapacidadeHoraria));
 }
+
+/// <summary>Informações do ambiente que a tela precisa exibir.</summary>
+/// <param name="DadosExemplo">O banco contém o cadastro fictício de exemplo (placas, transportadoras, condutores, ocorrências, agendamentos).</param>
+public sealed record AmbienteDto(bool DadosExemplo);
+
+/// <summary>Ambiente: avisa a interface quando há dados de demonstração.</summary>
+[ApiController]
+[Route("api/v1/ambiente")]
+[Authorize(Policy = Politicas.Autenticado)]
+[Produces("application/json")]
+public class AmbienteController(ITerminalRepositorio terminais) : ControllerBase
+{
+    [HttpGet]
+    public async Task<AmbienteDto> Obter(CancellationToken ct) => new(await terminais.ExistemDadosExemploAsync(ct));
+}
