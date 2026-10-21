@@ -145,7 +145,7 @@ export default function Portaria() {
                 {[...veiculos].sort((a, b) => new Date(a.statusPortariaDesde) - new Date(b.statusPortariaDesde)).map(v => {
                   const decorrido = minutosDesde(v.statusPortariaDesde);
                   const mediaTerminalMin = esperaMediaPorTerminal[v.terminal] != null ? esperaMediaPorTerminal[v.terminal] * 60 : null;
-                  const emAndamento = v.statusPortaria === "No Pátio" || v.statusPortaria === "Aguardando" || v.statusPortaria === "No Porto";
+                  const emAndamento = [STATUS_PORTARIA.NoPatio, STATUS_PORTARIA.Aguardando, STATUS_PORTARIA.NoPorto].includes(v.statusPortaria);
                   const atrasoMin = emAndamento && mediaTerminalMin != null ? decorrido - mediaTerminalMin : null;
                   return (
                     <tr key={v.id}>
