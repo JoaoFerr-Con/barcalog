@@ -86,12 +86,18 @@ public enum AvisoImportacao
 }
 
 /// <summary>Posição física da carreta no fluxo pátio → porto (nada a ver com negativação).</summary>
+/// <summary>
+/// Situação da carreta na portaria. ForaDoPorto = sem presença registrada (situação
+/// inicial de toda carreta cadastrada e situação após a saída); só NoPatio e
+/// Aguardando entram na fila virtual.
+/// </summary>
 public enum StatusPortaria
 {
     NoPatio,
     Aguardando,
     NoPorto,
-    DescargaFinalizada
+    DescargaFinalizada,
+    ForaDoPorto
 }
 
 /// <summary>Decide se a carreta/condutor pode rodar. Transportadora NÃO tem esse campo gravado.</summary>

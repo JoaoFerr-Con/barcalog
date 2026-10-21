@@ -5,7 +5,8 @@ export const STATUS_PORTARIA = {
   NoPatio: "No pátio",
   Aguardando: "Aguardando",
   NoPorto: "No porto",
-  DescargaFinalizada: "Descarga finalizada"
+  DescargaFinalizada: "Descarga finalizada",
+  ForaDoPorto: "Fora do porto"
 };
 
 export const STATUS_AGENDAMENTO = {

@@ -275,7 +275,7 @@ export default function VisaoGeral({ irPara }) {
 function BarraSituacao({ d }) {
   const partes = [
     ["No pátio", d.noPatio, "var(--alto)"], ["Aguardando entrada", d.aguardando, "var(--serie-neutra)"],
-    ["Em operação", d.emOperacao, "var(--navio-600)"], ["Descarga finalizada", d.finalizados, "var(--serie-hidrovias)"]
+    ["No porto", d.emOperacao, "var(--navio-600)"], ["Descarga finalizada", d.finalizados, "var(--serie-hidrovias)"]
   ];
   const total = partes.reduce((s, p) => s + p[1], 0);
   if (!total) return <p className="fraco" style={{ fontSize: 13, marginTop: 6 }}>Nenhuma carreta com situação registrada.</p>;

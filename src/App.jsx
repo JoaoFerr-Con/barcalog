@@ -227,11 +227,13 @@ function AcessoNegado({ aoAbrirPortal }) {
    PÁGINA — Gestão de Carretas (frota cadastrada, via API)
    ========================================================= */
 const TAMANHO_PAGINA = 10;
+// Chaves = rótulos de STATUS_PORTARIA (o adaptador de veículo entrega o rótulo, não o enum).
 const ESTILO_STATUS = {
-  "No Porto": { icone: "anchor", tipo: "operacao" },
-  "No Pátio": { icone: "warehouse", tipo: "atencao" },
-  "Aguardando": { icone: "schedule", tipo: "info" },
-  "Descarga Finalizada": { icone: "task_alt", tipo: "ok" }
+  [STATUS_PORTARIA.NoPorto]: { icone: "anchor", tipo: "operacao" },
+  [STATUS_PORTARIA.NoPatio]: { icone: "warehouse", tipo: "atencao" },
+  [STATUS_PORTARIA.Aguardando]: { icone: "schedule", tipo: "info" },
+  [STATUS_PORTARIA.DescargaFinalizada]: { icone: "task_alt", tipo: "ok" },
+  [STATUS_PORTARIA.ForaDoPorto]: { icone: "logout", tipo: "neutro" }
 };
 
 function PaginaCarretas() {

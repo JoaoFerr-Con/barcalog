@@ -107,6 +107,27 @@ janela (agora, no meio ou no fim do horizonte) — sem limiar adicional.
 de fila e com dados suficientes. Prioridade alta só com demanda ≥ 2× a capacidade
 e confiabilidade normal.
 
+### Erro medido da estimativa (backtest)
+
+`backend/tools/backtest_estimativa.py` refaz a estimativa como o sistema faria na
+véspera de cada dia e compara, hora a hora, com o que aconteceu. Rodado em
+21/10/2026 sobre as três planilhas reais (dias com ao menos 30 dias de histórico
+antes; chegadas = marcações de movimentos liberados):
+
+| Terminal | Chegadas reais/h (média) | Erro absoluto médio | WAPE base 30 dias | WAPE base 7 dias | WAPE "mesma hora do dia anterior" | Risco de fila: precisão / cobertura (base 30) |
+|---|---|---|---|---|---|---|
+| Unitapajós | 7,7 | 4,2 | 55% | 47% | 57% | 59% / 55% |
+| TGPM | 7,3 | 3,6 | 49% | 43% | 49% | 53% / 47% |
+| Hidrovias | 6,8 | 4,5 | 66% | 55% | 57% | 52% / 48% |
+
+Leitura: hora a hora, a média de 30 dias erra cerca de metade do volume e não é
+melhor que repetir o dia anterior; com base de 7 dias o erro cai 6 a 11 pontos.
+A classificação "risco de fila" acerta pouco mais da metade das vezes — também
+porque 97–98% das liberações acontecem em lote, o que torna a hora isolada
+ruidosa. Por isso a tela fala em "estimativa pelo histórico" e confiabilidade, e
+não em previsão. Próximos passos (roadmap P1): base de 7 dias, exibir o erro
+medido na tela e avaliar janelas de várias horas com acúmulo de fila.
+
 ## Frescor dos dados
 
 Por terminal: última marcação, última liberação e última importação

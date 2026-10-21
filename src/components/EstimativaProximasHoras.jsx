@@ -199,3 +199,37 @@ export default function EstimativaProximasHoras({ r, aoEscolherTerminal }) {
     </Cartao>
   );
 }
+
+/**
+ * Versão compacta (Portaria): só a conclusão das próximas horas, com o terminal
+ * e a janela que exigem atenção. Mesmos dados e regras da tela Gargalos e alertas.
+ */
+export function ResumoEstimativa({ r }) {
+  if (r.erro || !r.dados) return null;
+  const { geral, terminais, horas } = r.dados;
+  const res = geral.resumo;
+  const gravidade = { risco: 3, atencao: 2, dentro: 1, insuficiente: 0 };
+  const pressionadas = terminais
+    .flatMap(t => t.janelas.filter(j => j.situacao === "risco" || j.situacao === "atencao").map(j => ({ terminal: t.terminal, j })))
+    .sort((a, b) => gravidade[b.j.situacao] - gravidade[a.j.situacao] || a.j.hora - b.j.hora)
+    .slice(0, 3);
+  return (
+    <Cartao id="portaria-proximas" titulo={`Próximas ${horas} horas — estimativa pelo histórico`}
+      acao={<a className="link" href="#/gargalos" style={{ fontSize: 13 }}>ver detalhes</a>}>
+      <div className="pilha" style={{ gap: 10 }}>
+        <div className="linha-flex">
+          <SeloSituacao situacao={res.piorSituacao} />
+          <span style={{ fontSize: 14, fontWeight: 500 }}>{res.tendencia}</span>
+        </div>
+        {pressionadas.length > 0 && (
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5 }}>
+            {pressionadas.map(({ terminal, j }) => (
+              <li key={`${terminal}-${j.hora}`}><b>{terminal}, {faixa(j.hora)}</b>: {qtd(j.demandaPrevista)} {plural(j.demandaPrevista, "carreta prevista", "carretas previstas")} para capacidade de {qtd(j.capacidadeAtendimento)}.</li>
+            ))}
+          </ul>
+        )}
+        {geral.confiabilidade !== "normal" && <span className="fraco" style={{ fontSize: 12.5 }}>{CONFIABILIDADE[geral.confiabilidade].rotulo}.</span>}
+      </div>
+    </Cartao>
+  );
+}

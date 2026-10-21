@@ -10,7 +10,7 @@ public class Veiculo
     public int TransportadoraId { get; set; }
     public Transportadora? Transportadora { get; set; }
     public string? Modelo { get; set; }
-    public StatusPortaria StatusPortaria { get; set; } = StatusPortaria.Aguardando;
+    public StatusPortaria StatusPortaria { get; set; } = StatusPortaria.ForaDoPorto;
     public DateTime StatusPortariaDesde { get; set; }
     public StatusNegativacao StatusNegativacao { get; set; } = StatusNegativacao.Regular;
     public string TerminalId { get; set; } = null!;

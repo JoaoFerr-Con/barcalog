@@ -1046,7 +1046,7 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                         {
                             t.HasCheckConstraint("CK_Veiculos_StatusNegativacao", "[StatusNegativacao] IN (N'Regular', N'Negativada')");
 
-                            t.HasCheckConstraint("CK_Veiculos_StatusPortaria", "[StatusPortaria] IN (N'NoPatio', N'Aguardando', N'NoPorto', N'DescargaFinalizada')");
+                            t.HasCheckConstraint("CK_Veiculos_StatusPortaria", "[StatusPortaria] IN (N'NoPatio', N'Aguardando', N'NoPorto', N'DescargaFinalizada', N'ForaDoPorto')");
                         });
                 });
 

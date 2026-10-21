@@ -38,7 +38,8 @@ public class VeiculoServico(
             TerminalId = req.TerminalId,
             StatusNegativacao = StatusNegativacao.Regular
         };
-        veiculo.AtualizarStatusPortaria(req.StatusPortaria ?? StatusPortaria.Aguardando, relogio.AgoraUtc);
+        // Cadastro não é chegada: sem situação informada, a carreta nasce fora do porto (não entra na fila).
+        veiculo.AtualizarStatusPortaria(req.StatusPortaria ?? StatusPortaria.ForaDoPorto, relogio.AgoraUtc);
         veiculos.Adicionar(veiculo);
         auditoria.DefinirAcao("Veículo cadastrado", $"Placa {placa}");
         await uow.SalvarAsync(ct);

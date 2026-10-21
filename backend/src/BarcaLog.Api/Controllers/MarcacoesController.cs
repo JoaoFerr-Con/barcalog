@@ -73,6 +73,7 @@ public class MarcacoesController(MarcacaoServico marcacoes, MetricasServico metr
     }
 
     /// <summary>Cards "Visão por Terminal": volume, espera média, % de ocupação vs. capacidade nominal e semáforo (verde/amarelo/vermelho).</summary>
+    [Descontinuado("A ocupação usa a capacidade presumida de 1.000 carretas/dia quando o terminal não tem capacidade cadastrada, e a espera é média (puxada por esperas longas).", "/api/v1/indicadores/terminais")]
     [HttpGet("visao-terminal")]
     public async Task<List<VisaoTerminal>> VisaoTerminal([FromQuery] FiltroMetricas f, CancellationToken ct)
     {
@@ -91,6 +92,7 @@ public class MarcacoesController(MarcacaoServico marcacoes, MetricasServico metr
         Relatorio.RankingMaioresEsperas((await metricas.CarregarAsync(f, ct)).Registros, Math.Clamp(limite, 1, 500));
 
     /// <summary>Índice de risco por hora do dia: ρ = λ/μ sobre todo o histórico do recorte. ρ ≥ 1.4 crítico, ≥ 1.2 alto, ≥ 1.0 atenção, abaixo normal.</summary>
+    [Descontinuado("Limiares fixos sobre todo o histórico, somando terminais.", "/api/v1/alertas/proximas-horas")]
     [HttpGet("indice-risco-hora")]
     public async Task<List<RiscoHora>> IndiceRiscoHora([FromQuery] FiltroMetricas f, CancellationToken ct) =>
         MotorMetricas.IndiceRiscoGargalo((await metricas.CarregarAsync(f, ct)).Registros);
@@ -103,11 +105,13 @@ public class MarcacoesController(MarcacaoServico marcacoes, MetricasServico metr
         MotorMetricas.DistribuicaoJanelas((await metricas.CarregarAsync(f, ct)).Registros);
 
     /// <summary>Top 15 permanências acima do SLA de 144h.</summary>
+    [Descontinuado("O SLA de 144 h não foi definido pela operação.", "/api/v1/marcacoes?esperaAcimaHoras=72&ordenacao=espera_desc")]
     [HttpGet("estouro-critico")]
     public async Task<List<RegistroMarcacao>> EstouroCritico([FromQuery] FiltroMetricas f, CancellationToken ct) =>
         MotorMetricas.OutliersEstouroCritico((await metricas.CarregarAsync(f, ct)).Registros);
 
     /// <summary>Ritmo operacional λ (chegadas/h) × μ (liberações/h) por hora do dia, com alertas de λ &gt; μ por 2h+ seguidas.</summary>
+    [Descontinuado("Limiares fixos sobre todo o histórico, somando terminais.", "/api/v1/alertas/proximas-horas")]
     [HttpGet("ritmo-operacional")]
     public async Task<RitmoOperacional> Ritmo([FromQuery] FiltroMetricas f, CancellationToken ct)
     {
@@ -136,6 +140,7 @@ public class MarcacoesController(MarcacaoServico marcacoes, MetricasServico metr
         MotorMetricas.IndicadoresPerformance((await metricas.CarregarAsync(f, ct)).Registros);
 
     /// <summary>Alertas operacionais (hora crítica, atraso crescente, ocupação crítica).</summary>
+    [Descontinuado("O alerta de ocupação usa a capacidade presumida de 1.000 carretas/dia quando o terminal não tem capacidade cadastrada.", "/api/v1/alertas")]
     [HttpGet("alertas-operacionais")]
     public async Task<List<AlertaOperacional>> AlertasOperacionais([FromQuery] FiltroMetricas f, CancellationToken ct)
     {
@@ -149,11 +154,13 @@ public class MarcacoesController(MarcacaoServico marcacoes, MetricasServico metr
         MotorMetricas.PicosEntradaSaida((await metricas.CarregarAsync(f, ct)).Registros);
 
     /// <summary>Projeção mensal por tendência recente com faixa de confiança (~80%).</summary>
+    [Descontinuado("Projeção por tendência com faixa de confiança não validada contra resultados reais.")]
     [HttpGet("analise-preditiva")]
     public async Task<AnalisePreditiva> Preditiva([FromQuery] FiltroMetricas f, [FromQuery] int meses = 3, CancellationToken ct = default) =>
         MotorMetricas.AnalisePreditivaMensal((await metricas.CarregarAsync(f, ct)).Registros, Math.Clamp(meses, 1, 12));
 
     /// <summary>Projeção de volume por regressão linear simples sobre todo o histórico mensal.</summary>
+    [Descontinuado("Regressão linear sobre o histórico mensal apresentada como projeção, sem medição de erro.")]
     [HttpGet("projecao-volume")]
     public async Task<IActionResult> ProjecaoVolume([FromQuery] FiltroMetricas f, [FromQuery] int meses = 2, CancellationToken ct = default)
     {
@@ -162,6 +169,7 @@ public class MarcacoesController(MarcacaoServico marcacoes, MetricasServico metr
     }
 
     /// <summary>Alerta de saturação com base na tendência dos últimos 7 dias do recorte.</summary>
+    [Descontinuado("Tendência de 7 dias comparada à capacidade presumida de 1.000 carretas/dia quando o terminal não tem capacidade cadastrada.", "/api/v1/alertas")]
     [HttpGet("alertas-saturacao")]
     public async Task<List<AlertaSaturacao>> Saturacao([FromQuery] FiltroMetricas f, CancellationToken ct)
     {
@@ -170,6 +178,7 @@ public class MarcacoesController(MarcacaoServico marcacoes, MetricasServico metr
     }
 
     /// <summary>Volume por dia e % da capacidade nominal (dias mais cheios primeiro).</summary>
+    [Descontinuado("O percentual usa a capacidade presumida de 1.000 carretas/dia quando o terminal não tem capacidade cadastrada.", "/api/v1/indicadores/terminais")]
     [HttpGet("capacidade-diaria")]
     public async Task<List<CapacidadeDia>> CapacidadeDiaria([FromQuery] FiltroMetricas f, CancellationToken ct)
     {
@@ -178,6 +187,7 @@ public class MarcacoesController(MarcacaoServico marcacoes, MetricasServico metr
     }
 
     /// <summary>Top 30 dias × terminal com maior volume, marcando gargalo (&gt;80% da capacidade).</summary>
+    [Descontinuado("\"Gargalo\" = 80% da capacidade presumida de 1.000 carretas/dia quando o terminal não tem capacidade cadastrada.", "/api/v1/indicadores/terminais")]
     [HttpGet("top-dias")]
     public async Task<List<DiaCompacto>> TopDias([FromQuery] FiltroMetricas f, CancellationToken ct)
     {
@@ -186,6 +196,7 @@ public class MarcacoesController(MarcacaoServico marcacoes, MetricasServico metr
     }
 
     /// <summary>Dias × terminal em que o volume passou da capacidade nominal.</summary>
+    [Descontinuado("A comparação usa a capacidade presumida de 1.000 carretas/dia quando o terminal não tem capacidade cadastrada.", "/api/v1/indicadores/terminais")]
     [HttpGet("dias-acima-capacidade")]
     public async Task<List<DiaEmpresaTotal>> DiasAcimaCapacidade([FromQuery] FiltroMetricas f, CancellationToken ct)
     {
@@ -234,6 +245,7 @@ public class MarcacoesController(MarcacaoServico marcacoes, MetricasServico metr
         Relatorio.DistribuicaoPorCiclo((await metricas.CarregarAsync(f, ct)).Registros);
 
     /// <summary>Tendência de SLA: espera do último mês vs. média dos 3 anteriores.</summary>
+    [Descontinuado("\"SLA\" sem meta definida pela operação.", "/api/v1/indicadores/resumo")]
     [HttpGet("tendencia-sla")]
     public async Task<IActionResult> TendenciaSla([FromQuery] FiltroMetricas f, CancellationToken ct)
     {
@@ -242,6 +254,7 @@ public class MarcacoesController(MarcacaoServico marcacoes, MetricasServico metr
     }
 
     /// <summary>Score de eficiência 0–100 por operador (volume 40%, espera 40%, consistência 20%).</summary>
+    [Descontinuado("Pesos 40/40/20 escolhidos sem validação com a operação.")]
     [HttpGet("score-operadores")]
     public async Task<List<ScoreOperador>> ScoreOperadores([FromQuery] FiltroMetricas f, CancellationToken ct) =>
         Relatorio.ScoreEficienciaPorOperador((await metricas.CarregarAsync(f, ct)).Registros);
@@ -252,11 +265,13 @@ public class MarcacoesController(MarcacaoServico marcacoes, MetricasServico metr
         Relatorio.AtrasosRecorrentes((await metricas.CarregarAsync(f, ct)).Registros, limiteHoras, minOcorrencias);
 
     /// <summary>Recomendações prescritivas derivadas das janelas e do ritmo λ/μ.</summary>
+    [Descontinuado("Textos fixos disparados por limiares não validados.", "/api/v1/alertas")]
     [HttpGet("recomendacoes")]
     public async Task<List<Recomendacao>> Recomendacoes([FromQuery] FiltroMetricas f, CancellationToken ct) =>
         MotorMetricas.RecomendacoesPrescritivas((await metricas.CarregarAsync(f, ct)).Registros);
 
     /// <summary>Business case: custo de demurrage, custo ampliado do gargalo, fatores de utilização, SLA por etapa, ROI e ESG.</summary>
+    [Descontinuado("Custo de R$ 600/dia (referência ANTT genérica), diesel/CO₂ e cenários de ROI sem fonte validada para o porto.")]
     [HttpGet("business-case")]
     public async Task<object> BusinessCase([FromQuery] FiltroMetricas f, CancellationToken ct)
     {
