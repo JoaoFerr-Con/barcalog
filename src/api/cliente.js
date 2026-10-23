@@ -65,6 +65,18 @@ export function definirSessao(resposta) {
   avisar("login");
 }
 
+/** Atualiza os dados do usuário na sessão (ex.: preferências salvas) sem trocar o token. */
+export function atualizarUsuarioSessao(usuario) {
+  if (!sessao) return;
+  sessao = { ...sessao, usuario };
+  try {
+    sessionStorage.setItem(CHAVE_SESSAO, JSON.stringify(sessao));
+  } catch {
+    // sessionStorage bloqueado: vale só na memória.
+  }
+  avisar("perfil");
+}
+
 /** Limpa a sessão local. motivo: "logout" | "expirada" | "revogada". */
 export function encerrarSessao(motivo = "logout") {
   const tinha = !!sessao;

@@ -21,7 +21,8 @@ public class AutenticacaoServico(
     IUnitOfWork uow,
     IContextoAuditoria auditoria,
     RelogioOperacional relogio,
-    IOptions<SegurancaOptions> opcoes)
+    IOptions<SegurancaOptions> opcoes,
+    ITerminalRepositorio terminais)
 {
     public const string RestricaoTrocarSenha = "trocar-senha";
     public const string RestricaoConfigurarMfa = "configurar-mfa";
@@ -145,6 +146,32 @@ public class AutenticacaoServico(
     public async Task<UsuarioDto> ObterPerfilAsync(int usuarioId, CancellationToken ct = default) =>
         UsuarioServico.ParaDto(await ObterAsync(usuarioId, ct), relogio.AgoraUtc);
 
+    /// <summary>
+    /// Preferências do próprio usuário. Não mexem em papel nem em vínculo: o terminal preferido
+    /// precisa existir e estar dentro do vínculo (quem é vinculado só pode preferir o próprio terminal).
+    /// </summary>
+    public async Task<UsuarioDto> AtualizarPreferenciasAsync(int usuarioId, AtualizarPreferenciasRequest req, CancellationToken ct = default)
+    {
+        var usuario = await ObterAsync(usuarioId, ct);
+        if (usuario.Papel == PapelUsuario.Transportadora)
+            throw new RegraNegocioException("Preferências de tela são só para usuários internos.");
+        var tela = string.IsNullOrWhiteSpace(req.TelaInicial) ? null : req.TelaInicial.Trim();
+        if (tela is not null && !PreferenciasUsuario.Telas.Contains(tela))
+            throw new RegraNegocioException($"Tela \"{tela}\" não existe.");
+        var terminal = string.IsNullOrWhiteSpace(req.TerminalPreferido) ? null : req.TerminalPreferido.Trim();
+        if (terminal is not null)
+        {
+            terminal = (await terminais.ObterAsync(terminal, ct))?.Id ?? throw new RegraNegocioException($"Terminal \"{terminal}\" não existe.");
+            if (!EscopoTerminal.PodeVer(usuario.TerminalId, terminal))
+                throw new AcessoNegadoException("Seu usuário está vinculado a outro terminal: a preferência não pode ampliar o acesso.");
+        }
+        usuario.TelaInicial = tela;
+        usuario.TerminalPreferido = terminal;
+        auditoria.DefinirAcao("Preferências alteradas", $"{usuario.Email}: tela {tela ?? "padrão"}, terminal {terminal ?? "todos"}");
+        await uow.SalvarAsync(ct);
+        return UsuarioServico.ParaDto(usuario, relogio.AgoraUtc);
+    }
+
     public string? Restricao(Usuario u) =>
         u.DeveTrocarSenha ? RestricaoTrocarSenha
         : u.Papel == PapelUsuario.Gestor && O.ExigirMfaParaGestor && !u.MfaAtivo ? RestricaoConfigurarMfa
@@ -180,12 +207,39 @@ public class UsuarioServico(
     IUnitOfWork uow,
     IContextoAuditoria auditoria,
     IUsuarioAtual usuarioAtual,
-    RelogioOperacional relogio)
+    RelogioOperacional relogio,
+    ITerminalRepositorio terminais)
 {
     public static string NormalizarEmail(string email) => email.Trim().ToLowerInvariant();
 
     public static UsuarioDto ParaDto(Usuario u, DateTime agoraUtc) =>
-        new(u.Id, u.Nome, u.Email, u.Papel, u.Ativo, u.MfaAtivo, u.DeveTrocarSenha, u.EstaBloqueado(agoraUtc), u.UltimoLoginEm, u.TransportadoraId);
+        new(u.Id, u.Nome, u.Email, u.Papel, u.Ativo, u.MfaAtivo, u.DeveTrocarSenha, u.EstaBloqueado(agoraUtc), u.UltimoLoginEm, u.TransportadoraId,
+            u.TerminalId,
+            u.Papel == PapelUsuario.Transportadora ? null : new PreferenciasDto(u.TelaInicial, PreferenciasUsuario.TelaPadrao(u.Papel), u.TerminalPreferido));
+
+    /// <summary>
+    /// Vincula (ou desvincula, com vazio) o usuário interno a um terminal. É escopo de acesso:
+    /// só o Gestor define, fica auditado e encerra as sessões (o vínculo vai no token).
+    /// Preferência de terminal incompatível com o novo vínculo é descartada.
+    /// </summary>
+    public async Task<UsuarioDto> DefinirTerminalAsync(int id, string? terminalId, CancellationToken ct = default)
+    {
+        var usuario = await ObterEntidadeAsync(id, ct);
+        if (usuario.Papel == PapelUsuario.Transportadora)
+            throw new RegraNegocioException("Usuário do Portal tem escopo pela transportadora, não por terminal.");
+        terminalId = string.IsNullOrWhiteSpace(terminalId) ? null : terminalId.Trim();
+        if (terminalId is not null)
+            terminalId = (await terminais.ObterAsync(terminalId, ct))?.Id ?? throw new RegraNegocioException($"Terminal \"{terminalId}\" não existe.");
+        if (usuario.TerminalId == terminalId) return ParaDto(usuario, relogio.AgoraUtc);
+        var anterior = usuario.TerminalId;
+        usuario.TerminalId = terminalId;
+        if (terminalId is not null && usuario.TerminalPreferido is not null && usuario.TerminalPreferido != terminalId) usuario.TerminalPreferido = null;
+        usuario.RevogarTokens();
+        auditoria.DefinirAcao("Vínculo de terminal alterado", $"{usuario.Email}: {anterior ?? "todos"} → {terminalId ?? "todos"}");
+        await uow.SalvarAsync(ct);
+        sessoes.Invalidar(id);
+        return ParaDto(usuario, relogio.AgoraUtc);
+    }
 
     public async Task<Pagina<UsuarioDto>> ListarAsync(FiltroUsuarios filtro, CancellationToken ct = default)
     {

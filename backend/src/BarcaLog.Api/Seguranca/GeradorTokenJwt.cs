@@ -18,6 +18,9 @@ public static class ClaimsBarcaLog
 
     /// <summary>Id da transportadora do usuário do Portal — escopo de TODOS os dados que ele acessa.</summary>
     public const string Transportadora = "transportadora";
+
+    /// <summary>Terminal ao qual o usuário interno está vinculado — escopo das consultas por terminal.</summary>
+    public const string Terminal = "barcalog:terminal";
 }
 
 public class GeradorTokenJwt(IOptions<JwtOptions> opcoes, TimeProvider tempo) : IGeradorToken
@@ -39,6 +42,7 @@ public class GeradorTokenJwt(IOptions<JwtOptions> opcoes, TimeProvider tempo) : 
         };
         if (restricao is not null) claims.Add(new Claim(ClaimsBarcaLog.Restricao, restricao));
         if (usuario.TransportadoraId is { } tid) claims.Add(new Claim(ClaimsBarcaLog.Transportadora, tid.ToString()));
+        if (usuario.TerminalId is { } terminal) claims.Add(new Claim(ClaimsBarcaLog.Terminal, terminal));
         var credenciais = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(o.Chave)), SecurityAlgorithms.HmacSha256);
         var token = new JwtSecurityToken(o.Emissor, o.Audiencia, claims, agora, expira, credenciais);
         return new TokenGerado(new JwtSecurityTokenHandler().WriteToken(token), expira);

@@ -188,6 +188,14 @@ public class ConvenioRepositorio(BarcaLogDbContext db) : IConvenioRepositorio
 
 public class AlertaRepositorio(BarcaLogDbContext db) : IAlertaRepositorio
 {
+    public void AdicionarAvaliacao(AvaliacaoAlertas avaliacao) => db.AvaliacoesAlertas.Add(avaliacao);
+
+    public Task<AvaliacaoAlertas?> UltimaAvaliacaoAsync(bool somenteSucesso, CancellationToken ct = default) =>
+        db.AvaliacoesAlertas.AsNoTracking().Where(a => !somenteSucesso || a.Sucesso).OrderByDescending(a => a.Inicio).ThenByDescending(a => a.Id).FirstOrDefaultAsync(ct);
+
+    public Task<Pagina<AvaliacaoAlertas>> ListarAvaliacoesAsync(FiltroPaginado filtro, CancellationToken ct = default) =>
+        db.AvaliacoesAlertas.AsNoTracking().OrderByDescending(a => a.Inicio).ThenByDescending(a => a.Id).PaginarAsync(filtro, ct);
+
     public async Task<Dictionary<string, Alerta>> ObterPorChavesAsync(IEnumerable<string> chaves, CancellationToken ct = default)
     {
         var lista = chaves.Distinct().ToList();
@@ -215,10 +223,11 @@ public class AlertaRepositorio(BarcaLogDbContext db) : IAlertaRepositorio
     public Task<Alerta?> ObterParaAlterarAsync(int id, CancellationToken ct = default) =>
         db.Alertas.Include(a => a.Eventos).FirstOrDefaultAsync(a => a.Id == id, ct);
 
-    public async Task<Dictionary<TipoAlerta, int>> ContarAbertosPorTipoAsync(CancellationToken ct = default)
+    public async Task<Dictionary<TipoAlerta, int>> ContarAbertosPorTipoAsync(string? terminalId = null, CancellationToken ct = default)
     {
-        var contagem = await db.Alertas.AsNoTracking()
-            .Where(a => a.Ativo && (a.Estado == EstadoAlerta.Novo || a.Estado == EstadoAlerta.EmAnalise))
+        var q = db.Alertas.AsNoTracking().Where(a => a.Ativo && (a.Estado == EstadoAlerta.Novo || a.Estado == EstadoAlerta.EmAnalise));
+        if (terminalId is not null) q = q.Where(a => a.TerminalId == terminalId);
+        var contagem = await q
             .GroupBy(a => a.Tipo).Select(g => new { g.Key, N = g.Count() }).ToListAsync(ct);
         return Enum.GetValues<TipoAlerta>().ToDictionary(t => t, t => contagem.FirstOrDefault(c => c.Key == t)?.N ?? 0);
     }

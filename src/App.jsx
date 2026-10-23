@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
 import Tour, { tourJaVisto } from "./components/Tour.jsx";
 import Negativacao from "./pages/Negativacao.jsx";
 import GestaoFrotas from "./pages/GestaoFrotas.jsx";
@@ -10,7 +10,8 @@ import AvisoDemonstracao from "./components/AvisoDemonstracao.jsx";
 import { useSessao, sair, iniciais } from "./auth/autenticacao.js";
 import { useNegativacao } from "./hooks/useNegativacao.js";
 import { useApi } from "./hooks/useApi.js";
-import { api } from "./api/cliente.js";
+import { api, atualizarUsuarioSessao } from "./api/cliente.js";
+import Preferencias from "./components/Preferencias.jsx";
 import { listarVeiculos } from "./data/negativacaoStore.js";
 import { STATUS_PORTARIA } from "./api/rotulos.js";
 const VisaoGeral = lazy(() => import("./pages/VisaoGeral.jsx"));
@@ -64,6 +65,11 @@ const GRUPOS_NAV = [
   ]}
 ];
 const ITENS_NAV = GRUPOS_NAV.flatMap(g => g.itens);
+/** Telas que podem ser a tela inicial (mesmas chaves validadas no servidor). */
+const TELAS_INICIAIS = ITENS_NAV.flatMap(i => i.chave === "movimentacoes"
+  ? [{ chave: "movimentacoes", rotulo: "Movimentações — lista" }, { chave: "movimentacoes-analise", rotulo: "Movimentações — Análise 360°" }]
+  : [{ chave: i.chave, rotulo: i.rotulo }]);
+const ENDERECO_TELA = { "movimentacoes-analise": "movimentacoes?aba=analise" };
 const CHAVES = new Set(ITENS_NAV.map(i => i.chave));
 
 const PASSOS_TOUR = ITENS_NAV.map(item => ({ alvo: item.chave, titulo: item.rotulo, texto: item.descricao })).concat([
@@ -81,6 +87,7 @@ function EstruturaBase({ usuario, pagina, definirPagina, aoAbrirPortal, children
   const [recolhida, setRecolhida] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
   const [tourAtivo, setTourAtivo] = useState(false);
+  const [preferencias, setPreferencias] = useState(false);
   // Contagem real de alertas abertos (reconsultada a cada minuto).
   const { dados: resumoAlertas } = useApi(sinal => api.get("/api/v1/alertas/resumo", null, sinal), [pagina], { intervaloMs: 60000 });
   useEffect(() => {
@@ -98,6 +105,7 @@ function EstruturaBase({ usuario, pagina, definirPagina, aoAbrirPortal, children
 
   return (
     <>
+      {preferencias && <Preferencias usuario={usuario} telas={TELAS_INICIAIS} aoFechar={() => setPreferencias(false)} />}
       {tourAtivo && <Tour passos={PASSOS_TOUR} chaveUsuario={usuario?.email} aoTerminar={() => setTourAtivo(false)} />}
       <div className={`app-shell ${recolhida ? "recolhida" : ""} ${menuAberto ? "menu-aberto" : ""}`}>
         <aside className="barra-lateral" onClick={e => { if (e.target === e.currentTarget) setMenuAberto(false); }}>
@@ -139,12 +147,16 @@ function EstruturaBase({ usuario, pagina, definirPagina, aoAbrirPortal, children
               <Icone nome="open_in_new" tamanho={18} />
               {!recolhida && "Portal do Transportador"}
             </button>
+            <button type="button" className="botao-portal" onClick={() => setPreferencias(true)} title="Minhas preferências: tela ao entrar e terminal já selecionado">
+              <Icone nome="tune" tamanho={18} />
+              {!recolhida && "Minhas preferências"}
+            </button>
             <button type="button" className="cartao-usuario" onClick={sair} title={`Sair (${usuario.email})`}>
               <div className="cartao-usuario__avatar" aria-hidden="true">{iniciais(usuario.nome)}</div>
               {!recolhida && (
                 <div className="cartao-usuario__texto">
                   <p>{usuario.nome}</p>
-                  <span>{usuario.papel} · Sair</span>
+                  <span>{usuario.papel}{usuario.terminalId ? ` · ${usuario.terminalId}` : ""} · Sair</span>
                 </div>
               )}
             </button>
@@ -331,6 +343,26 @@ export default function Aplicativo({ aoAbrirPortal }) {
     setPagina(chave);
     window.scrollTo(0, 0);
   }
+
+  // Dados atuais do usuário (preferências) ao abrir com sessão já existente.
+  const token = sessao?.token;
+  useEffect(() => {
+    if (!token || sessao?.restricao) return;
+    api.get("/api/v1/auth/me").then(atualizarUsuarioSessao).catch(() => {});
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Entrou sem endereço de tela: abre a tela inicial (preferência ou padrão do perfil).
+  const semEndereco = useRef(!window.location.hash.replace(/^#\/?/, ""));
+  const prefs = sessao?.usuario?.preferencias;
+  useEffect(() => {
+    if (!semEndereco.current || !prefs) return;
+    semEndereco.current = false;
+    const tela = prefs.telaInicial || prefs.telaPadrao;
+    if (tela && tela !== "visao-geral") {
+      window.location.hash = `/${ENDERECO_TELA[tela] || tela}`;
+      setPagina(paginaDoEndereco());
+    }
+  }, [prefs]);
 
   if (!sessao) return <TelaLogin aviso={aviso} aoAbrirPortal={aoAbrirPortal} />;
   if (sessao.restricao) return <TelaRestricao sessao={sessao} />;

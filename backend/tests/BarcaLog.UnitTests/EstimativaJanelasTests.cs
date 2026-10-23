@@ -34,7 +34,8 @@ public class EstimativaJanelasTests
         var regs = Dias("tgpm", inicio, 30, 12, 10, 14).Concat(Dias("tgpm", inicio, 30, 6, 9, 10)).ToList();
         var (_, porTerminal) = EstimativaJanelas.Calcular(regs, [new("tgpm", "TGPM", null, null)], new DateTime(2026, 10, 1, 10, 5, 0), Limite, 2);
         var t = Assert.Single(porTerminal);
-        Assert.Equal(Confiabilidade.Normal, t.Confiabilidade);
+        Assert.Equal(Confiabilidade.Confiavel, t.Confiabilidade); // padrão constante: erro 0, igual ao ingênuo
+        Assert.Equal(0, t.Erro!.ErroPct);
         var j = t.Janelas[0];
         Assert.Equal(10, j.Hora);
         Assert.Equal(12, j.DemandaPrevista);
@@ -71,7 +72,7 @@ public class EstimativaJanelasTests
         Assert.Equal(20, t.DiasComDados);
         Assert.Equal(12, t.Janelas[0].DemandaPrevista); // não 8 (= 240 ÷ 30)
         Assert.Equal(Confiabilidade.Limitada, t.Confiabilidade);
-        Assert.Contains(t.Motivos, m => m.Contains("20 dias"));
+        Assert.Contains(t.Motivos, m => m.Codigo == "base-incompleta" && m.Descricao.StartsWith("20 dias"));
     }
 
     [Fact]
@@ -86,7 +87,9 @@ public class EstimativaJanelasTests
         var antigos = Dias("tgpm", new DateTime(2026, 7, 1), 30, 12, 10, 11).ToList();
         var (_, b) = EstimativaJanelas.Calcular(antigos, [new("tgpm", "TGPM", null, null)], new DateTime(2026, 10, 1, 10, 0, 0), Limite, 2);
         Assert.True(b[0].Desatualizado);
-        Assert.Equal(Confiabilidade.Limitada, b[0].Confiabilidade);
+        Assert.Equal(Confiabilidade.Desatualizada, b[0].Confiabilidade);
+        var m = Assert.Single(b[0].Motivos, x => x.Codigo == "desatualizado");
+        Assert.Contains("Importar", m.Acao);
     }
 
     [Fact]
@@ -105,7 +108,7 @@ public class EstimativaJanelasTests
         Assert.Equal(["TGPM"], j.TerminaisEmRisco);
         Assert.StartsWith("Risco de fila em TGPM.", j.Mensagem);
         Assert.Equal(Confiabilidade.Limitada, geral.Confiabilidade); // Unitapajós sem dados, fora da soma
-        Assert.Contains(geral.Motivos, m => m.StartsWith("Unitapajós"));
+        Assert.Contains(geral.Motivos, m => m.Terminal == "Unitapajós" && m.Codigo == "sem-base");
     }
 }
 
@@ -127,5 +130,33 @@ public class TempoTipicoTests
         Assert.Equal(3, t.Liberadas);
         Assert.Equal(new DateOnly(2026, 9, 1), t.BaseDe);
         Assert.Equal(new DateOnly(2026, 9, 30), t.BaseAte);
+    }
+}
+
+public class ErroMedidoTests
+{
+    [Fact]
+    public void Erro_compara_a_media_com_repetir_o_dia_anterior()
+    {
+        // Dias alternados: 10 e 20 chegadas às 10h. A média (~15) erra ~5 por dia; repetir o dia anterior erra 10.
+        var inicio = new DateTime(2026, 8, 1);
+        var regs = Enumerable.Range(0, 60).SelectMany(d => Enumerable.Range(0, d % 2 == 0 ? 10 : 20).Select(i =>
+        {
+            var m = inicio.AddDays(d).AddHours(10).AddMinutes(i);
+            return new RegistroMarcacao($"e{d}-{i}", "s", "C", "O", "C", 1, m, m.AddHours(1), 1, "tgpm", "TGPM");
+        })).ToList();
+        var e = EstimativaJanelas.MedirErro(regs)!;
+        Assert.Equal(30, e.DiasAvaliados);
+        Assert.InRange(e.ErroPct, 32, 35);
+        Assert.InRange(e.ErroIngenuoPct, 66, 67);
+        Assert.True(e.NaoPiorQueIngenua);
+    }
+
+    [Fact]
+    public void Sem_dias_anteriores_suficientes_o_erro_nao_e_medido()
+    {
+        var regs = Enumerable.Range(0, 5).Select(d => new RegistroMarcacao($"x{d}", "s", "C", "O", "C", 1,
+            new DateTime(2026, 8, 1).AddDays(d).AddHours(9), new DateTime(2026, 8, 1).AddDays(d).AddHours(10), 1, "tgpm", "TGPM")).ToList();
+        Assert.Null(EstimativaJanelas.MedirErro(regs));
     }
 }

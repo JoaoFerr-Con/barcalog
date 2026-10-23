@@ -30,6 +30,7 @@ public sealed record AmbienteDto(bool DadosExemplo);
 [Produces("application/json")]
 public class AmbienteController(ITerminalRepositorio terminais) : ControllerBase
 {
+    /// <summary>Indica se o banco contém o cadastro fictício de demonstração (placas, transportadoras, agenda, ocorrências).</summary>
     [HttpGet]
     public async Task<AmbienteDto> Obter(CancellationToken ct) => new(await terminais.ExistemDadosExemploAsync(ct));
 }

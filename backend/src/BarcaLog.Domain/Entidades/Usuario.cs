@@ -14,6 +14,18 @@ public class Usuario
     /// <summary>Obrigatório (e só permitido) para o papel Transportadora — define o escopo de dados do Portal.</summary>
     public int? TransportadoraId { get; set; }
 
+    /// <summary>
+    /// Terminal ao qual o usuário interno está vinculado. Null = vê todos os terminais.
+    /// Definido só pelo Gestor; restringe no servidor todas as consultas por terminal.
+    /// </summary>
+    public string? TerminalId { get; set; }
+
+    /// <summary>Preferência pessoal: tela aberta após o login (chave da tela). Null = padrão do papel.</summary>
+    public string? TelaInicial { get; set; }
+
+    /// <summary>Preferência pessoal: terminal já selecionado nos filtros. Nunca amplia o escopo (validado contra TerminalId).</summary>
+    public string? TerminalPreferido { get; set; }
+
     /// <summary>Tentativas erradas seguidas; zera no login bem-sucedido.</summary>
     public int FalhasLoginConsecutivas { get; set; }
 

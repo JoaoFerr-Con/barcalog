@@ -25,8 +25,9 @@ public class AvaliacaoPeriodicaAlertas(IServiceScopeFactory escopos, IConfigurat
             try
             {
                 await using var escopo = escopos.CreateAsyncScope();
-                var mudancas = await escopo.ServiceProvider.GetRequiredService<AlertasServico>().AvaliarAsync(stoppingToken);
-                if (mudancas > 0) logger.LogInformation("Alertas reavaliados: {Mudancas} criado(s) ou alterado(s)", mudancas);
+                var r = await escopo.ServiceProvider.GetRequiredService<AlertasServico>().AvaliarAsync(Domain.Enums.OrigemAvaliacao.Automatica, stoppingToken);
+                if (r.Criados + r.Alterados + r.Encerrados > 0)
+                    logger.LogInformation("Alertas reavaliados: {Criados} novo(s), {Alterados} alterado(s), {Encerrados} encerrado(s)", r.Criados, r.Alterados, r.Encerrados);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

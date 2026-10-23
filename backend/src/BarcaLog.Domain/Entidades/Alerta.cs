@@ -10,6 +10,13 @@ namespace BarcaLog.Domain.Entidades;
 /// </summary>
 public class Alerta
 {
+    /// <summary>Tamanhos das colunas (usados no mapeamento e para ajustar o texto antes de gravar).</summary>
+    public static class Tamanho
+    {
+        public const int Chave = 200, Regra = 50, Periodo = 100, Titulo = 200, Indicador = 200, ValorObservado = 50,
+            Limite = 50, Evidencia = 2000, Origem = 200, AcaoRecomendada = 500;
+    }
+
     public int Id { get; set; }
     public string Chave { get; set; } = null!;
     public TipoAlerta Tipo { get; set; }
@@ -48,4 +55,33 @@ public class EventoAlerta
     public string Autor { get; set; } = null!;
     public string Acao { get; set; } = null!;
     public string? Texto { get; set; }
+}
+
+/// <summary>
+/// Registro de cada avaliação das regras (automática, manual ou após importação): quando, por quem,
+/// sobre quais dados, o que mudou e a confiabilidade resultante. Também registra falhas.
+/// </summary>
+public class AvaliacaoAlertas
+{
+    public int Id { get; set; }
+    public DateTime Inicio { get; set; }
+    public DateTime Fim { get; set; }
+    public OrigemAvaliacao Origem { get; set; }
+    public string Autor { get; set; } = null!;
+    public bool Sucesso { get; set; }
+    /// <summary>Mensagem para o usuário em caso de falha (sem detalhes internos).</summary>
+    public string? Erro { get; set; }
+    /// <summary>Última marcação recebida entre todos os terminais (horário do porto).</summary>
+    public DateTime? DadosAte { get; set; }
+    /// <summary>Última importação confirmada (UTC).</summary>
+    public DateTime? UltimaImportacaoEm { get; set; }
+    /// <summary>Total de marcações no banco no momento da avaliação.</summary>
+    public int Registros { get; set; }
+    public bool DadosNovos { get; set; }
+    public int Criados { get; set; }
+    public int Alterados { get; set; }
+    public int Encerrados { get; set; }
+    public int Ativos { get; set; }
+    /// <summary>Confiabilidade da estimativa (todos os terminais) após a avaliação.</summary>
+    public string? Confiabilidade { get; set; }
 }

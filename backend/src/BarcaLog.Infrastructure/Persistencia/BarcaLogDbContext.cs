@@ -19,12 +19,15 @@ public class BarcaLogDbContext(DbContextOptions<BarcaLogDbContext> options) : Db
     public DbSet<Idempotencia.ChaveIdempotencia> ChavesIdempotencia => Set<Idempotencia.ChaveIdempotencia>();
     public DbSet<Convenio> Convenios => Set<Convenio>();
     public DbSet<Alerta> Alertas => Set<Alerta>();
+    public DbSet<AvaliacaoAlertas> AvaliacoesAlertas => Set<AvaliacaoAlertas>();
     public DbSet<EventoAlerta> EventosAlerta => Set<EventoAlerta>();
     public DbSet<ParametrosOperacionais> Parametros => Set<ParametrosOperacionais>();
     public DbSet<LoteImportacao> LotesImportacao => Set<LoteImportacao>();
     public DbSet<LinhaImportacao> LinhasImportacao => Set<LinhaImportacao>();
 
     public Task<int> SalvarAsync(CancellationToken ct = default) => SaveChangesAsync(ct);
+
+    public void DescartarAlteracoes() => ChangeTracker.Clear();
 
     public Task ExecutarEmTransacaoAsync(Func<CancellationToken, Task> acao, CancellationToken ct = default)
     {

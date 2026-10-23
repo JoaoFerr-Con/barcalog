@@ -23,6 +23,14 @@ public class FiltroMarcacoes : FiltroPaginado, IValidatableObject
     /// <summary>true = só marcações ainda sem liberação.</summary>
     public bool? SemLiberacao { get; set; }
     public Domain.Enums.OrigemMarcacao? Origem { get; set; }
+    /// <summary>Convênio exato (nome como na planilha) — usado pelo detalhamento da Análise 360°.</summary>
+    [StringLength(100)] public string? ConvenioExato { get; set; }
+    /// <summary>true = só registros sem COD_CONVENIO.</summary>
+    public bool? SemCodigoConvenio { get; set; }
+    /// <summary>Hora da marcação (0–23, horário do porto).</summary>
+    [Range(0, 23)] public int? Hora { get; set; }
+    /// <summary>Dia da semana da marcação (0 = domingo … 6 = sábado).</summary>
+    [Range(0, 6)] public int? DiaSemana { get; set; }
     /// <summary>marcacao_desc (padrão), marcacao_asc, espera_desc, espera_asc.</summary>
     [RegularExpression("^(marcacao|espera)_(asc|desc)$", ErrorMessage = "Use marcacao_desc, marcacao_asc, espera_desc ou espera_asc.")]
     public string? Ordenacao { get; set; }

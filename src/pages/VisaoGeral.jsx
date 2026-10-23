@@ -6,6 +6,7 @@ import { useAcao } from "../hooks/useAcao.js";
 import { Carregando, ErroCarga, Vazio } from "../components/EstadoCarga.jsx";
 import { CabecalhoPagina, Cartao, Kpi, Selo, Icone, Aviso, Campo, HEX_TERMINAL } from "../components/ui.jsx";
 import RelatorioPeriodo from "../components/RelatorioPeriodo.jsx";
+import { terminalVinculado, terminalInicial, opcoesTerminal } from "../auth/escopo.js";
 import AvisoDemonstracao from "../components/AvisoDemonstracao.jsx";
 import {
   duracao, variacaoDuracao, numero, percentual, variacaoPct, mesCurto, mesLongo, limitesDoMes, mesAnterior,
@@ -39,7 +40,8 @@ export default function VisaoGeral({ irPara }) {
   const frescor = useApi(sinal => api.get(`${I}/frescor`, null, sinal), []);
   const mensalTodos = useApi(sinal => api.get(`${I}/volume-mensal`, null, sinal), []);
   const [escolha, setEscolha] = useState(null); // { mes } ou { de, ate }
-  const [terminalId, setTerminalId] = useState("");
+  const [terminalId, setTerminalId] = useState(terminalInicial);
+  const vinculado = terminalVinculado();
   const [comparar, setComparar] = useState("anterior");
   const [executar, exportando] = useAcao();
   const [imprimir, setImprimir] = useState(false);
@@ -88,9 +90,9 @@ export default function VisaoGeral({ irPara }) {
           </>
         )}
         <Campo rotulo="Terminal">
-          <select value={terminalId} onChange={e => setTerminalId(e.target.value)}>
-            <option value="">Todos os terminais</option>
-            {(frescor.dados || []).map(t => <option key={t.terminalId} value={t.terminalId}>{t.terminal}</option>)}
+          <select value={terminalId} onChange={e => setTerminalId(e.target.value)} disabled={!!vinculado} title={vinculado ? "Seu usuário está vinculado a este terminal (definido pelo Gestor)." : undefined}>
+            {!vinculado && <option value="">Todos os terminais</option>}
+            {opcoesTerminal(frescor.dados, t => t.terminalId).map(t => <option key={t.terminalId} value={t.terminalId}>{t.terminal}</option>)}
           </select>
         </Campo>
         <Campo rotulo="Comparar com">
