@@ -111,7 +111,7 @@ function Convenios({ gestor }) {
   const lista = r.dados.filter(c => !soDeduzidos || c.deduzido);
   return (
     <Cartao id="conv" titulo="Convênios"
-      subtitulo="Operador e carga de convênios novos são deduzidos do nome na importação. Confirme ou corrija: os relatórios por operador e carga usam estes valores."
+      subtitulo="Operador e carga de convênios novos são deduzidos do nome na importação. Confirme ou corrija: a correção vale para os movimentos importados daqui em diante — os já gravados mantêm o operador e a carga da época da importação."
       acao={<label className="linha-flex" style={{ fontSize: 13, gap: 6 }}><input type="checkbox" checked={soDeduzidos} onChange={e => setSoDeduzidos(e.target.checked)} /> Só os não revisados ({r.dados.filter(c => c.deduzido).length})</label>}>
       {!lista.length ? <Vazio icone="task_alt" titulo={soDeduzidos ? "Todos os convênios já foram revisados" : "Nenhum convênio cadastrado"} /> : (
         <div className="tabela-wrap">

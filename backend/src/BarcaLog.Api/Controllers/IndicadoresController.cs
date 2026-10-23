@@ -45,6 +45,7 @@ public class IndicadoresController(IndicadoresServico servico) : ControllerBase
 [Produces("application/json")]
 public class ConfiguracoesController(ConfiguracaoServico servico) : ControllerBase
 {
+    /// <summary>Capacidades dos terminais e parâmetros (limites e metas) usados pelos indicadores e alertas.</summary>
     [HttpGet]
     public Task<ConfiguracaoOperacionalDto> Obter(CancellationToken ct) => servico.ObterAsync(ct);
 
@@ -54,6 +55,7 @@ public class ConfiguracoesController(ConfiguracaoServico servico) : ControllerBa
     public Task<TerminalDto> AtualizarTerminal(string terminalId, AtualizarCapacidadeTerminalRequest req, CancellationToken ct) =>
         servico.AtualizarCapacidadeAsync(terminalId, req, ct);
 
+    /// <summary>Altera limites e metas dos indicadores e alertas (Gestor; auditado).</summary>
     [HttpPut("parametros")]
     [Authorize(Policy = Politicas.Gestao)]
     public Task<ParametrosOperacionaisDto> AtualizarParametros(AtualizarParametrosRequest req, CancellationToken ct) =>

@@ -134,6 +134,7 @@ public class ImportacoesController(ImportacaoPlanilhaServico servico, AlertasSer
 [Produces("application/json")]
 public class ConveniosController(ConvenioServico servico) : ControllerBase
 {
+    /// <summary>Convênios com operador e carga (deduzidos do nome na importação ou corrigidos pelo Gestor).</summary>
     [HttpGet]
     public Task<List<ConvenioDto>> Listar(CancellationToken ct) => servico.ListarAsync(ct);
 
