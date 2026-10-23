@@ -41,12 +41,38 @@ API). As fontes de dado real hoje são a carga inicial e as planilhas importadas
 | Limite | 120 chamadas/min por sistema |
 | Versionamento | Campo novo opcional = compatível em `/api/v1`; mudança de significado ou campo obrigatório novo = `/api/v2` |
 
-**Limitações registradas (decisão pendente):**
-- O evento recebido não é guardado como evento: o movimento é alterado direto. Não dá para
-  reprocessar a partir do histórico de eventos.
-- Um evento de `Marcacao` pode alterar qualquer campo (inclusive o terminal) de um movimento já
-  importado por planilha — "o último que escreve vence". Não há ordem por horário do evento.
-- A chave de integração não é limitada a um terminal: qualquer sistema com chave grava em qualquer terminal.
+### 2.1 O que a integração pode criar e alterar (comportamento atual — DEC-017)
+
+> **Risco sinalizado.** Um evento com `movimentoId` já existente substitui os campos que traz,
+> inclusive em movimentos importados por planilha e confirmados por um Gestor, e a chave de API
+> não é limitada a terminais. Comportamento preservado até decisão; mitigação proposta em
+> `../arquitetura/registro-de-decisoes.md` (DEC-017). Exposição hoje: nenhuma chave emitida e
+> API sem hospedagem.
+
+| Campo do movimento | Ao criar (evento `Marcacao`) | Ao atualizar movimento existente | Protegido? |
+|---|---|---|---|
+| `MovimentoId` | Obrigatório (chave) | Não muda (é a chave) | Sim |
+| `TerminalId` | Obrigatório; precisa existir | **Substituído** se informado (precisa existir) | Não |
+| `Senha`, `Convenio`, `Operador`, `Carga` | Obrigatórios | Substituídos se informados (texto vazio é ignorado) | Não |
+| `CodConvenio` | Opcional | Substituído se informado | Não |
+| `Ciclo` | Opcional (padrão 1) | Substituído se informado | Não |
+| `DataMarcacao` | Obrigatória | Substituída se informada | Não |
+| `DataLiberacao` | Opcional | Substituída se informada; **não pode ser apagada** | Parcial |
+| `Origem` | `Integracao` | **Não muda** (movimento de planilha continua "Planilha") | Sim |
+| `LoteImportacaoId`, `LinhaOrigem` | Vazios | Não mudam | Sim |
+| `EsperaHoras` | Calculada pelo banco | Recalculada | Sim |
+
+| Aspecto | Comportamento atual |
+|---|---|
+| Validações | Terminal existente; datas entre 2000 e agora + 2 h; liberação ≥ marcação; tamanhos e caracteres dos campos; evento inválido não altera nada (validação antes de aplicar) |
+| Escopo por terminal ou organização | **Nenhum**: qualquer chave grava em qualquer terminal |
+| Conflito planilha × integração | "Último que escreve vence"; sem comparação de horário do evento nem de origem |
+| Reenvio | Com `Idempotency-Key`: devolve a mesma resposta sem reaplicar. Sem a chave: reaplica (idempotente no resultado quando o conteúdo é o mesmo) |
+| Auditoria | Um registro por lote com contagens; cada movimento alterado tem campo, valor anterior e novo no detalhe do log |
+| Eventos fora de ordem | Liberação antes da marcação: recusada se o movimento não existe e não traz `dataMarcacao` |
+
+Outras limitações: o evento recebido não é guardado como evento (o movimento é alterado direto),
+então não há reprocessamento a partir do histórico de eventos.
 
 ## 3. Mapeamento planilha → banco
 

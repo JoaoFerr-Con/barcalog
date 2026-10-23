@@ -96,6 +96,6 @@ Migrations versionadas em `backend/src/BarcaLog.Infrastructure/Persistencia/Migr
 
 `docs/INDICADORES.md` (regras dos indicadores e alertas), `docs/IMPORTACAO.md` (planilhas), `docs/INTERFACE.md` (telas), `docs/PROTHEUS.md` (integração: o que falta).
 
-`docs/arquitetura/` (estado atual por módulo, arquitetura futura — app móvel, integrações,
-infraestrutura — e decisões pendentes) e `docs/dicionario-de-dados/` (dicionário de dados
+`docs/PRODUTO.md` (Documento Mestre do Produto), `docs/arquitetura/` (estado atual por módulo, arquitetura futura — app móvel, integrações,
+infraestrutura — e registro de decisões) e `docs/dicionario-de-dados/` (dicionário de dados
 gerado do código com `dotnet run -- dicionario`; o CI recusa dicionário desatualizado).

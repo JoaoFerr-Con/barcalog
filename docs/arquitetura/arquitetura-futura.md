@@ -2,7 +2,7 @@
 
 Este documento registra **preparação arquitetural**, não implementação. Nada aqui foi
 instalado, configurado ou escolhido em definitivo. O que já existe está em `estado-atual.md`;
-decisões e pendências em `decisoes-e-pendencias.md`.
+decisões e pendências em `registro-de-decisoes.md`.
 
 Princípio que guia tudo abaixo: **as regras de negócio ficam no backend**. Portal, aplicativo e
 sistemas externos são clientes da mesma API versionada (`/api/v1`). Nenhuma interface fala

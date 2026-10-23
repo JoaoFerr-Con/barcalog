@@ -51,7 +51,7 @@ Relações que existem na regra de negócio ou na tela, mas **não** são garant
 | Origem | Destino | Como se relacionam | Risco | Observação |
 |---|---|---|---|---|
 | `Marcacoes.CodConvenio` | `Convenios.Codigo` | Mesmo código | Código na marcação sem cadastro | Carga inicial não tem código; convênio é criado na confirmação da importação |
-| `Marcacoes.Operador`, `Marcacoes.Carga` | `Convenios.Operador`, `Convenios.Carga` | **Cópia** feita na importação | Corrigir o convênio não altera marcações já gravadas | Decisão registrada; reclassificação pendente (decisoes-e-pendencias.md) |
+| `Marcacoes.Operador`, `Marcacoes.Carga` | `Convenios.Operador`, `Convenios.Carga` | **Cópia** feita na importação | Corrigir o convênio não altera marcações já gravadas | Decisão registrada; reclassificação pendente (registro-de-decisoes.md) |
 | `Ocorrencias.Placa` | `Veiculos.Placa` | Placa normalizada | Ocorrência com placa sem veículo cadastrado é aceita | **N3 numa placa não cadastrada não bloqueia nada**: não há veículo a negativar, e a mesma placa continua podendo ser agendada |
 | `Agendamentos.Placa` | `Veiculos.Placa` | Placa normalizada | Placa não cadastrada é aceita | Placa cadastrada precisa ser da mesma transportadora e não estar negativada |
 | `Condutores.PlacaVinculada` | `Veiculos.Placa` | Texto | Placa inexistente | Informativo |

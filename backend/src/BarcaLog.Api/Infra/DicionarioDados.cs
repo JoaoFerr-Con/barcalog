@@ -294,7 +294,8 @@ public static class DicionarioDados
         var doMetodo = m.GetCustomAttributes<AuthorizeAttribute>().ToList();
         var autorizacao = doMetodo.Count > 0 ? doMetodo : c.GetCustomAttributes<AuthorizeAttribute>().ToList();
         if (c.GetCustomAttribute<AllowAnonymousAttribute>() is not null && doMetodo.Count == 0) return "público";
-        if (autorizacao.Count == 0) return "público";
+        // Sem [Authorize]: vale a política padrão da API (FallbackPolicy = Leitura).
+        if (autorizacao.Count == 0) return "Leitura (política padrão)";
         return string.Join(" + ", autorizacao.Select(x => x.Policy ?? (x.Roles is { } r ? $"papéis {r}" : "autenticado")));
     }
 

@@ -7,7 +7,7 @@ pessoas. O modelo futuro (aplicativo móvel, novas integrações) fica separado,
 
 > Não confundir com o dicionário do **banco do Posto Mirian** previsto na especificação de
 > 03/08/2026 (engenharia reversa do sistema legado do cliente). Esse depende do recebimento
-> dos dados e ainda não foi feito — ver `../arquitetura/decisoes-e-pendencias.md`.
+> dos dados e ainda não foi feito — ver `../arquitetura/registro-de-decisoes.md`.
 
 ## Como está organizado
 

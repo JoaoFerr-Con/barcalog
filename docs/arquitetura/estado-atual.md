@@ -2,7 +2,7 @@
 
 Levantamento feito sobre o repositório em 23/10/2026 (branch `fase-8-gestor`). A fonte é o
 código, não os documentos comerciais. Onde o código e os documentos antigos divergem, a
-divergência está em `decisoes-e-pendencias.md`.
+divergência está em `registro-de-decisoes.md`.
 
 ## 1. Visão geral
 
