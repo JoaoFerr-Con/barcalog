@@ -11,6 +11,26 @@ public interface IUsuarioAtual
 }
 
 /// <summary>
+/// Escopo de dados do usuário interno. Hoje: o terminal ao qual está vinculado
+/// (Usuario.TerminalId, levado no token). Sem vínculo (ou sem usuário: tarefas
+/// em segundo plano, CLI, integração) = todos os terminais.
+/// Preferências pessoais NUNCA passam por aqui: não ampliam nem definem escopo.
+/// </summary>
+public interface IEscopoUsuario
+{
+    string? TerminalVinculado { get; }
+
+    /// <summary>
+    /// Terminal efetivo de uma consulta: sem vínculo devolve o pedido; com vínculo,
+    /// pedido vazio vira o terminal vinculado e pedido de outro terminal é negado (403).
+    /// </summary>
+    string? RestringirTerminal(string? pedido) => Seguranca.EscopoTerminal.Restringir(TerminalVinculado, pedido);
+
+    /// <summary>Pode ver um registro deste terminal? (null = registro geral, de todos os terminais.)</summary>
+    bool PodeVerTerminal(string? terminalId) => Seguranca.EscopoTerminal.PodeVer(TerminalVinculado, terminalId);
+}
+
+/// <summary>
 /// Rótulo de negócio opcional pra próxima gravação. O log em si é
 /// automático (interceptor do EF): se ninguém definir rótulo, a ação é
 /// derivada das entidades alteradas ("Veiculo alterado" etc.).

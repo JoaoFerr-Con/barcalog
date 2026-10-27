@@ -76,7 +76,7 @@ const MENSAGENS_SAIDA = {
 export function useSessao() {
   const [estado, setEstado] = useState(() => ({ sessao: obterSessao(), aviso: null }));
   useEffect(() => assinarSessao(({ motivo }) => {
-    if (motivo !== "login") limparCache();
+    if (motivo !== "login" && motivo !== "perfil") limparCache();
     setEstado({ sessao: obterSessao(), aviso: MENSAGENS_SAIDA[motivo] || null });
   }), []);
   return estado;

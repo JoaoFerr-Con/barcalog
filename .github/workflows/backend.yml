@@ -2,9 +2,9 @@ name: Backend
 
 on:
   push:
-    paths: ["backend/**", "src/data/**", ".github/workflows/backend.yml"]
+    paths: ["backend/**", "src/data/**", "docs/dicionario-de-dados/**", ".github/workflows/backend.yml"]
   pull_request:
-    paths: ["backend/**", "src/data/**", ".github/workflows/backend.yml"]
+    paths: ["backend/**", "src/data/**", "docs/dicionario-de-dados/**", ".github/workflows/backend.yml"]
 
 permissions:
   contents: read
@@ -51,6 +51,13 @@ jobs:
           dotnet ef migrations has-pending-model-changes --project src/BarcaLog.Infrastructure --startup-project src/BarcaLog.Api
         env:
           ConnectionStrings__BarcaLog: "Server=localhost,1433;Database=BarcaLog_CI;User Id=sa;Password=Ci_Descartavel#2026;TrustServerCertificate=True"
+
+      - name: Dicionário de dados em dia com o código
+        # Regera em memória a partir do modelo do EF, enums, ApiExplorer e comentários XML e compara
+        # com docs/dicionario-de-dados/gerado. Não abre conexão com o banco.
+        run: dotnet run --project src/BarcaLog.Api --no-build -c Release -- dicionario --verificar
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
 
       - name: Testes (unitários + integração com SQL Server)
         run: dotnet test --no-build -c Release --logger "trx" --results-directory TestResults

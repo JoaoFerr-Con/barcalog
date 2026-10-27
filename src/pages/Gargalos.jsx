@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { api } from "../api/cliente.js";
+import { api, mensagemErro } from "../api/cliente.js";
 import { useApi } from "../hooks/useApi.js";
 import { useAcao } from "../hooks/useAcao.js";
 import { Carregando, ErroCarga, Vazio } from "../components/EstadoCarga.jsx";
 import { useAmbiente } from "../hooks/useAmbiente.js";
 import EstimativaProximasHoras from "../components/EstimativaProximasHoras.jsx";
+import { terminalVinculado, terminalInicial, opcoesTerminal } from "../auth/escopo.js";
 import { CabecalhoPagina, Cartao, Selo, Icone, Aviso, Abas, Campo, Paginacao } from "../components/ui.jsx";
-import { numero, dataHoraLocal, formatarDataPtBR } from "../utils/formatar.js";
+import { numero, dataHoraLocal, formatarDataPtBR, dataHoraPorto } from "../utils/formatar.js";
 
 // Alertas e gargalos. Cada alerta separa o que é HISTÓRICO (já aconteceu),
 // OPERACIONAL (está acontecendo segundo os registros), PREVISÃO (estimativa
@@ -28,10 +29,12 @@ export default function Gargalos({ papel }) {
   const demo = useAmbiente()?.dadosExemplo;
   const podeAgir = papel === "Operador" || papel === "Gestor";
   const [aba, setAba] = useState("todos");
-  const [terminalId, setTerminalId] = useState("");
+  const [terminalId, setTerminalId] = useState(terminalInicial);
+  const vinculado = terminalVinculado();
   const [pagina, setPagina] = useState(1);
   const [selecionado, setSelecionado] = useState(null);
-  const [executar, avaliando] = useAcao();
+  const [avaliando, setAvaliando] = useState(false);
+  const [resultado, setResultado] = useState(null);
 
   const terminais = useApi(sinal => api.get("/api/v1/terminais", null, sinal), []);
   const resumo = useApi(sinal => api.get("/api/v1/alertas/resumo", null, sinal), [], { intervaloMs: 60_000 });
@@ -51,24 +54,47 @@ export default function Gargalos({ papel }) {
 
   function mudar(fn) { fn(); setPagina(1); setSelecionado(null); }
 
+  // Reavaliação real no servidor: recalcula alertas e confiabilidade, registra o resultado
+  // e devolve o que mudou. Um clique por vez (o botão fica bloqueado e o servidor recusa
+  // uma segunda avaliação simultânea).
+  async function reavaliar() {
+    if (avaliando) return;
+    setAvaliando(true);
+    try {
+      setResultado(await api.post("/api/v1/alertas/avaliar"));
+    } catch (e) {
+      setResultado({ situacao: "falhou", resumo: mensagemErro(e), motivos: [] });
+    } finally {
+      setAvaliando(false);
+      resumo.recarregar(); lista.recarregar(); proximas.recarregar();
+    }
+  }
+
+  const tentativa = resumo.dados?.ultimaTentativa;
   return (
     <>
       <CabecalhoPagina titulo="Alertas e gargalos" subtitulo="O que exige atenção, com a evidência de cada alerta e o registro do que foi feito">
         <Campo rotulo="Terminal">
-          <select value={terminalId} onChange={e => mudar(() => setTerminalId(e.target.value))}>
-            <option value="">Todos os terminais</option>
-            {(terminais.dados || []).map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
+          <select value={terminalId} onChange={e => mudar(() => setTerminalId(e.target.value))} disabled={!!vinculado} title={vinculado ? "Seu usuário está vinculado a este terminal (definido pelo Gestor)." : undefined}>
+            {!vinculado && <option value="">Todos os terminais</option>}
+            {opcoesTerminal(terminais.dados).map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
           </select>
         </Campo>
         {podeAgir && (
-          <button type="button" className="botao botao--secundario" disabled={avaliando}
-            onClick={() => executar(() => api.post("/api/v1/alertas/avaliar"), { sucesso: "Regras reavaliadas." }).then(ok => { if (ok) { resumo.recarregar(); lista.recarregar(); } })}>
-            <Icone nome="refresh" /> Reavaliar agora
+          <button type="button" className="botao botao--secundario" disabled={avaliando} aria-busy={avaliando} onClick={reavaliar}>
+            <Icone nome={avaliando ? "progress_activity" : "refresh"} /> {avaliando ? "Reavaliando…" : "Reavaliar agora"}
           </button>
         )}
       </CabecalhoPagina>
 
-      {resumo.dados?.ultimaAvaliacao && <p className="fraco" style={{ fontSize: 12.5, margin: "-6px 0 12px" }}>Última avaliação das regras: {dataHoraLocal(resumo.dados.ultimaAvaliacao)} · reavaliação automática a cada 10 minutos e após cada importação.</p>}
+      <p className="fraco" style={{ fontSize: 12.5, margin: "-6px 0 12px" }}>
+        {resumo.dados?.ultimaAvaliacao ? <>Última avaliação concluída: {dataHoraLocal(resumo.dados.ultimaAvaliacao)}</> : "Nenhuma avaliação concluída ainda"}
+        {" · "}reavaliação automática a cada 10 minutos e após cada importação.
+      </p>
+      {!resultado && tentativa && tentativa.situacao === "falhou" && (
+        <div style={{ marginBottom: 12 }}><Aviso tipo="critico">A última avaliação ({dataHoraLocal(tentativa.inicio)}) falhou: {tentativa.erro} {podeAgir && <button type="button" className="botao botao--link" onClick={reavaliar} disabled={avaliando}>Tentar de novo</button>}</Aviso></div>
+      )}
+      {resultado && <ResultadoAvaliacao r={resultado} aoFechar={() => setResultado(null)} aoTentar={reavaliar} avaliando={avaliando} />}
 
       <EstimativaProximasHoras r={proximas} aoEscolherTerminal={id => mudar(() => setTerminalId(id))} />
 
@@ -117,6 +143,45 @@ export default function Gargalos({ papel }) {
         </div>
       </div>
     </>
+  );
+}
+
+const ROTULO_CONF = { confiavel: "confiável", limitada: "limitada", insuficiente: "dados insuficientes", desatualizada: "dados desatualizados" };
+const COMPARACAO = {
+  melhorou: ["ok", "A confiabilidade melhorou"], piorou: ["atencao", "A confiabilidade piorou"],
+  igual: ["neutro", "A confiabilidade não mudou"], primeira: ["neutro", "Primeira avaliação registrada"]
+};
+
+function ResultadoAvaliacao({ r, aoFechar, aoTentar, avaliando }) {
+  if (r.situacao === "falhou")
+    return <div style={{ marginBottom: 12 }}><Aviso tipo="critico"><b>A reavaliação falhou.</b> {r.erro || r.resumo} <button type="button" className="botao botao--link" onClick={aoTentar} disabled={avaliando}>Tentar de novo</button></Aviso></div>;
+  if (r.situacao === "em-andamento")
+    return <div style={{ marginBottom: 12 }}><Aviso tipo="info">{r.resumo}</Aviso></div>;
+  const [tipo, frase] = COMPARACAO[r.comparacao] || COMPARACAO.igual;
+  return (
+    <div className="cartao" role="status" style={{ marginBottom: 16 }}>
+      <div className="cartao__corpo pilha" style={{ gap: 8 }}>
+        <div className="linha-flex" style={{ justifyContent: "space-between" }}>
+          <b>Reavaliação concluída às {dataHoraLocal(r.fim).slice(-5)}</b>
+          <button type="button" className="botao-icone" aria-label="Fechar resultado" onClick={aoFechar}><Icone nome="close" /></button>
+        </div>
+        <span style={{ fontSize: 13.5 }}>{r.resumo}</span>
+        <span className="fraco num" style={{ fontSize: 12.5 }}>
+          {numero(r.registros)} movimentos no banco · dados até {r.dadosAte ? dataHoraPorto(r.dadosAte).slice(0, 10) : "—"}
+          {r.ultimaImportacaoEm ? ` · última importação ${dataHoraLocal(r.ultimaImportacaoEm)}` : " · nenhuma importação de planilha confirmada"} · {numero(r.ativos)} alerta(s) aberto(s)
+        </span>
+        <div className="linha-flex" style={{ gap: 8 }}>
+          <Selo tipo={tipo}>{frase}</Selo>
+          <span style={{ fontSize: 13 }}>
+            Confiabilidade da estimativa: <b>{ROTULO_CONF[r.confiabilidade] || r.confiabilidade}</b>
+            {r.confiabilidadeAnterior && r.comparacao !== "igual" && <> (antes: {ROTULO_CONF[r.confiabilidadeAnterior]})</>}
+          </span>
+        </div>
+        {r.comparacao === "igual" && !r.dadosNovos && r.confiabilidade !== "confiavel" && (
+          <span className="fraco" style={{ fontSize: 12.5 }}>Sem dados novos a confiabilidade não muda: reavaliar não melhora a base. O que fazer está em "Por que a confiabilidade não é maior", abaixo.</span>
+        )}
+      </div>
+    </div>
   );
 }
 

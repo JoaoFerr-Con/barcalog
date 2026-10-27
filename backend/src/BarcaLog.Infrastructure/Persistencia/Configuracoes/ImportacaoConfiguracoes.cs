@@ -67,18 +67,18 @@ public class AlertaConfiguracao : IEntityTypeConfiguration<Alerta>
     public void Configure(EntityTypeBuilder<Alerta> b)
     {
         b.ToTable("Alertas");
-        b.Property(x => x.Chave).HasMaxLength(200).IsRequired();
+        b.Property(x => x.Chave).HasMaxLength(Alerta.Tamanho.Chave).IsRequired();
         b.HasIndex(x => x.Chave).IsUnique();
-        b.Property(x => x.Regra).HasMaxLength(50).IsRequired();
+        b.Property(x => x.Regra).HasMaxLength(Alerta.Tamanho.Regra).IsRequired();
         b.Property(x => x.TerminalId).HasMaxLength(32);
-        b.Property(x => x.Periodo).HasMaxLength(100).IsRequired();
-        b.Property(x => x.Titulo).HasMaxLength(200).IsRequired();
-        b.Property(x => x.Indicador).HasMaxLength(200).IsRequired();
-        b.Property(x => x.ValorObservado).HasMaxLength(50).IsRequired();
-        b.Property(x => x.Limite).HasMaxLength(50).IsRequired();
-        b.Property(x => x.Evidencia).HasMaxLength(2000).IsRequired();
-        b.Property(x => x.Origem).HasMaxLength(200).IsRequired();
-        b.Property(x => x.AcaoRecomendada).HasMaxLength(500);
+        b.Property(x => x.Periodo).HasMaxLength(Alerta.Tamanho.Periodo).IsRequired();
+        b.Property(x => x.Titulo).HasMaxLength(Alerta.Tamanho.Titulo).IsRequired();
+        b.Property(x => x.Indicador).HasMaxLength(Alerta.Tamanho.Indicador).IsRequired();
+        b.Property(x => x.ValorObservado).HasMaxLength(Alerta.Tamanho.ValorObservado).IsRequired();
+        b.Property(x => x.Limite).HasMaxLength(Alerta.Tamanho.Limite).IsRequired();
+        b.Property(x => x.Evidencia).HasMaxLength(Alerta.Tamanho.Evidencia).IsRequired();
+        b.Property(x => x.Origem).HasMaxLength(Alerta.Tamanho.Origem).IsRequired();
+        b.Property(x => x.AcaoRecomendada).HasMaxLength(Alerta.Tamanho.AcaoRecomendada);
         b.Property(x => x.Responsavel).HasMaxLength(200);
         b.Property(x => x.IdentificadoEm).EmUtc();
         b.Property(x => x.AtualizadoEm).EmUtc();
@@ -98,5 +98,20 @@ public class EventoAlertaConfiguracao : IEntityTypeConfiguration<EventoAlerta>
         b.Property(x => x.Texto).HasMaxLength(2000);
         b.Property(x => x.Quando).EmUtc();
         b.HasIndex(x => x.AlertaId);
+    }
+}
+
+public class AvaliacaoAlertasConfiguracao : IEntityTypeConfiguration<AvaliacaoAlertas>
+{
+    public void Configure(EntityTypeBuilder<AvaliacaoAlertas> b)
+    {
+        b.ToTable("AvaliacoesAlertas");
+        b.Property(x => x.Inicio).EmUtc();
+        b.Property(x => x.Fim).EmUtc();
+        b.Property(x => x.UltimaImportacaoEm).EmUtc();
+        b.Property(x => x.Autor).HasMaxLength(200).IsRequired();
+        b.Property(x => x.Erro).HasMaxLength(500);
+        b.Property(x => x.Confiabilidade).HasMaxLength(20);
+        b.HasIndex(x => new { x.Sucesso, x.Inicio });
     }
 }

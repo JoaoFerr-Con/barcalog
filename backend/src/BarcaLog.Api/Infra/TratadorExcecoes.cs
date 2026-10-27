@@ -27,6 +27,7 @@ public class TratadorExcecoes(IProblemDetailsService problemDetails, ILogger<Tra
         var (status, titulo, detalhe) = excecao switch
         {
             NaoEncontradoException e => (StatusCodes.Status404NotFound, "Recurso não encontrado", e.Message),
+            AcessoNegadoException e => (StatusCodes.Status403Forbidden, "Fora do seu escopo", e.Message),
             RegraNegocioException e => (StatusCodes.Status422UnprocessableEntity, "Regra de negócio violada", e.Message),
             DbUpdateConcurrencyException => (StatusCodes.Status409Conflict, "Conflito de edição",
                 "O registro foi alterado por outra operação ao mesmo tempo. Recarregue e tente novamente."),

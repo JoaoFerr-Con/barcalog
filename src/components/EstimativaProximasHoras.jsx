@@ -12,10 +12,12 @@ export const SITUACAO = {
   risco: { rotulo: "Risco de fila", icone: "error", cor: "var(--critico)", fundo: "var(--critico-fundo)", texto: "var(--critico-texto)" },
   insuficiente: { rotulo: "Dados insuficientes", icone: "help", cor: "var(--borda-forte)", fundo: "var(--neutro-fundo)", texto: "var(--tinta-suave)" }
 };
-const CONFIABILIDADE = {
-  normal: { rotulo: "Histórico completo", icone: "verified" },
-  limitada: { rotulo: "Histórico limitado — menor confiabilidade", icone: "info" },
-  insuficiente: { rotulo: "Sem dados suficientes para estimar", icone: "help" }
+// Classes de confiabilidade (Application/Metricas/EstimativaJanelas.cs → Confiabilidade).
+export const CONFIABILIDADE = {
+  confiavel: { rotulo: "Histórico confiável", icone: "verified", aviso: "ok" },
+  limitada: { rotulo: "Confiabilidade limitada", icone: "info", aviso: "atencao" },
+  insuficiente: { rotulo: "Dados insuficientes", icone: "help", aviso: "info" },
+  desatualizada: { rotulo: "Dados desatualizados", icone: "warning", aviso: "critico" }
 };
 const FONTE = {
   cadastrada: "capacidade por hora cadastrada em Configurações",
@@ -62,11 +64,7 @@ export default function EstimativaProximasHoras({ r, aoEscolherTerminal }) {
       acao={<span className="linha-flex fraco" style={{ fontSize: 12.5, gap: 4 }}><Icone nome={conf.icone} tamanho={16} />{conf.rotulo}</span>}
       subtitulo={semDados ? null : `${geral.terminal} · baseada no que costuma acontecer nessas horas (${formatarDataPtBR(geral.baseDe)} a ${formatarDataPtBR(geral.baseAte)}). São estimativas, não chegadas confirmadas. Calculada às ${dataHoraPorto(geradoEm).slice(11)}.`}>
       <div className="pilha" style={{ gap: 16 }}>
-        {geral.motivos.length > 0 && (
-          <Aviso tipo={semDados ? "info" : "atencao"}>
-            {geral.motivos.length === 1 ? geral.motivos[0] : <ul style={{ margin: 0, paddingLeft: 18 }}>{geral.motivos.map(m => <li key={m}>{m}</li>)}</ul>}
-          </Aviso>
-        )}
+        <Confiabilidade geral={geral} terminais={terminais} />
 
         {!semDados && (
           <>
@@ -132,7 +130,7 @@ export default function EstimativaProximasHoras({ r, aoEscolherTerminal }) {
                       </>
                     )}
                     <p className="estimativa-janela__mensagem">{j.mensagem}</p>
-                    {j.confiabilidade === "limitada" && geral.confiabilidade === "normal" && <span className="fraco" style={{ fontSize: 11.5 }}>Poucas chegadas registradas nesta hora — menor confiabilidade.</span>}
+                    {j.confiabilidade === "limitada" && geral.confiabilidade === "confiavel" && <span className="fraco" style={{ fontSize: 11.5 }}>Poucas chegadas registradas nesta hora — menor confiabilidade.</span>}
                   </article>
                 );
               })}
@@ -152,7 +150,7 @@ export default function EstimativaProximasHoras({ r, aoEscolherTerminal }) {
               <caption className="sr-only">Estimativa por terminal nas próximas {horas} horas</caption>
               <thead>
                 <tr><th scope="col">Terminal</th><th scope="col">Situação</th><th scope="col">Janela que exige atenção</th>
-                  <th scope="col" className="num">Demanda em {horas} h</th><th scope="col" className="num">Capacidade em {horas} h</th><th scope="col">Dados até</th></tr>
+                  <th scope="col" className="num">Demanda em {horas} h</th><th scope="col" className="num">Capacidade em {horas} h</th><th scope="col">Confiabilidade</th><th scope="col">Dados até</th></tr>
               </thead>
               <tbody>
                 {terminais.map(t => {
@@ -163,12 +161,13 @@ export default function EstimativaProximasHoras({ r, aoEscolherTerminal }) {
                       onKeyDown={e => { if (e.key === "Enter") aoEscolherTerminal?.(t.terminalId); }}>
                       <th scope="row">{t.terminal}</th>
                       <td><SeloSituacao situacao={tr.piorSituacao} /></td>
-                      <td>{sem ? <span className="fraco">{t.motivos[0]}</span> : tr.horaMaisCritica != null
+                      <td>{sem ? <span className="fraco">{t.motivos[0]?.descricao}</span> : tr.horaMaisCritica != null
                         ? (() => { const jc = t.janelas.find(x => x.hora === tr.horaMaisCritica); return <>{faixa(jc.hora)} <span className="fraco num">· {qtd(-jc.saldo)} acima</span></>; })()
                         : <span className="fraco">nenhuma · {qtd(tr.saldo)} de folga</span>}</td>
                       <td className="num">{sem ? "—" : `${qtd(tr.demandaPrevista)}`}</td>
                       <td className="num">{sem ? "—" : `${qtd(tr.capacidadeAtendimento)}`}</td>
-                      <td className="num">{t.ultimoRegistro ? formatarDataPtBR(t.ultimoRegistro) : "—"}{t.desatualizado && <> <span className="selo selo--atencao">desatualizado</span></>}</td>
+                      <td>{CONFIABILIDADE[t.confiabilidade]?.rotulo}{t.erro && <span className="fraco num" style={{ display: "block", fontSize: 12 }}>erro medido {numero(t.erro.erroPct, 0)}% (dia anterior: {numero(t.erro.erroIngenuoPct, 0)}%)</span>}</td>
+                      <td className="num">{t.ultimoRegistro ? formatarDataPtBR(t.ultimoRegistro) : "—"}</td>
                     </tr>
                   );
                 })}
@@ -194,9 +193,52 @@ export default function EstimativaProximasHoras({ r, aoEscolherTerminal }) {
             É uma média do que já aconteceu, não um modelo de previsão: feriados, safra e navios atracados não entram.
             Confira com a fila real antes de agir.
           </p>
+          <p>
+            <b>Confiabilidade.</b> <i>Confiável</i>: base completa (30 dias com dados), dados em dia e erro medido não
+            maior que o de simplesmente repetir o mesmo horário do dia anterior. <i>Limitada</i>: utilizável, com uma
+            restrição explicada acima. <i>Dados desatualizados</i>: o terminal parou de enviar dados há mais dias que o
+            limite de Configurações — importe as planilhas recentes. <i>Dados insuficientes</i>: menos de 7 dias com dados;
+            não há estimativa. O erro medido é calculado refazendo a estimativa de cada um dos últimos 30 dias com dados,
+            como se fosse a véspera, e comparando com o que chegou de fato.
+          </p>
         </details>
       </div>
     </Cartao>
+  );
+}
+
+/** Classe de confiabilidade com motivo, impacto e ação; erro medido por terminal. */
+function Confiabilidade({ geral, terminais }) {
+  const c = CONFIABILIDADE[geral.confiabilidade] || CONFIABILIDADE.limitada;
+  const erros = (geral.terminalId ? [geral] : terminais).filter(t => t.erro);
+  if (geral.confiabilidade === "confiavel")
+    return erros.length ? (
+      <p className="fraco num" style={{ fontSize: 12.5, margin: 0 }}>
+        Erro medido nos últimos 30 dias com dados: {erros.map(t => `${geral.terminalId ? "" : `${t.terminal} `}${numero(t.erro.erroPct, 0)}%`).join(" · ")} das chegadas por hora
+        {" "}(repetir o dia anterior erraria {erros.map(t => `${numero(t.erro.erroIngenuoPct, 0)}%`).join(" · ")}).
+      </p>
+    ) : null;
+  // Agrupa motivos iguais de vários terminais numa linha só.
+  const grupos = [];
+  for (const m of geral.motivos) {
+    const g = grupos.find(x => x.codigo === m.codigo && x.impacto === m.impacto.replace(/\d{2}\/\d{2} a \d{2}\/\d{2}/, "") && x.acao === m.acao);
+    if (g) g.itens.push(m); else grupos.push({ codigo: m.codigo, impacto: m.impacto.replace(/\d{2}\/\d{2} a \d{2}\/\d{2}/, ""), acao: m.acao, itens: [m] });
+  }
+  return (
+    <Aviso tipo={c.aviso} icone={c.icone}>
+      <b>{c.rotulo}.</b>{" "}
+      {geral.confiabilidade === "desatualizada" && "Os dados pararam de chegar: a estimativa descreve um período passado."}
+      {geral.confiabilidade === "limitada" && "A estimativa pode ser usada como referência, com as restrições abaixo."}
+      {geral.confiabilidade === "insuficiente" && "Não há base para estimar estas horas."}
+      <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+        {grupos.map(g => (
+          <li key={g.codigo + g.acao} style={{ marginBottom: 4 }}>
+            {g.itens.map(m => <span key={(m.terminal || "") + m.descricao} style={{ display: "block" }}>{m.terminal && !geral.terminalId ? <b>{m.terminal}: </b> : null}{m.descricao}</span>)}
+            <span style={{ display: "block" }}><i>Impacto:</i> {g.itens[0].impacto} <i>O que fazer:</i> {g.acao}</span>
+          </li>
+        ))}
+      </ul>
+    </Aviso>
   );
 }
 
@@ -228,7 +270,7 @@ export function ResumoEstimativa({ r }) {
             ))}
           </ul>
         )}
-        {geral.confiabilidade !== "normal" && <span className="fraco" style={{ fontSize: 12.5 }}>{CONFIABILIDADE[geral.confiabilidade].rotulo}.</span>}
+        {geral.confiabilidade !== "confiavel" && <span className="fraco" style={{ fontSize: 12.5 }}>{CONFIABILIDADE[geral.confiabilidade]?.rotulo}: veja o motivo em "ver detalhes".</span>}
       </div>
     </Cartao>
   );

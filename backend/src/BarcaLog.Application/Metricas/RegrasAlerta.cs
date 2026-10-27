@@ -147,18 +147,17 @@ public static class RegrasAlerta
                 var j = t.Janelas[i];
                 if (j.Situacao != SituacaoJanela.Risco || j.Confiabilidade == Confiabilidade.Insuficiente) continue;
                 var faixa = EstimativaJanelas.Faixa(j.Hora);
-                var limitada = j.Confiabilidade == Confiabilidade.Limitada;
+                var limitada = j.Confiabilidade != Confiabilidade.Confiavel;
                 var prioridade = !limitada && j.DemandaPrevista >= 2 * j.CapacidadeAtendimento ? PrioridadeAlerta.Alta : PrioridadeAlerta.Media;
-                var referencia = j.FonteCapacidade == "cadastrada" ? "capacidade cadastrada" : "atendimento habitual (média de liberações nesta hora)";
                 yield return new AlertaCandidato(
                     $"risco-horario:{t.TerminalId}:{hoje:yyyy-MM-dd}:{j.Hora:D2}", TipoAlerta.Previsao, "risco-horario", prioridade,
                     t.TerminalId, $"hoje, {faixa}", $"Risco de fila às {j.Hora}h",
-                    "Demanda prevista × capacidade de atendimento",
+                    $"Demanda prevista × capacidade de atendimento ({(j.FonteCapacidade == "cadastrada" ? "cadastrada" : "atendimento habitual")})",
                     $"{Num(j.DemandaPrevista)} carretas previstas",
-                    $"{Num(j.CapacidadeAtendimento)} de {referencia}; risco a partir de {Num(e.Parametros.LimiteRazaoChegadaLiberacao, 1)}×",
+                    $"{Num(j.CapacidadeAtendimento)} carretas/h; risco a partir de {Num(e.Parametros.LimiteRazaoChegadaLiberacao, 1)}×",
                     $"De {t.BaseDe:dd/MM} a {t.BaseAte:dd/MM}, às {j.Hora}h chegaram em média {Num(j.DemandaPrevista)} carretas por dia e foram liberadas {Num(j.AtendimentoObservado)}. "
                     + "Estimativa pelo padrão histórico, não é ocorrência."
-                    + (limitada ? " Histórico limitado — estimativa com menor confiabilidade." : ""),
+                    + (limitada ? $" Confiabilidade: {(j.Confiabilidade == Confiabilidade.Desatualizada ? "dados desatualizados" : "limitada")} (detalhes em Gargalos e alertas)." : ""),
                     "Padrão histórico do terminal",
                     "Avaliar antecipar chamadas do pátio na hora anterior ou redistribuir agendamentos. Confirme com a fila real antes de agir.");
             }

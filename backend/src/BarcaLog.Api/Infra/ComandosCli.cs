@@ -15,10 +15,11 @@ namespace BarcaLog.Api.Infra;
 ///   dotnet run -- criar-usuario &lt;email&gt; &lt;nome&gt; &lt;Operador|Gestor|Auditor&gt;   (senha via env BARCALOG_SENHA)
 ///   dotnet run -- gerar-api-key &lt;sistema&gt;     (imprime a chave UMA vez + o hash pra config)
 ///   dotnet run -- gerar-chave                     (chave aleatória pra Jwt:Chave / Seguranca:ChaveCriptografia)
+///   dotnet run -- dicionario [--verificar]        (gera/confere docs/dicionario-de-dados/gerado; não abre conexão com o banco)
 /// </summary>
 public static class ComandosCli
 {
-    private static readonly string[] Comandos = ["migrar", "seed", "importar-marcacoes", "criar-usuario", "gerar-api-key", "gerar-chave"];
+    private static readonly string[] Comandos = ["migrar", "seed", "importar-marcacoes", "criar-usuario", "gerar-api-key", "gerar-chave", "dicionario"];
 
     /// <summary>Comandos que só geram texto e não precisam de configuração completa.</summary>
     private static readonly string[] SemServidor = ["gerar-api-key", "gerar-chave"];
@@ -50,6 +51,10 @@ public static class ComandosCli
         {
             switch (args[0])
             {
+                case "dicionario":
+                    var saida = args.SkipWhile(x => x != "--saida").Skip(1).FirstOrDefault()
+                        ?? Path.Combine(app.Environment.ContentRootPath, "..", "..", "..", "docs", "dicionario-de-dados");
+                    return await DicionarioDados.ExecutarAsync(sp, Path.GetFullPath(saida), args.Contains("--verificar"), log);
                 case "migrar":
                     await sp.GetRequiredService<BarcaLogDbContext>().Database.MigrateAsync();
                     log.LogInformation("Migrations aplicadas.");

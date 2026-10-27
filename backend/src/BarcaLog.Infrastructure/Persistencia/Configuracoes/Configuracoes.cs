@@ -216,8 +216,14 @@ public class UsuarioConfiguracao : IEntityTypeConfiguration<Usuario>
             // Usuário do Portal SEMPRE tem transportadora; interno NUNCA tem — escopo de dados sem ambiguidade.
             t.HasCheckConstraint("CK_Usuarios_EscopoTransportadora",
                 "([Papel] = N'Transportadora' AND [TransportadoraId] IS NOT NULL) OR ([Papel] <> N'Transportadora' AND [TransportadoraId] IS NULL)");
+            t.HasCheckConstraint("CK_Usuarios_TerminalSoInterno", "[Papel] <> N'Transportadora' OR [TerminalId] IS NULL");
         });
         b.HasOne<Transportadora>().WithMany().HasForeignKey(x => x.TransportadoraId).OnDelete(DeleteBehavior.Restrict);
+        // Vínculo de terminal: só usuários internos (o do Portal tem escopo pela transportadora).
+        b.HasOne<Terminal>().WithMany().HasForeignKey(x => x.TerminalId).OnDelete(DeleteBehavior.Restrict);
+        b.Property(x => x.TerminalId).HasMaxLength(32);
+        b.Property(x => x.TelaInicial).HasMaxLength(40);
+        b.Property(x => x.TerminalPreferido).HasMaxLength(32);
         b.VersaoLinha();
         b.Property(x => x.Nome).HasMaxLength(150).IsRequired();
         b.Property(x => x.Email).HasMaxLength(200).IsRequired();

@@ -13,7 +13,7 @@ negativação N1/N2/N3, portaria, agendamentos, Portal do Transportador e audito
 
 Indicadores: [`docs/INDICADORES.md`](docs/INDICADORES.md) · Importação de planilhas:
 [`docs/IMPORTACAO.md`](docs/IMPORTACAO.md) · Telas: [`docs/INTERFACE.md`](docs/INTERFACE.md) ·
-Integração Protheus: [`docs/PROTHEUS.md`](docs/PROTHEUS.md) · Arquitetura e decisões: [`ARCHITECTURE.md`](ARCHITECTURE.md) · Segurança:
+Integração Protheus: [`docs/PROTHEUS.md`](docs/PROTHEUS.md) · Produto: [`docs/PRODUTO.md`](docs/PRODUTO.md) · Decisões: [`docs/arquitetura/registro-de-decisoes.md`](docs/arquitetura/registro-de-decisoes.md) · Dicionário de dados: [`docs/dicionario-de-dados/`](docs/dicionario-de-dados/README.md) · Arquitetura: [`ARCHITECTURE.md`](ARCHITECTURE.md) · Segurança:
 [`SECURITY.md`](SECURITY.md) · API, endpoints e configuração de produção:
 [`backend/README.md`](backend/README.md).
 

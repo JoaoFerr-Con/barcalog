@@ -3,7 +3,7 @@ namespace BarcaLog.Domain.Entidades;
 /// <summary>
 /// Transportadora. Não existe coluna de status de negativação aqui de
 /// propósito: ela é "negativada" se tiver ≥1 veículo negativado — sempre
-/// calculado (ver <see cref="Regras.RegrasNegativacao.CalcularStatusTransportadora"/>).
+/// calculado (ver <see cref="Regras.RegrasNegativacao.CalcularStatusTransportadora(IEnumerable{Veiculo})"/>).
 /// </summary>
 public class Transportadora
 {

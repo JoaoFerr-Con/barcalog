@@ -15,6 +15,9 @@ public interface IUnitOfWork
     /// nova tentativa do provedor: em falha transitória o bloco inteiro é repetido).
     /// </summary>
     Task ExecutarEmTransacaoAsync(Func<CancellationToken, Task> acao, CancellationToken ct = default);
+
+    /// <summary>Descarta o que está pendente no contexto (depois de uma gravação que falhou).</summary>
+    void DescartarAlteracoes();
 }
 
 /// <summary>Uma linha lida de planilha: número da linha (1 = cabeçalho) e valores por coluna normalizada.</summary>
@@ -67,9 +70,13 @@ public interface IAlertaRepositorio
     Task<Alerta?> ObterAsync(int id, CancellationToken ct = default);
     Task<Alerta?> ObterParaAlterarAsync(int id, CancellationToken ct = default);
     /// <summary>Abertos = ativos e ainda não resolvidos/descartados.</summary>
-    Task<Dictionary<TipoAlerta, int>> ContarAbertosPorTipoAsync(CancellationToken ct = default);
+    Task<Dictionary<TipoAlerta, int>> ContarAbertosPorTipoAsync(string? terminalId = null, CancellationToken ct = default);
     Task<DateTime?> UltimaAtualizacaoAsync(CancellationToken ct = default);
     void Adicionar(Alerta alerta);
+    void AdicionarAvaliacao(AvaliacaoAlertas avaliacao);
+    /// <summary>Última avaliação (só bem-sucedidas, se pedido).</summary>
+    Task<AvaliacaoAlertas?> UltimaAvaliacaoAsync(bool somenteSucesso, CancellationToken ct = default);
+    Task<Pagina<AvaliacaoAlertas>> ListarAvaliacoesAsync(FiltroPaginado filtro, CancellationToken ct = default);
 }
 
 public interface IConvenioRepositorio
@@ -111,6 +118,13 @@ public interface IMarcacaoRepositorio
     Task<Dictionary<string, (DateTime? UltimaMarcacao, DateTime? UltimaLiberacao)>> UltimosEventosPorTerminalAsync(CancellationToken ct = default);
     /// <summary>Valores atuais dos movimentos informados (sem rastreamento), para comparar com uma planilha.</summary>
     Task<Dictionary<string, Domain.Regras.DadosMovimento>> ObterDadosAsync(IEnumerable<string> movimentoIds, CancellationToken ct = default);
+    /// <summary>
+    /// Movimentos do recorte com marcação OU liberação em [inicio, fim) (horário do porto), incluindo os
+    /// sem liberação — base da análise 360° (entradas pela marcação, saídas pela liberação).
+    /// </summary>
+    Task<List<Metricas.RegistroAnalise>> ListarParaAnaliseAsync(FiltroAnaliseMovimentacoes filtro, DateTime inicio, DateTime fim, CancellationToken ct = default);
+    /// <summary>Última marcação do terminal (ou de todos).</summary>
+    Task<DateTime?> UltimaMarcacaoAsync(string? terminalId, CancellationToken ct = default);
     void Adicionar(Marcacao marcacao);
     void AdicionarVarias(IEnumerable<Marcacao> marcacoes);
     /// <summary>Descarta entidades já salvas do change tracker (importação em lote).</summary>

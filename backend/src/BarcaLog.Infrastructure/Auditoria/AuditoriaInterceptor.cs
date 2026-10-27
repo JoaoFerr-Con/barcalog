@@ -67,7 +67,7 @@ public class AuditoriaInterceptor(IUsuarioAtual usuarioAtual, IContextoAuditoria
         // O interceptor roda antes do DetectChanges automático do SaveChanges.
         ctx.ChangeTracker.DetectChanges();
         var entradas = ctx.ChangeTracker.Entries()
-            .Where(e => e.Entity is not (LogAuditoria or Idempotencia.ChaveIdempotencia) && e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .Where(e => e.Entity is not (LogAuditoria or Idempotencia.ChaveIdempotencia or AvaliacaoAlertas) && e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
             .Where(e => e.State != EntityState.Modified || e.Properties.Any(p => p.IsModified))
             .ToList();
         if (entradas.Count == 0) return;

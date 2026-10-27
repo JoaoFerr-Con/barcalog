@@ -71,6 +71,8 @@ autenticação não toca nas regras.
 
 ## Dados
 
+Dicionário completo (gerado do código): `docs/dicionario-de-dados/`.
+
 Tabelas: `Terminais`, `Marcacoes` (103k+, PK `MovimentoId`, índices por terminal+data, data, senha, convênio), `Transportadoras`, `Veiculos` (placa única), `Condutores`, `Ocorrencias`, `Contestacoes`, `Agendamentos`, `Usuarios`, `LogsAuditoria`, `ChavesIdempotencia`, `Convenios`, `LotesImportacao`, `LinhasImportacao` (staging), `Alertas`, `EventosAlerta`, `ParametrosOperacionais` (linha única). Cada marcação guarda a origem (`CargaInicial`, `Planilha` com lote e linha, `Integracao`). Todas as FKs com `Restrict` (nada apaga em cascata histórico), exceto `Ocorrencia.CondutorId` (`SET NULL`).
 
 Migrations versionadas em `backend/src/BarcaLog.Infrastructure/Persistencia/Migrations`. Em produção: aplicar com o usuário de migração (`dotnet run -- migrar`), nunca na subida da API. Usuários de menor privilégio e backup: `backend/database/*.sql`.
@@ -81,7 +83,7 @@ Migrations versionadas em `backend/src/BarcaLog.Infrastructure/Persistencia/Migr
 - **Container**: `backend/Dockerfile` (multi-stage, usuário sem privilégio, sem segredos na imagem).
 - **Sondas**: `/health/live` (processo) e `/health/ready` (banco).
 - **Logs**: JSON estruturado com `request_id`; o mesmo id volta no cabeçalho `X-Request-Id` e no `traceId` dos erros.
-- **CI** (`.github/workflows/backend.yml`): build com avisos como erro, pacotes vulneráveis, migrations em dia, testes unitários + integração contra SQL Server real (teste pulado = falha).
+- **CI** (`.github/workflows/backend.yml`): build com avisos como erro, pacotes vulneráveis, migrations em dia, dicionário de dados em dia, testes unitários + integração contra SQL Server real (teste pulado = falha).
 
 ## Testes
 
@@ -93,3 +95,7 @@ Migrations versionadas em `backend/src/BarcaLog.Infrastructure/Persistencia/Migr
 ## Documentos
 
 `docs/INDICADORES.md` (regras dos indicadores e alertas), `docs/IMPORTACAO.md` (planilhas), `docs/INTERFACE.md` (telas), `docs/PROTHEUS.md` (integração: o que falta).
+
+`docs/PRODUTO.md` (Documento Mestre do Produto), `docs/arquitetura/` (estado atual por módulo, arquitetura futura — app móvel, integrações,
+infraestrutura — e registro de decisões) e `docs/dicionario-de-dados/` (dicionário de dados
+gerado do código com `dotnet run -- dicionario`; o CI recusa dicionário desatualizado).

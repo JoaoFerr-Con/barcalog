@@ -45,6 +45,11 @@ public class AuthController(AutenticacaoServico auth) : ControllerBase
     [Authorize(Policy = Politicas.Autenticado)]
     public Task<UsuarioDto> Me(CancellationToken ct) => auth.ObterPerfilAsync(UsuarioId, ct);
 
+    /// <summary>Preferências pessoais (tela inicial, terminal já selecionado). Não alteram papel nem vínculo de terminal.</summary>
+    [HttpPut("me/preferencias")]
+    [Authorize(Policy = Politicas.Leitura)]
+    public Task<UsuarioDto> Preferencias(AtualizarPreferenciasRequest req, CancellationToken ct) => auth.AtualizarPreferenciasAsync(UsuarioId, req, ct);
+
     /// <summary>Encerra TODAS as sessões do usuário (todos os tokens emitidos deixam de valer).</summary>
     [HttpPost("logout")]
     [Authorize(Policy = Politicas.Autenticado)]
@@ -133,6 +138,10 @@ public class UsuariosController(UsuarioServico usuarios) : ControllerBase
     /// <summary>Altera o papel (encerra as sessões do usuário). Não permite rebaixar o último Gestor nem a si mesmo.</summary>
     [HttpPut("{id:int}/papel")]
     public Task<UsuarioDto> AlterarPapel(int id, AlterarPapelRequest req, CancellationToken ct) => usuarios.AlterarPapelAsync(id, req.Papel, ct);
+
+    /// <summary>Vincula o usuário interno a um terminal (vazio = todos). Restringe no servidor tudo o que ele consulta; encerra as sessões dele.</summary>
+    [HttpPut("{id:int}/terminal")]
+    public Task<UsuarioDto> DefinirTerminal(int id, DefinirTerminalUsuarioRequest req, CancellationToken ct) => usuarios.DefinirTerminalAsync(id, req.TerminalId, ct);
 
     /// <summary>Desativa (bloqueia acesso e encerra sessões). Usuários não são apagados, para preservar a auditoria.</summary>
     [HttpPost("{id:int}/desativar")]

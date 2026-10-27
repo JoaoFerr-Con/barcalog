@@ -207,6 +207,75 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                         });
                 });
 
+            modelBuilder.Entity("BarcaLog.Domain.Entidades.AvaliacaoAlertas", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Alterados")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Ativos")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Autor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Confiabilidade")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("Criados")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DadosAte")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("DadosNovos")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Encerrados")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Erro")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("Fim")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("Inicio")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Origem")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int>("Registros")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("Sucesso")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("UltimaImportacaoEm")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Sucesso", "Inicio");
+
+                    b.ToTable("AvaliacoesAlertas", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AvaliacoesAlertas_Origem", "[Origem] IN (N'Automatica', N'Manual', N'Importacao')");
+                        });
+                });
+
             modelBuilder.Entity("BarcaLog.Domain.Entidades.Condutor", b =>
                 {
                     b.Property<int>("Id")
@@ -953,6 +1022,18 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("TelaInicial")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("TerminalId")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("TerminalPreferido")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<int?>("TransportadoraId")
                         .HasColumnType("int");
 
@@ -974,6 +1055,8 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
+                    b.HasIndex("TerminalId");
+
                     b.HasIndex("TransportadoraId");
 
                     b.ToTable("Usuarios", null, t =>
@@ -983,6 +1066,8 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
                             t.HasCheckConstraint("CK_Usuarios_Falhas", "[FalhasLoginConsecutivas] >= 0");
 
                             t.HasCheckConstraint("CK_Usuarios_Papel", "[Papel] IN (N'Operador', N'Gestor', N'Auditor', N'Transportadora')");
+
+                            t.HasCheckConstraint("CK_Usuarios_TerminalSoInterno", "[Papel] <> N'Transportadora' OR [TerminalId] IS NULL");
                         });
                 });
 
@@ -1213,6 +1298,11 @@ namespace BarcaLog.Infrastructure.Persistencia.Migrations
 
             modelBuilder.Entity("BarcaLog.Domain.Entidades.Usuario", b =>
                 {
+                    b.HasOne("BarcaLog.Domain.Entidades.Terminal", null)
+                        .WithMany()
+                        .HasForeignKey("TerminalId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("BarcaLog.Domain.Entidades.Transportadora", null)
                         .WithMany()
                         .HasForeignKey("TransportadoraId")
