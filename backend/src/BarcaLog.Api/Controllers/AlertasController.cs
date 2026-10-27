@@ -7,26 +7,20 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace BarcaLog.Api.Controllers;
 
-/// <summary>
-/// Alertas gerados por regras (histórico, operacional, previsão, dados), cada um
-/// com evidência, limite, origem e histórico de tratamento. Consultar: papéis
-/// internos. Tratar (assumir, registrar ação, resolver, descartar, reabrir): Operador ou Gestor.
-/// </summary>
+
 [ApiController]
 [Route("api/v1/alertas")]
 [Authorize(Policy = Politicas.Leitura)]
 [Produces("application/json")]
 public class AlertasController(AlertasServico servico) : ControllerBase
 {
-    /// <summary>Lista (padrão: só os abertos — ainda ocorrendo e não resolvidos/descartados), prioridade alta primeiro.</summary>
+    
     [HttpGet]
     public Task<Pagina<AlertaDto>> Listar([FromQuery] FiltroAlertas filtro, CancellationToken ct) => servico.ListarAsync(filtro, ct);
 
-    /// <summary>Contagem de alertas abertos por tipo e horário da última avaliação.</summary>
     [HttpGet("resumo")]
     public Task<ResumoAlertasDto> Resumo(CancellationToken ct) => servico.ResumoAsync(ct);
 
-    /// <summary>Próximas 6 horas: razão chegadas ÷ liberações por faixa, no padrão dos últimos 30 dias com dados. Estimativa.</summary>
     [HttpGet("proximas-horas")]
     public async Task<ActionResult<ProximasHorasDto>> ProximasHoras([FromQuery] string? terminalId, CancellationToken ct) =>
         await servico.ProximasHorasAsync(terminalId, ct) is { } r ? r : NoContent();
@@ -35,10 +29,6 @@ public class AlertasController(AlertasServico servico) : ControllerBase
     [HttpGet("{id:int}")]
     public Task<AlertaDto> Obter(int id, CancellationToken ct) => servico.ObterAsync(id, ct);
 
-    /// <summary>
-    /// Reavalia as regras agora (também roda sozinho a cada 10 min e após cada importação) e devolve o
-    /// resultado registrado: dados novos, alertas criados/alterados/encerrados e confiabilidade antes e depois.
-    /// </summary>
     [HttpPost("avaliar")]
     [Authorize(Policy = Politicas.Escrita)]
     public Task<ResultadoAvaliacaoDto> Avaliar(CancellationToken ct) => servico.AvaliarAsync(OrigemAvaliacao.Manual, ct);
