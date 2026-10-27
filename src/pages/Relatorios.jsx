@@ -339,7 +339,10 @@ function Grafico({ b }) {
     b.series.forEach(s => { linha[s.nome] = s.valores[i]; });
     return linha;
   });
-  const fmt = v => (v == null ? "—" : Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 }));
+  const emHoras = b.unidade.startsWith("horas");
+  const fmt = v => (v == null ? "—" : emHoras
+    ? `${Math.floor(Math.round(v * 60) / 60)}h${String(Math.round(v * 60) % 60).padStart(2, "0")}`
+    : Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 }));
   const empilhado = b.tipoGrafico === "barrasEmpilhadas";
   const comum = (
     <>
@@ -358,7 +361,7 @@ function Grafico({ b }) {
           {b.tipoGrafico === "linhas" ? (
             <LineChart data={dados}>
               {comum}
-              {b.series.map(s => <Line key={s.nome} dataKey={s.nome} stroke={CORES[s.estimado ? "estimado" : s.cor] || CORES.neutra} strokeDasharray={s.estimado ? "5 4" : undefined} dot={false} />)}
+              {b.series.map(s => <Line key={s.nome} dataKey={s.nome} stroke={CORES[s.estimado ? "estimado" : s.cor] || CORES.neutra} strokeDasharray={s.estimado ? "5 4" : undefined} strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />)}
             </LineChart>
           ) : (
             <BarChart data={dados}>

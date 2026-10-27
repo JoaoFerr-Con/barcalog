@@ -14,6 +14,43 @@ muda entre a tela e o PDF/Excel.
 
 Detalhamento **resumido** tira as tabelas longas (dia a dia, convênios) e reduz os rankings.
 
+## Perguntas que o relatório responde
+
+O próprio documento abre com o quadro "Perguntas que este relatório responde", com o número da seção
+de cada resposta. Em resumo:
+
+| Pergunta | Gerencial | Operacional | Análise 360° |
+|---|---|---|---|
+| Quantas carretas entraram e foram liberadas, quanto esperaram, comparado ao período anterior? | ✓ | ✓ | ✓ |
+| Como volume e espera evoluíram mês a mês? Dá para projetar o próximo mês? | ✓ | — | ✓ |
+| Como foi o movimento dia a dia, por terminal? | ✓ (gráfico) | ✓ (gráfico e tabela) | ✓ (gráfico) |
+| Em que horários e dias da semana o fluxo se concentra? | ✓ | ✓ | ✓ |
+| Qual terminal recebe mais e onde se espera mais? | ✓ | ✓ | ✓ |
+| Quanto tempo as carretas ficam? Quais esperaram mais? | — | ✓ | ✓ |
+| Como o movimento se divide entre operadores, cargas e convênios? | cargas | ✓ | ✓ |
+| Quais os dias de pico? Algum terminal passou da referência diária? | ✓ | ✓ | ✓ |
+| O pico coincide com a safra? | ✓ | — | ✓ |
+| Quanto dá para confiar nos registros? | — | — | ✓ |
+| O que mudou e o que merece acompanhamento? | ✓ | — | ✓ |
+
+**Não responde:** quantas carretas físicas diferentes passaram (as planilhas não trazem a placa: cada
+linha é um movimento) nem se os registros batem com os de outro sistema (ex.: Posto Mirian) — isso
+pede um relatório de conciliação com os dois lados. Também não há mapa de ocorrências (DEC-034).
+
+## Conferência dos números
+
+`backend/tools/conferir_relatorios.py` recalcula no SQL Server, com consultas próprias (sem usar o
+código do BarcaLog), os indicadores, tabelas por terminal, histórico mensal por carga, faixas de
+espera, maiores esperas, dias de pico, referência diária e entradas por hora de cinco cenários
+(gerencial, operacional e 360°; todos os terminais, um terminal, uma carga, um operador, meio mês).
+Resultado em 27/10/2026, base local com dez/2025 a set/2026: **101 de 101 conferências batem**.
+
+A espera é guardada em horas com duas casas (0,01 h = 36 s), regra herdada das planilhas. Recalculando
+pelo tempo exato em segundos, 96 de 101 batem: as diferenças são de 1 minuto em algum percentil ou de
+poucas carretas exatamente na fronteira entre faixas (ex.: 3 de 20.960 em abril/2026, entre "6 a 12 h"
+e "12 a 24 h"). A conferência encontrou e corrigiu um arredondamento duplo (0,01 h e depois minuto)
+na Análise 360°, que deslocava medianas em 1 minuto.
+
 ## Filtros e escopo
 
 Período (padrão: último mês completo — todos os terminais com dados no mês inteiro), terminal,

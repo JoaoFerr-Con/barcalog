@@ -18,6 +18,7 @@ public sealed record EntradaMontagem(
     IReadOnlyList<RegistroAnalise> Entradas,
     IReadOnlyList<MesHistorico> Historico,
     IReadOnlyList<CoberturaTerminal> Cobertura,
+    IReadOnlyList<MesTerminal> HistoricoTerminais,
     Func<string, (int Referencia, bool Informada)> Referencia,
     int ReferenciaPadrao,
     double LimiteEsperaMedianaHoras,
@@ -103,6 +104,8 @@ public static class MontadorRelatorio
                     break;
             }
         }
+        if (!semDados && secoes.Count > 0)
+            secoes[0] = secoes[0] with { Blocos = [.. secoes[0].Blocos, PerguntasRespondidas(secoes)] };
         return new DocumentoRelatorio(tipo, Titulos[tipo], "Movimentação de carretas nos terminais de Barcarena", a.De, a.Ate,
             Fmt.Periodo(a.De, a.Ate), e.Abrangencia, e.Filtros, e.GeradoEm, string.IsNullOrWhiteSpace(e.Organizacao) ? null : e.Organizacao.Trim(),
             FonteDados, semDados, secoes);
@@ -172,6 +175,8 @@ public static class MontadorRelatorio
                 new SerieGrafico("Entradas", serie.Select(p => (double?)p.Entradas).ToList(), false, "marca"),
                 new SerieGrafico("Liberações", serie.Select(p => (double?)p.Saidas).ToList(), false, "ambar")
             ], "carretas", serie.Any(p => p.Parcial) ? "Pontos marcados com * não cobrem a semana ou o mês inteiro (corte do período)." : null, []));
+        if (GraficoTerminaisNoPeriodo(e) is { } porTerminal) blocos.Add(porTerminal);
+        blocos.Add(GraficoEsperaSerie(e));
 
         if (h.Count > 0)
         {
@@ -184,6 +189,10 @@ public static class MontadorRelatorio
                 ], "carretas por mês",
                 h.Any(m => m.Parcial) ? "* Mês parcial: nem todos os terminais têm dados no mês inteiro — não compare diretamente com os demais." : null,
                 IndicesPico(h)));
+            if (GraficoMesesPorTerminal(e) is { } meses) blocos.Add(meses);
+            blocos.Add(new BlocoGrafico("Espera mediana por mês", "linhas", h.Select(m => m.Rotulo + (m.Parcial ? "*" : "")).ToList(),
+                [new SerieGrafico("Espera mediana", h.Select(m => m.EsperaMediana).ToList(), false, "marca")], "horas",
+                "Metade das carretas do mês já liberadas esperou até esse tempo entre a marcação e a liberação.", IndicesPico(h)));
             if (comTabela)
             {
                 var linhas = h.Select(m => (IReadOnlyList<string>)[
@@ -215,6 +224,8 @@ public static class MontadorRelatorio
                     new SerieGrafico("Liberações", a.Serie.Select(p => (double?)p.Saidas).ToList(), false, "ambar")
                 ], "carretas", null, [])
         };
+        if (GraficoTerminaisNoPeriodo(e) is { } porTerminal) blocos.Add(porTerminal);
+        blocos.Add(GraficoEsperaSerie(e));
         if (completo)
         {
             var linhas = a.Serie.Select(p => (IReadOnlyList<string>)[
@@ -280,6 +291,15 @@ public static class MontadorRelatorio
         var blocos = new List<BlocoRelatorio> { TabelaDimensao("Comparação entre terminais", "Terminal", dim) };
         if (dim.Grupos.Count > 1)
         {
+            blocos.Add(GraficoDimensao("Entradas por terminal", dim, "carretas no período", "terminal"));
+            blocos.Add(new BlocoGrafico("Espera por terminal", "barras", dim.Grupos.Select(g => g.Rotulo).ToList(),
+                [
+                    new SerieGrafico("Espera mediana", dim.Grupos.Select(g => g.EsperaMediana).ToList(), false, "marca"),
+                    new SerieGrafico("90% liberadas em até", dim.Grupos.Select(g => g.EsperaP90).ToList(), false, "ambar")
+                ], "horas", "Espera mediana: metade das carretas esperou até esse tempo. 90% liberadas em até: 9 de cada 10 saíram dentro desse tempo.", []));
+        }
+        if (dim.Grupos.Count > 1)
+        {
             var maiorVolume = dim.Grupos.OrderByDescending(g => g.Entradas).First();
             var maiorEspera = dim.Grupos.Where(g => g.EsperaMediana is not null).OrderByDescending(g => g.EsperaMediana).FirstOrDefault();
             var menorEspera = dim.Grupos.Where(g => g.EsperaMediana is not null).OrderBy(g => g.EsperaMediana).FirstOrDefault();
@@ -322,7 +342,9 @@ public static class MontadorRelatorio
             blocos.Add(TabelaDimensao("Por terminal", "Terminal", e.Analise.Dimensoes.First(d => d.Dimensao == "terminal")));
         blocos.AddRange(new List<BlocoRelatorio>
         {
+            GraficoDimensao("Entradas por operador", e.Analise.Dimensoes.First(d => d.Dimensao == "operador"), "carretas no período"),
             TabelaDimensao("Por operador", "Operador", e.Analise.Dimensoes.First(d => d.Dimensao == "operador")),
+            GraficoDimensao("Entradas por tipo de carga", e.Analise.Dimensoes.First(d => d.Dimensao == "carga"), "carretas no período"),
             TabelaDimensao("Por tipo de carga", "Carga", e.Analise.Dimensoes.First(d => d.Dimensao == "carga"))
         });
         if (completo) blocos.Add(TabelaDimensao("Por convênio", "Convênio", e.Analise.Dimensoes.First(d => d.Dimensao == "convenio")));
@@ -333,7 +355,9 @@ public static class MontadorRelatorio
     {
         var blocos = new List<BlocoRelatorio>
         {
+            GraficoDimensao("Entradas por operador", e.Analise.Dimensoes.First(d => d.Dimensao == "operador"), "carretas no período"),
             TabelaDimensao("Por operador", "Operador", e.Analise.Dimensoes.First(d => d.Dimensao == "operador")),
+            GraficoDimensao("Entradas por tipo de carga", e.Analise.Dimensoes.First(d => d.Dimensao == "carga"), "carretas no período"),
             TabelaDimensao("Por tipo de carga", "Carga", e.Analise.Dimensoes.First(d => d.Dimensao == "carga"))
         };
         if (completo) blocos.Add(TabelaDimensao("Por convênio", "Convênio", e.Analise.Dimensoes.First(d => d.Dimensao == "convenio")));
@@ -377,12 +401,13 @@ public static class MontadorRelatorio
         var totais = CalculosRelatorio.DiasTotais(e.Entradas);
         if (string.IsNullOrEmpty(e.Filtro.TerminalId) && e.Cobertura.Count > 1 && totais.Count > 0)
         {
-            var t = totais.Take(5).ToList();
-            blocos.Add(new BlocoTabela("Dias de maior movimento, todos os terminais somados",
-                [new("Dia", Largura: 2), new("Entradas", "direita", 1, "#,##0")],
-                t.Select(d => (IReadOnlyList<string>)[$"{Fmt.Data(d.Data)} ({Fmt.DiasSemana[(int)d.Data.DayOfWeek]})", Fmt.Num(d.Entradas)]).ToList(),
-                t.Select(d => (IReadOnlyList<double?>)[null, d.Entradas]).ToList(),
-                "A soma não é comparada a uma referência: as referências são por terminal e não se somam.", []));
+            var g = totais.Take(10).OrderBy(d => d.Data).ToList();
+            blocos.Add(new BlocoGrafico("Os 10 dias de maior movimento, todos os terminais somados", "barras",
+                g.Select(d => $"{Fmt.DataCurta(d.Data)} {Fmt.DiasSemanaCurto[(int)d.Data.DayOfWeek]}").ToList(),
+                [new SerieGrafico("Entradas", g.Select(d => (double?)d.Entradas).ToList(), false, "marca")], "carretas por dia",
+                "Soma dos terminais, sem comparação com a referência: as referências são por terminal e não se somam.",
+                [g.Select((d, i) => (d.Entradas, i)).OrderByDescending(x => x.Entradas).First().i]));
+
         }
         return blocos;
     }
@@ -405,7 +430,8 @@ public static class MontadorRelatorio
 
     private static SecaoRelatorio CargasESafra(EntradaMontagem e)
     {
-        var blocos = new List<BlocoRelatorio> { TabelaDimensao("Entradas por tipo de carga", "Carga", e.Analise.Dimensoes.First(d => d.Dimensao == "carga")) };
+        var carga = e.Analise.Dimensoes.First(d => d.Dimensao == "carga");
+        var blocos = new List<BlocoRelatorio> { GraficoDimensao("Entradas por tipo de carga no período", carga, "carretas"), TabelaDimensao("Entradas por tipo de carga", "Carga", carga) };
         blocos.AddRange(BlocosSafra(e));
         return new SecaoRelatorio("cargas", "Cargas e safra", blocos);
     }
@@ -542,7 +568,7 @@ public static class MontadorRelatorio
             new BlocoLista([
                 "Entrada: carreta marcada no terminal (data de marcação dentro do período, horário de Barcarena).",
                 "Liberação (saída): carreta liberada pelo terminal; conta na data da liberação, mesmo que tenha sido marcada antes do período.",
-                "Espera: tempo entre a marcação e a liberação, só para as carretas já liberadas.",
+                "Espera: tempo entre a marcação e a liberação, só para as carretas já liberadas. É guardada em horas com duas casas decimais (precisão de 36 segundos), como nas planilhas de origem; por isso uma carreta exatamente na fronteira de uma faixa pode cair na faixa vizinha.",
                 "Espera mediana: metade das carretas esperou até esse tempo. É menos afetada por casos extremos do que a média.",
                 "90% liberadas em até: tempo dentro do qual 9 de cada 10 carretas foram liberadas.",
                 $"Esperas longas: carretas com espera acima de {limite} horas (parâmetro do sistema).",
@@ -562,6 +588,85 @@ public static class MontadorRelatorio
                 }).ToList()));
         }
         return new SecaoRelatorio("metodologia", "Metodologia e fontes", blocos);
+    }
+
+    // ------------------------------------------------------------------ gráficos de apoio
+
+    private static BlocoGrafico GraficoDimensao(string titulo, AnaliseDimensao dim, string unidade, string? cores = null)
+    {
+        var grupos = dim.Grupos.Take(10).ToList();
+        if (cores == "terminal")
+            return new BlocoGrafico(titulo, "barrasEmpilhadas", grupos.Select(g => g.Rotulo).ToList(),
+                grupos.Select((g, i) => new SerieGrafico(g.Rotulo, grupos.Select((x, k) => k == i ? (double?)x.Entradas : null).ToList(), false, CorTerminal(g.Chave))).ToList(),
+                unidade, null, []);
+        return new BlocoGrafico(titulo, "barras", grupos.Select(g => g.Rotulo).ToList(),
+            [new SerieGrafico("Entradas", grupos.Select(g => (double?)g.Entradas).ToList(), false, "marca")], unidade,
+            dim.Grupos.Count > 10 ? "Mostra os 10 maiores; os demais estão na tabela." : null, [0]);
+    }
+
+    private static BlocoGrafico GraficoEsperaSerie(EntradaMontagem e)
+    {
+        var a = e.Analise;
+        return new BlocoGrafico($"Espera mediana por {RotuloAgrupamento(a.Agrupamento)}", "linhas", a.Serie.Select(p => RotuloPonto(p, a.Agrupamento)).ToList(),
+            [new SerieGrafico("Espera mediana", a.Serie.Select(p => p.EsperaMediana).ToList(), false, "marca")], "horas",
+            $"Carretas marcadas em cada {RotuloAgrupamento(a.Agrupamento)} e já liberadas. Referência de alerta configurada: {Fmt.Num(e.LimiteEsperaMedianaHoras, 0)} h.", []);
+    }
+
+    /// <summary>Entradas do período por dia/semana/mês, empilhadas por terminal (só quando há mais de um).</summary>
+    private static BlocoGrafico? GraficoTerminaisNoPeriodo(EntradaMontagem e)
+    {
+        var a = e.Analise;
+        var terminais = e.Entradas.GroupBy(r => r.TerminalId).Select(g => (Id: g.Key, Nome: g.First().Terminal)).OrderBy(t => t.Nome).ToList();
+        if (terminais.Count < 2) return null;
+        var porPonto = a.Serie.Select(p => e.Entradas.Where(r => { var d = DateOnly.FromDateTime(r.DataMarcacao); return d >= p.De && d <= p.Ate; })
+            .GroupBy(r => r.TerminalId).ToDictionary(g => g.Key, g => g.Count())).ToList();
+        return new BlocoGrafico($"Entradas por {RotuloAgrupamento(a.Agrupamento)} e terminal", "barrasEmpilhadas", a.Serie.Select(p => RotuloPonto(p, a.Agrupamento)).ToList(),
+            terminais.Select(t => new SerieGrafico(t.Nome, porPonto.Select(d => (double?)d.GetValueOrDefault(t.Id)).ToList(), false, CorTerminal(t.Id))).ToList(),
+            "carretas", null, []);
+    }
+
+    private static BlocoGrafico? GraficoMesesPorTerminal(EntradaMontagem e)
+    {
+        var meses = e.Historico.Select(m => m.Chave).ToList();
+        var terminais = e.HistoricoTerminais.GroupBy(x => x.TerminalId).Select(g => (Id: g.Key, Nome: g.First().Terminal)).OrderBy(t => t.Nome).ToList();
+        if (terminais.Count < 2 || meses.Count == 0) return null;
+        var mapa = e.HistoricoTerminais.ToDictionary(x => (x.Chave, x.TerminalId), x => x.Entradas);
+        return new BlocoGrafico("Histórico mensal de entradas, por terminal", "barrasEmpilhadas",
+            e.Historico.Select(m => m.Rotulo + (m.Parcial ? "*" : "")).ToList(),
+            terminais.Select(t => new SerieGrafico(t.Nome, meses.Select(k => (double?)mapa.GetValueOrDefault((k, t.Id))).ToList(), false, CorTerminal(t.Id))).ToList(),
+            "carretas por mês", "Um terminal que aparece com pouco volume num mês pode não ter enviado os dados do mês inteiro (veja a origem dos dados).", []);
+    }
+
+    private static string CorTerminal(string id) => id is "unitapajos" or "tgpm" or "hidrovias" ? id : "neutra";
+
+    /// <summary>Lista as perguntas que o documento responde (e o que ele não responde), com o número da seção.</summary>
+    private static BlocoQuadro PerguntasRespondidas(IReadOnlyList<SecaoRelatorio> secoes)
+    {
+        var perguntas = new Dictionary<string, string>
+        {
+            ["resumo"] = "Quantas carretas entraram e foram liberadas, quanto esperaram e como isso se compara ao período anterior?",
+            ["historico"] = "Como o volume e a espera evoluíram mês a mês? Qual a tendência? Dá para projetar o próximo mês?",
+            ["movimento"] = "Como foi o movimento dia a dia, em cada terminal?",
+            ["fluxo"] = "Em que horários e dias da semana as chegadas e as liberações se concentram?",
+            ["horarios"] = "Em que horários e dias da semana as chegadas e as liberações se concentram?",
+            ["terminais"] = "Qual terminal recebe mais carretas e em qual se espera mais?",
+            ["permanencia"] = "Quanto tempo as carretas ficam entre a marcação e a liberação? Quais esperaram mais?",
+            ["distribuicao"] = "Como o movimento se divide entre terminais, operadores, cargas e convênios?",
+            ["dimensoes"] = "Como o movimento se divide entre operadores, cargas, convênios e origem do registro?",
+            ["dias-pico"] = "Quais foram os dias de maior movimento? Algum terminal passou da referência diária?",
+            ["gargalos"] = "Quando estão os picos do dia e os dias de maior movimento? Algum terminal passou da referência diária?",
+            ["cargas"] = "Que cargas passaram e o pico de movimento coincide com a safra?",
+            ["picos"] = "Quais foram os dias de pico e o pico de movimento coincide com a safra?",
+            ["qualidade"] = "Quanto dá para confiar nos registros (sem liberação, remarcações, liberações em lote)?",
+            ["ocorrencias"] = "Onde se concentram as ocorrências? (Ainda sem resposta: faltam coordenadas.)",
+            ["conclusoes"] = "O que mudou no período e o que merece acompanhamento?",
+            ["metodologia"] = "Como cada número foi calculado e de onde vêm os dados e as fontes externas?"
+        };
+        var itens = secoes.Select((s, i) => (s, i)).Where(x => perguntas.ContainsKey(x.s.Id))
+            .Select(x => new ItemRotulado($"Seção {x.i + 1:00}", perguntas[x.s.Id])).ToList();
+        itens.Add(new ItemRotulado("Não responde", "Quantas carretas diferentes passaram (as planilhas não trazem a placa: cada linha é um movimento) " +
+            "nem se os registros batem com os de outro sistema, como o do Posto Mirian — isso exige um relatório de conciliação com os dois lados."));
+        return new BlocoQuadro("Perguntas que este relatório responde", itens);
     }
 
     // ------------------------------------------------------------------ apoio

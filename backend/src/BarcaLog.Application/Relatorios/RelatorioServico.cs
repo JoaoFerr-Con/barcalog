@@ -202,7 +202,7 @@ public class RelatorioServico(
         filtrosRotulados.Add(new("Detalhamento", f.Detalhamento == "resumido" ? "Resumido" : "Completo"));
 
         var doc = MontadorRelatorio.Montar(new EntradaMontagem(f, abrangencia, filtrosRotulados, analise, entradas,
-            CalculosRelatorio.HistoricoMensal(filtrados, ate, cobertura), cobertura, Referencia, o.ReferenciaDiariaCarretas,
+            CalculosRelatorio.HistoricoMensal(filtrados, ate, cobertura), cobertura, CalculosRelatorio.HistoricoPorTerminal(filtrados, ate), Referencia, o.ReferenciaDiariaCarretas,
             parametros.LimiteEsperaMedianaHoras, parametros.MetaLiberadas24hPct, o.ContextoExterno, relogio.AgoraLocalPorto, o.Organizacao));
 
         var efetivo = new FiltroRelatorio { Tipo = f.Tipo, De = de, Ate = ate, TerminalId = terminalId, Operador = operador, Carga = carga, Detalhamento = f.Detalhamento };

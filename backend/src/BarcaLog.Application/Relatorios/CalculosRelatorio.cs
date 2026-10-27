@@ -9,6 +9,9 @@ public sealed record CoberturaTerminal(string TerminalId, string Terminal, DateO
 /// <summary>Um mês do histórico. "Parcial" = algum terminal do recorte não tem dados no mês inteiro.</summary>
 public sealed record MesHistorico(string Chave, string Rotulo, int Entradas, int Soja, int Milho, int Outras, double? EsperaMediana, bool Parcial);
 
+/// <summary>Entradas de um mês num terminal.</summary>
+public sealed record MesTerminal(string Chave, string TerminalId, string Terminal, int Entradas);
+
 public sealed record FaixaEspera(string Rotulo, int Quantidade, double Pct);
 
 /// <summary>Volume de um dia num terminal comparado à referência diária.</summary>
@@ -85,6 +88,15 @@ public static class CalculosRelatorio
                 return new MesHistorico(g.Key, RotuloMesCurto(g.Key), g.Count(), soja, milho, g.Count() - soja - milho,
                     Arred(Indicadores.Percentil(esperas, 0.5)), mesCortado || !MesCompleto(g.Key, cobertura));
             }).ToList();
+    }
+
+    public static List<MesTerminal> HistoricoPorTerminal(IEnumerable<RegistroAnalise> regs, DateOnly ate)
+    {
+        var limite = ate.AddDays(1).ToDateTime(TimeOnly.MinValue);
+        return regs.Where(r => r.DataMarcacao < limite)
+            .GroupBy(r => (Chave: r.DataMarcacao.ToString("yyyy-MM", Br), r.TerminalId))
+            .Select(g => new MesTerminal(g.Key.Chave, g.Key.TerminalId, g.First().Terminal, g.Count()))
+            .OrderBy(x => x.Chave, StringComparer.Ordinal).ThenBy(x => x.Terminal).ToList();
     }
 
     public static bool EhSoja(string carga) => carga.StartsWith("Soja", StringComparison.OrdinalIgnoreCase);
@@ -171,5 +183,7 @@ public static class CalculosRelatorio
         return true;
     }
 
-    private static double? Arred(double? v) => v is null ? null : Math.Round(v.Value, 2);
+    // Horas sem arredondar a 2 casas: a tela formata em minutos ("13h44"), e arredondar duas vezes
+    // (0,01 h e depois minuto) deslocava a espera em 1 minuto em alguns casos.
+    private static double? Arred(double? v) => v is null ? null : Math.Round(v.Value, 6);
 }
