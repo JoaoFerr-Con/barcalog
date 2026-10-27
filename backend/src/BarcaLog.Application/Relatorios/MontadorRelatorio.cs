@@ -175,8 +175,12 @@ public static class MontadorRelatorio
                 new SerieGrafico("Entradas", serie.Select(p => (double?)p.Entradas).ToList(), false, "marca"),
                 new SerieGrafico("Liberações", serie.Select(p => (double?)p.Saidas).ToList(), false, "ambar")
             ], "carretas", serie.Any(p => p.Parcial) ? "Pontos marcados com * não cobrem a semana ou o mês inteiro (corte do período)." : null, []));
-        if (GraficoTerminaisNoPeriodo(e) is { } porTerminal) blocos.Add(porTerminal);
-        blocos.Add(GraficoEsperaSerie(e));
+        // Período agrupado por mês: os gráficos por terminal e de espera já aparecem no histórico mensal.
+        if (e.Analise.Agrupamento != "mes")
+        {
+            if (GraficoTerminaisNoPeriodo(e) is { } porTerminal) blocos.Add(porTerminal);
+            blocos.Add(GraficoEsperaSerie(e));
+        }
 
         if (h.Count > 0)
         {
@@ -204,7 +208,7 @@ public static class MontadorRelatorio
                      new("Outras", "direita", 0.9, "#,##0"), new("Espera mediana", "direita", 1.1, "[h]:mm"), new("Dados do mês", Largura: 1)],
                     linhas, valores, "Entradas pela data de marcação. Espera mediana das carretas do mês já liberadas.", IndicesPico(h)));
             }
-            blocos.Add(MesmoMesAnoAnterior(e));
+            if (e.Analise.Dias <= 31) blocos.Add(MesmoMesAnoAnterior(e));
             var tendencia = TendenciaRecente(h);
             if (tendencia is not null) blocos.Add(new BlocoParagrafo(tendencia));
             blocos.Add(ProjecaoBloco(CalculosRelatorio.Projecao(h)));

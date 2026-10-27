@@ -67,7 +67,7 @@ namespace BarcaLog.Application.Relatorios
             if (De is { } d && Ate is { } a)
             {
                 if (d > a) yield return new ValidationResult("A data inicial não pode ser maior que a final.", [nameof(De), nameof(Ate)]);
-                else if (a.DayNumber - d.DayNumber > 366) yield return new ValidationResult("Período máximo de um ano por relatório.", [nameof(De), nameof(Ate)]);
+                else if (a.DayNumber - d.DayNumber > 731) yield return new ValidationResult("Período máximo de dois anos por relatório.", [nameof(De), nameof(Ate)]);
             }
         }
     }

@@ -71,6 +71,12 @@ export default function Relatorios() {
   function escolherMes(chave) {
     setMes(chave);
     if (chave === "personalizado") return;
+    if (chave === "tudo") {
+      // Todo o histórico: da primeira à última marcação entre os terminais disponíveis.
+      setDe(o.terminais.map(t => t.primeiraMarcacao).sort()[0]);
+      setAte(o.terminais.map(t => t.ultimaMarcacao).sort().slice(-1)[0]);
+      return;
+    }
     const m = o.meses.find(x => x.chave === chave);
     if (m) { setDe(m.de); setAte(m.ate); }
   }
@@ -137,6 +143,7 @@ export default function Relatorios() {
           <Campo rotulo="Período">
             <select value={mes ?? ""} onChange={e => escolherMes(e.target.value)} disabled={!o}>
               {(o?.meses || []).slice().reverse().map(m => <option key={m.chave} value={m.chave}>{m.rotulo}{m.completo ? "" : " (parcial)"}</option>)}
+              <option value="tudo">Todo o histórico disponível</option>
               <option value="personalizado">Personalizado…</option>
             </select>
           </Campo>
