@@ -50,7 +50,10 @@ builder.WebHost.ConfigureKestrel(k =>
 });
 
 // ---------- Camadas ----------
+// Contexto externo dos relatórios (safra, mercado): arquivo atualizável sem recompilar.
+config.AddJsonFile(Path.Combine("Relatorios", "contexto-externo.json"), optional: true, reloadOnChange: true);
 builder.Services.Configure<OperacaoOptions>(config.GetSection(OperacaoOptions.Secao));
+builder.Services.Configure<BarcaLog.Application.Relatorios.RelatoriosOptions>(config.GetSection(BarcaLog.Application.Relatorios.RelatoriosOptions.Secao));
 builder.Services.Configure<SegurancaOptions>(config.GetSection(SegurancaOptions.Secao));
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpContextAccessor();
@@ -179,7 +182,7 @@ builder.Services.AddCors(o => o.AddPolicy(PoliticaCors, p => p
     .WithOrigins(origens)
     .WithHeaders("Authorization", "Content-Type", IdempotenteAttribute.Cabecalho, LogRequisicoes.Cabecalho)
     .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE")
-    .WithExposedHeaders(LogRequisicoes.Cabecalho, "Retry-After", "Idempotent-Replayed", "Location")
+    .WithExposedHeaders(LogRequisicoes.Cabecalho, "Retry-After", "Idempotent-Replayed", "Location", "Content-Disposition", "X-Relatorio-Codigo")
     .SetPreflightMaxAge(TimeSpan.FromHours(1))));
 
 // ---------- Swagger ----------

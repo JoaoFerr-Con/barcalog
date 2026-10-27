@@ -6,21 +6,53 @@
       "finalidade": "Reserva de uma carreta (placa) para um terminal, dia e hora, com a janela D0–D3 e a situação do atendimento. Base da tela Agendamentos (grade hora × capacidade e QR).",
       "origem": "Cadastro manual na tela Agendamentos. Hoje o banco contém só agendamentos fictícios de demonstração (as planilhas dos terminais não trazem agenda).",
       "responsavel": "Operador ou Gestor (POST/PUT /api/v1/agendamentos)",
-      "consumidores": ["Tela Agendamentos", "GET /api/v1/agendamentos/resumo"],
+      "consumidores": [
+        "Tela Agendamentos",
+        "GET /api/v1/agendamentos/resumo"
+      ],
       "retencao": "Sem regra de expurgo no código.",
       "situacao": "Extraído do código; dados atuais são demonstração; regra de negócio a validar",
       "campos": {
-        "Id": { "nomeAmigavel": "Identificador", "origem": "Gerado pelo banco", "observacao": "O código exibido no QR é AGD-{Id com 6 dígitos} (calculado, não gravado)." },
-        "Carga": { "nomeAmigavel": "Carga" },
-        "Data": { "nomeAmigavel": "Data agendada" },
-        "Hora": { "nomeAmigavel": "Hora agendada" },
-        "JanelaConformidade": { "nomeAmigavel": "Janela (D0–D3)", "observacao": "Significado diverge entre a documentação original (dia autorizado: D0 = hoje) e o código (prazo de permanência). Ver regras-de-negocio.md." },
-        "Motorista": { "nomeAmigavel": "Motorista", "sensibilidade": "Dado pessoal (nome)" },
-        "Placa": { "nomeAmigavel": "Placa", "sensibilidade": "Dado pessoal indireto (identifica veículo)" },
-        "Status": { "nomeAmigavel": "Situação do agendamento", "observacao": "Alterada manualmente; o código não restringe transições." },
-        "TerminalId": { "nomeAmigavel": "Terminal" },
-        "TransportadoraId": { "nomeAmigavel": "Transportadora" },
-        "VersaoLinha": { "nomeAmigavel": "Versão da linha", "origem": "Gerado pelo banco" }
+        "Id": {
+          "nomeAmigavel": "Identificador",
+          "origem": "Gerado pelo banco",
+          "observacao": "O código exibido no QR é AGD-{Id com 6 dígitos} (calculado, não gravado)."
+        },
+        "Carga": {
+          "nomeAmigavel": "Carga"
+        },
+        "Data": {
+          "nomeAmigavel": "Data agendada"
+        },
+        "Hora": {
+          "nomeAmigavel": "Hora agendada"
+        },
+        "JanelaConformidade": {
+          "nomeAmigavel": "Janela (D0–D3)",
+          "observacao": "Significado diverge entre a documentação original (dia autorizado: D0 = hoje) e o código (prazo de permanência). Ver regras-de-negocio.md."
+        },
+        "Motorista": {
+          "nomeAmigavel": "Motorista",
+          "sensibilidade": "Dado pessoal (nome)"
+        },
+        "Placa": {
+          "nomeAmigavel": "Placa",
+          "sensibilidade": "Dado pessoal indireto (identifica veículo)"
+        },
+        "Status": {
+          "nomeAmigavel": "Situação do agendamento",
+          "observacao": "Alterada manualmente; o código não restringe transições."
+        },
+        "TerminalId": {
+          "nomeAmigavel": "Terminal"
+        },
+        "TransportadoraId": {
+          "nomeAmigavel": "Transportadora"
+        },
+        "VersaoLinha": {
+          "nomeAmigavel": "Versão da linha",
+          "origem": "Gerado pelo banco"
+        }
       }
     },
     "Alertas": {
@@ -28,30 +60,82 @@
       "finalidade": "Problema identificado por regra (histórico, operacional, previsão, dados) com evidência, limite, origem, ação recomendada e estado de tratamento.",
       "origem": "Calculado pelo sistema (RegrasAlerta) a cada 10 min, após importação e em Reavaliar agora.",
       "responsavel": "Sistema cria e atualiza; Operador/Gestor tratam (assumir, registrar ação, resolver, descartar, reabrir).",
-      "consumidores": ["Tela Gargalos e alertas", "Visão Geral (alertas abertos)", "Relatório do período", "Contador de alertas no menu"],
+      "consumidores": [
+        "Tela Gargalos e alertas",
+        "Visão Geral (alertas abertos)",
+        "Central de relatórios",
+        "Contador de alertas no menu"
+      ],
       "retencao": "Sem expurgo; alerta que deixa de ocorrer fica com Ativo = false.",
       "situacao": "Extraído do código; regras documentadas em docs/INDICADORES.md",
       "campos": {
-        "Id": { "nomeAmigavel": "Identificador", "origem": "Gerado pelo banco" },
-        "AcaoRecomendada": { "nomeAmigavel": "Ação recomendada", "origem": "Regra do alerta" },
-        "Ativo": { "nomeAmigavel": "Ainda ocorrendo" },
-        "AtualizadoEm": { "nomeAmigavel": "Atualizado em" },
-        "Chave": { "nomeAmigavel": "Chave do problema", "observacao": "Regra + terminal + período; identifica o mesmo problema entre avaliações." },
-        "Estado": { "nomeAmigavel": "Estado do tratamento" },
-        "Evidencia": { "nomeAmigavel": "Evidência" },
-        "IdentificadoEm": { "nomeAmigavel": "Identificado em" },
-        "Indicador": { "nomeAmigavel": "Indicador" },
-        "Limite": { "nomeAmigavel": "Limite" },
-        "Origem": { "nomeAmigavel": "Origem dos dados" },
-        "Periodo": { "nomeAmigavel": "Período" },
-        "Prioridade": { "nomeAmigavel": "Prioridade" },
-        "Regra": { "nomeAmigavel": "Regra" },
-        "Responsavel": { "nomeAmigavel": "Responsável", "origem": "Usuário que assumiu", "sensibilidade": "Dado pessoal (nome e e-mail do usuário)" },
-        "TerminalId": { "nomeAmigavel": "Terminal", "observacao": "Nulo = alerta geral (todos os terminais); não aparece para usuário vinculado a um terminal." },
-        "Tipo": { "nomeAmigavel": "Tipo" },
-        "Titulo": { "nomeAmigavel": "Título" },
-        "ValorObservado": { "nomeAmigavel": "Valor observado" },
-        "VersaoLinha": { "nomeAmigavel": "Versão da linha", "origem": "Gerado pelo banco" }
+        "Id": {
+          "nomeAmigavel": "Identificador",
+          "origem": "Gerado pelo banco"
+        },
+        "AcaoRecomendada": {
+          "nomeAmigavel": "Ação recomendada",
+          "origem": "Regra do alerta"
+        },
+        "Ativo": {
+          "nomeAmigavel": "Ainda ocorrendo"
+        },
+        "AtualizadoEm": {
+          "nomeAmigavel": "Atualizado em"
+        },
+        "Chave": {
+          "nomeAmigavel": "Chave do problema",
+          "observacao": "Regra + terminal + período; identifica o mesmo problema entre avaliações."
+        },
+        "Estado": {
+          "nomeAmigavel": "Estado do tratamento"
+        },
+        "Evidencia": {
+          "nomeAmigavel": "Evidência"
+        },
+        "IdentificadoEm": {
+          "nomeAmigavel": "Identificado em"
+        },
+        "Indicador": {
+          "nomeAmigavel": "Indicador"
+        },
+        "Limite": {
+          "nomeAmigavel": "Limite"
+        },
+        "Origem": {
+          "nomeAmigavel": "Origem dos dados"
+        },
+        "Periodo": {
+          "nomeAmigavel": "Período"
+        },
+        "Prioridade": {
+          "nomeAmigavel": "Prioridade"
+        },
+        "Regra": {
+          "nomeAmigavel": "Regra"
+        },
+        "Responsavel": {
+          "nomeAmigavel": "Responsável",
+          "origem": "Usuário que assumiu",
+          "sensibilidade": "Dado pessoal (nome e e-mail do usuário)"
+        },
+        "TerminalId": {
+          "nomeAmigavel": "Terminal",
+          "observacao": "Nulo = alerta geral (todos os terminais); não aparece para usuário vinculado a um terminal."
+        },
+        "Tipo": {
+          "nomeAmigavel": "Tipo"
+        },
+        "Titulo": {
+          "nomeAmigavel": "Título"
+        },
+        "ValorObservado": {
+          "nomeAmigavel": "Valor observado"
+        },
+        "VersaoLinha": {
+          "nomeAmigavel": "Versão da linha",
+          "origem": "Gerado pelo banco"
+        }
       }
     },
     "AvaliacoesAlertas": {
@@ -59,20 +143,44 @@
       "finalidade": "Histórico de cada execução das regras: dados novos, alertas criados/alterados/encerrados, confiabilidade e falhas. Responde 'quando foi a última avaliação e o que mudou'.",
       "origem": "Sistema (avaliação periódica, manual em Reavaliar agora, após importação).",
       "responsavel": "Sistema",
-      "consumidores": ["Tela Gargalos e alertas (resultado de Reavaliar agora, última avaliação)", "GET /api/v1/alertas/avaliacoes"],
+      "consumidores": [
+        "Tela Gargalos e alertas (resultado de Reavaliar agora, última avaliação)",
+        "GET /api/v1/alertas/avaliacoes"
+      ],
       "retencao": "Sem expurgo no código (uma linha a cada 10 min ≈ 52 mil por ano).",
       "situacao": "Extraído do código",
       "campos": {
-        "Autor": { "nomeAmigavel": "Quem executou", "sensibilidade": "Dado pessoal (nome e e-mail) quando manual" },
-        "Origem": { "nomeAmigavel": "Disparo" },
-        "Inicio": { "nomeAmigavel": "Início" },
-        "Fim": { "nomeAmigavel": "Fim" },
-        "Sucesso": { "nomeAmigavel": "Concluída" },
-        "DadosNovos": { "nomeAmigavel": "Havia dados novos" },
-        "Criados": { "nomeAmigavel": "Alertas criados" },
-        "Alterados": { "nomeAmigavel": "Alertas alterados" },
-        "Encerrados": { "nomeAmigavel": "Alertas encerrados" },
-        "Ativos": { "nomeAmigavel": "Alertas abertos depois" }
+        "Autor": {
+          "nomeAmigavel": "Quem executou",
+          "sensibilidade": "Dado pessoal (nome e e-mail) quando manual"
+        },
+        "Origem": {
+          "nomeAmigavel": "Disparo"
+        },
+        "Inicio": {
+          "nomeAmigavel": "Início"
+        },
+        "Fim": {
+          "nomeAmigavel": "Fim"
+        },
+        "Sucesso": {
+          "nomeAmigavel": "Concluída"
+        },
+        "DadosNovos": {
+          "nomeAmigavel": "Havia dados novos"
+        },
+        "Criados": {
+          "nomeAmigavel": "Alertas criados"
+        },
+        "Alterados": {
+          "nomeAmigavel": "Alertas alterados"
+        },
+        "Encerrados": {
+          "nomeAmigavel": "Alertas encerrados"
+        },
+        "Ativos": {
+          "nomeAmigavel": "Alertas abertos depois"
+        }
       }
     },
     "ChavesIdempotencia": {
@@ -80,12 +188,19 @@
       "finalidade": "Garante que uma operação repetida (clique duplo, reenvio após falha de rede) tenha efeito uma vez só e devolva a mesma resposta.",
       "origem": "Sistema, quando a requisição traz o cabeçalho Idempotency-Key.",
       "responsavel": "Sistema",
-      "consumidores": ["Filtro [Idempotente] da API"],
+      "consumidores": [
+        "Filtro [Idempotente] da API"
+      ],
       "retencao": "Respostas guardadas por 24 h; limpeza automática a cada hora (LimpezaIdempotencia).",
       "situacao": "Extraído do código",
       "campos": {
-        "CorpoResposta": { "nomeAmigavel": "Resposta guardada", "sensibilidade": "Pode conter dados pessoais da resposta original (24 h)" },
-        "Escopo": { "nomeAmigavel": "Escopo (quem + rota)" }
+        "CorpoResposta": {
+          "nomeAmigavel": "Resposta guardada",
+          "sensibilidade": "Pode conter dados pessoais da resposta original (24 h)"
+        },
+        "Escopo": {
+          "nomeAmigavel": "Escopo (quem + rota)"
+        }
       }
     },
     "Condutores": {
@@ -93,14 +208,28 @@
       "finalidade": "Motorista vinculado a uma transportadora, negativável junto com o veículo em ocorrência N3.",
       "origem": "Cadastro manual (tela Cadastros). Hoje só registros fictícios de demonstração.",
       "responsavel": "Operador ou Gestor; exclusão e anonimização só Gestor.",
-      "consumidores": ["Tela Cadastros", "Tela Negativação", "Portal do Transportador"],
+      "consumidores": [
+        "Tela Cadastros",
+        "Tela Negativação",
+        "Portal do Transportador"
+      ],
       "retencao": "Anonimização sob demanda (POST /api/v1/condutores/{id}/anonimizar, LGPD). Sem expurgo automático.",
       "situacao": "Extraído do código; dados atuais são demonstração",
       "campos": {
-        "Nome": { "nomeAmigavel": "Nome do condutor", "sensibilidade": "Dado pessoal" },
-        "PlacaVinculada": { "nomeAmigavel": "Placa vinculada", "sensibilidade": "Dado pessoal indireto" },
-        "StatusNegativacao": { "nomeAmigavel": "Situação de negativação" },
-        "TransportadoraId": { "nomeAmigavel": "Transportadora" }
+        "Nome": {
+          "nomeAmigavel": "Nome do condutor",
+          "sensibilidade": "Dado pessoal"
+        },
+        "PlacaVinculada": {
+          "nomeAmigavel": "Placa vinculada",
+          "sensibilidade": "Dado pessoal indireto"
+        },
+        "StatusNegativacao": {
+          "nomeAmigavel": "Situação de negativação"
+        },
+        "TransportadoraId": {
+          "nomeAmigavel": "Transportadora"
+        }
       }
     },
     "Contestacoes": {
@@ -108,17 +237,36 @@
       "finalidade": "Pedido da transportadora para rever uma ocorrência. Aprovada: regulariza só o veículo/condutor daquela ocorrência. Rejeitada: a ocorrência volta a ativa.",
       "origem": "Portal do Transportador (abertura) e tela Negativação (resposta).",
       "responsavel": "Transportadora abre; Operador ou Gestor responde.",
-      "consumidores": ["Tela Negativação", "Portal do Transportador"],
+      "consumidores": [
+        "Tela Negativação",
+        "Portal do Transportador"
+      ],
       "retencao": "Sem expurgo no código.",
       "situacao": "Extraído do código; dados atuais são demonstração",
       "campos": {
-        "Justificativa": { "nomeAmigavel": "Justificativa da transportadora", "sensibilidade": "Texto livre (pode conter dado pessoal)" },
-        "RespostaOperador": { "nomeAmigavel": "Resposta do porto", "sensibilidade": "Texto livre (pode conter dado pessoal)" },
-        "Status": { "nomeAmigavel": "Situação da contestação" },
-        "OcorrenciaId": { "nomeAmigavel": "Ocorrência" },
-        "TransportadoraId": { "nomeAmigavel": "Transportadora" },
-        "CriadoEm": { "nomeAmigavel": "Aberta em" },
-        "RespondidoEm": { "nomeAmigavel": "Respondida em" }
+        "Justificativa": {
+          "nomeAmigavel": "Justificativa da transportadora",
+          "sensibilidade": "Texto livre (pode conter dado pessoal)"
+        },
+        "RespostaOperador": {
+          "nomeAmigavel": "Resposta do porto",
+          "sensibilidade": "Texto livre (pode conter dado pessoal)"
+        },
+        "Status": {
+          "nomeAmigavel": "Situação da contestação"
+        },
+        "OcorrenciaId": {
+          "nomeAmigavel": "Ocorrência"
+        },
+        "TransportadoraId": {
+          "nomeAmigavel": "Transportadora"
+        },
+        "CriadoEm": {
+          "nomeAmigavel": "Aberta em"
+        },
+        "RespondidoEm": {
+          "nomeAmigavel": "Respondida em"
+        }
       }
     },
     "Convenios": {
@@ -126,15 +274,31 @@
       "finalidade": "Cadastro dos convênios das planilhas (COD_CONVENIO) com operador e carga — origem das dimensões 'operador' e 'carga' dos indicadores.",
       "origem": "Criado na importação de planilha (dedução pelo nome) e corrigido pelo Gestor em Configurações › Convênios.",
       "responsavel": "Sistema (criação) e Gestor (correção)",
-      "consumidores": ["Configurações › Convênios", "Importação", "Movimentações (filtros operador/carga)"],
+      "consumidores": [
+        "Configurações › Convênios",
+        "Importação",
+        "Movimentações (filtros operador/carga)"
+      ],
       "retencao": "Sem expurgo.",
       "situacao": "Extraído do código",
       "campos": {
-        "Codigo": { "nomeAmigavel": "Código do convênio (COD_CONVENIO)", "origem": "Planilha do terminal" },
-        "Nome": { "nomeAmigavel": "Nome do convênio", "origem": "Planilha do terminal" },
-        "Operador": { "nomeAmigavel": "Operador" },
-        "Carga": { "nomeAmigavel": "Carga" },
-        "Deduzido": { "nomeAmigavel": "Deduzido do nome (a revisar)" }
+        "Codigo": {
+          "nomeAmigavel": "Código do convênio (COD_CONVENIO)",
+          "origem": "Planilha do terminal"
+        },
+        "Nome": {
+          "nomeAmigavel": "Nome do convênio",
+          "origem": "Planilha do terminal"
+        },
+        "Operador": {
+          "nomeAmigavel": "Operador"
+        },
+        "Carga": {
+          "nomeAmigavel": "Carga"
+        },
+        "Deduzido": {
+          "nomeAmigavel": "Deduzido do nome (a revisar)"
+        }
       }
     },
     "EventosAlerta": {
@@ -142,12 +306,20 @@
       "finalidade": "Histórico de cada alerta: geração, mudanças, quem assumiu, ações registradas, resolução, descarte, reabertura.",
       "origem": "Sistema e usuários (Operador/Gestor).",
       "responsavel": "Sistema e usuários",
-      "consumidores": ["Tela Gargalos e alertas (detalhe do alerta)"],
+      "consumidores": [
+        "Tela Gargalos e alertas (detalhe do alerta)"
+      ],
       "retencao": "Apagado junto com o alerta (CASCADE); alertas não são apagados pelo sistema.",
       "situacao": "Extraído do código",
       "campos": {
-        "Autor": { "nomeAmigavel": "Autor", "sensibilidade": "Dado pessoal (nome e e-mail)" },
-        "Texto": { "nomeAmigavel": "Texto registrado", "sensibilidade": "Texto livre" }
+        "Autor": {
+          "nomeAmigavel": "Autor",
+          "sensibilidade": "Dado pessoal (nome e e-mail)"
+        },
+        "Texto": {
+          "nomeAmigavel": "Texto registrado",
+          "sensibilidade": "Texto livre"
+        }
       }
     },
     "LinhasImportacao": {
@@ -155,16 +327,33 @@
       "finalidade": "Cada linha da planilha analisada, com classificação (novo, completa dados, conflito, rejeitada), decisão e motivo, antes de tocar em Marcacoes.",
       "origem": "Leitura da planilha enviada em Importação.",
       "responsavel": "Sistema; o Gestor decide os conflitos.",
-      "consumidores": ["Tela Importação (revisão)", "Relatório por linha da importação"],
+      "consumidores": [
+        "Tela Importação (revisão)",
+        "Relatório por linha da importação"
+      ],
       "retencao": "Após a confirmação ficam só rejeitadas e conflitantes; apagadas junto com o lote (CASCADE).",
       "situacao": "Extraído do código; regras em docs/IMPORTACAO.md",
       "campos": {
-        "Senha": { "nomeAmigavel": "Senha (SENHA)", "origem": "Planilha do terminal" },
-        "MovimentoId": { "nomeAmigavel": "Movimento (COD_MOVIMENTO)", "origem": "Planilha do terminal" },
-        "NumeroLinha": { "nomeAmigavel": "Número da linha" },
-        "Classificacao": { "nomeAmigavel": "Classificação" },
-        "Decisao": { "nomeAmigavel": "Decisão do conflito" },
-        "Avisos": { "nomeAmigavel": "Avisos (flags)" }
+        "Senha": {
+          "nomeAmigavel": "Senha (SENHA)",
+          "origem": "Planilha do terminal"
+        },
+        "MovimentoId": {
+          "nomeAmigavel": "Movimento (COD_MOVIMENTO)",
+          "origem": "Planilha do terminal"
+        },
+        "NumeroLinha": {
+          "nomeAmigavel": "Número da linha"
+        },
+        "Classificacao": {
+          "nomeAmigavel": "Classificação"
+        },
+        "Decisao": {
+          "nomeAmigavel": "Decisão do conflito"
+        },
+        "Avisos": {
+          "nomeAmigavel": "Avisos (flags)"
+        }
       }
     },
     "LogsAuditoria": {
@@ -172,14 +361,27 @@
       "finalidade": "Quem fez o quê e quando em toda gravação (inclusive login, falhas e decisões).",
       "origem": "Automático (interceptor do EF Core) e rótulos definidos pelos serviços.",
       "responsavel": "Sistema",
-      "consumidores": ["Tela Auditoria", "GET /api/v1/auditoria"],
+      "consumidores": [
+        "Tela Auditoria",
+        "GET /api/v1/auditoria"
+      ],
       "retencao": "Sem expurgo no código — prazo de guarda a definir com o porto (LGPD).",
       "situacao": "Extraído do código; prazo de retenção pendente",
       "campos": {
-        "Autor": { "nomeAmigavel": "Autor", "sensibilidade": "Dado pessoal (nome e e-mail)" },
-        "Detalhes": { "nomeAmigavel": "Detalhes (valores antes/depois)", "sensibilidade": "Pode conter dados pessoais; segredos são ocultados" },
-        "Acao": { "nomeAmigavel": "Ação" },
-        "Quando": { "nomeAmigavel": "Quando" }
+        "Autor": {
+          "nomeAmigavel": "Autor",
+          "sensibilidade": "Dado pessoal (nome e e-mail)"
+        },
+        "Detalhes": {
+          "nomeAmigavel": "Detalhes (valores antes/depois)",
+          "sensibilidade": "Pode conter dados pessoais; segredos são ocultados"
+        },
+        "Acao": {
+          "nomeAmigavel": "Ação"
+        },
+        "Quando": {
+          "nomeAmigavel": "Quando"
+        }
       }
     },
     "LotesImportacao": {
@@ -187,16 +389,34 @@
       "finalidade": "Uma planilha importada: arquivo, hash, terminal, contagens de cada classificação e avisos, situação (analisado, confirmado, cancelado) e quem fez cada etapa.",
       "origem": "Tela Importação.",
       "responsavel": "Gestor (análise e confirmação)",
-      "consumidores": ["Tela Importação (histórico)", "Movimentações (arquivo de origem)", "Frescor dos dados"],
+      "consumidores": [
+        "Tela Importação (histórico)",
+        "Movimentações (arquivo de origem)",
+        "Frescor dos dados"
+      ],
       "retencao": "Sem expurgo.",
       "situacao": "Extraído do código",
       "campos": {
-        "Arquivo": { "nomeAmigavel": "Nome do arquivo" },
-        "HashSha256": { "nomeAmigavel": "Hash SHA-256 do arquivo" },
-        "CriadoPor": { "nomeAmigavel": "Analisado por", "sensibilidade": "Dado pessoal (nome e e-mail)" },
-        "ConcluidoPor": { "nomeAmigavel": "Confirmado/cancelado por", "sensibilidade": "Dado pessoal (nome e e-mail)" },
-        "TerminalId": { "nomeAmigavel": "Terminal" },
-        "Status": { "nomeAmigavel": "Situação do lote" }
+        "Arquivo": {
+          "nomeAmigavel": "Nome do arquivo"
+        },
+        "HashSha256": {
+          "nomeAmigavel": "Hash SHA-256 do arquivo"
+        },
+        "CriadoPor": {
+          "nomeAmigavel": "Analisado por",
+          "sensibilidade": "Dado pessoal (nome e e-mail)"
+        },
+        "ConcluidoPor": {
+          "nomeAmigavel": "Confirmado/cancelado por",
+          "sensibilidade": "Dado pessoal (nome e e-mail)"
+        },
+        "TerminalId": {
+          "nomeAmigavel": "Terminal"
+        },
+        "Status": {
+          "nomeAmigavel": "Situação do lote"
+        }
       }
     },
     "Marcacoes": {
@@ -204,24 +424,74 @@
       "finalidade": "Registro de cada carreta marcada num terminal e de sua liberação. Fonte de todos os indicadores de volume e espera, dos alertas e da Análise 360°.",
       "origem": "Carga inicial (JSON entregue com o projeto), planilhas dos terminais (Importação) e integração (POST /api/v1/integracao/eventos).",
       "responsavel": "Gestor (importação confirmada) e sistemas integrados (API Key)",
-      "consumidores": ["Visão Geral", "Movimentações (lista e Análise 360°)", "Gargalos e alertas", "Relatório do período", "Exportação CSV"],
+      "consumidores": [
+        "Visão Geral",
+        "Movimentações (lista e Análise 360°)",
+        "Gargalos e alertas",
+        "Central de relatórios",
+        "Exportação CSV"
+      ],
       "retencao": "Sem expurgo (histórico completo).",
       "situacao": "Campos vindos das planilhas; significado de SENHA, CICLO e 'liberação' a confirmar com o porto (docs/PROTHEUS.md)",
       "campos": {
-        "MovimentoId": { "nomeAmigavel": "Movimento (COD_MOVIMENTO)", "origem": "Planilha / integração" },
-        "Senha": { "nomeAmigavel": "Senha (SENHA)", "origem": "Planilha / integração", "observacao": "Significado operacional a validar." },
-        "Convenio": { "nomeAmigavel": "Convênio (CONVENIO)", "origem": "Planilha / integração" },
-        "CodConvenio": { "nomeAmigavel": "Código do convênio (COD_CONVENIO)", "origem": "Planilha; ausente na carga inicial" },
-        "Ciclo": { "nomeAmigavel": "Ciclo (CICLO)", "origem": "Planilha / integração", "observacao": "Significado operacional a validar." },
-        "Operador": { "nomeAmigavel": "Operador", "origem": "Cadastro de convênios (deduzido do nome)" },
-        "Carga": { "nomeAmigavel": "Carga", "origem": "Cadastro de convênios (deduzido do nome)" },
-        "DataMarcacao": { "nomeAmigavel": "Data/hora da marcação", "origem": "Planilha (DATA_MARCACAO + HORA_MARCACAO) / integração" },
-        "DataLiberacao": { "nomeAmigavel": "Data/hora da liberação", "origem": "Planilha (DATA_LIBERACAO + HORA_LIBERACAO) / integração" },
-        "EsperaHoras": { "nomeAmigavel": "Espera (h)", "origem": "Calculada pelo banco" },
-        "TerminalId": { "nomeAmigavel": "Terminal", "origem": "Escolhido na importação / informado na integração" },
-        "Origem": { "nomeAmigavel": "Origem do registro", "origem": "Sistema" },
-        "LoteImportacaoId": { "nomeAmigavel": "Lote de importação", "origem": "Sistema" },
-        "LinhaOrigem": { "nomeAmigavel": "Linha da planilha", "origem": "Sistema" }
+        "MovimentoId": {
+          "nomeAmigavel": "Movimento (COD_MOVIMENTO)",
+          "origem": "Planilha / integração"
+        },
+        "Senha": {
+          "nomeAmigavel": "Senha (SENHA)",
+          "origem": "Planilha / integração",
+          "observacao": "Significado operacional a validar."
+        },
+        "Convenio": {
+          "nomeAmigavel": "Convênio (CONVENIO)",
+          "origem": "Planilha / integração"
+        },
+        "CodConvenio": {
+          "nomeAmigavel": "Código do convênio (COD_CONVENIO)",
+          "origem": "Planilha; ausente na carga inicial"
+        },
+        "Ciclo": {
+          "nomeAmigavel": "Ciclo (CICLO)",
+          "origem": "Planilha / integração",
+          "observacao": "Significado operacional a validar."
+        },
+        "Operador": {
+          "nomeAmigavel": "Operador",
+          "origem": "Cadastro de convênios (deduzido do nome)"
+        },
+        "Carga": {
+          "nomeAmigavel": "Carga",
+          "origem": "Cadastro de convênios (deduzido do nome)"
+        },
+        "DataMarcacao": {
+          "nomeAmigavel": "Data/hora da marcação",
+          "origem": "Planilha (DATA_MARCACAO + HORA_MARCACAO) / integração"
+        },
+        "DataLiberacao": {
+          "nomeAmigavel": "Data/hora da liberação",
+          "origem": "Planilha (DATA_LIBERACAO + HORA_LIBERACAO) / integração"
+        },
+        "EsperaHoras": {
+          "nomeAmigavel": "Espera (h)",
+          "origem": "Calculada pelo banco"
+        },
+        "TerminalId": {
+          "nomeAmigavel": "Terminal",
+          "origem": "Escolhido na importação / informado na integração"
+        },
+        "Origem": {
+          "nomeAmigavel": "Origem do registro",
+          "origem": "Sistema"
+        },
+        "LoteImportacaoId": {
+          "nomeAmigavel": "Lote de importação",
+          "origem": "Sistema"
+        },
+        "LinhaOrigem": {
+          "nomeAmigavel": "Linha da planilha",
+          "origem": "Sistema"
+        }
       }
     },
     "Ocorrencias": {
@@ -229,19 +499,44 @@
       "finalidade": "Infração registrada contra uma placa. N3 negativa automaticamente o veículo (e o condutor, se identificado); N1 e N2 não bloqueiam.",
       "origem": "Tela Negativação (registro manual). Hoje só registros fictícios de demonstração; o app de fiscalização ainda não existe.",
       "responsavel": "Operador ou Gestor",
-      "consumidores": ["Tela Negativação", "Portal do Transportador (ocorrências da própria transportadora)", "Frota (situação)"],
+      "consumidores": [
+        "Tela Negativação",
+        "Portal do Transportador (ocorrências da própria transportadora)",
+        "Frota (situação)"
+      ],
       "retencao": "Sem expurgo.",
       "situacao": "Regra N3 confirmada na documentação original; dados atuais são demonstração",
       "campos": {
-        "Nivel": { "nomeAmigavel": "Nível (N1/N2/N3)" },
-        "Placa": { "nomeAmigavel": "Placa", "sensibilidade": "Dado pessoal indireto" },
-        "Descricao": { "nomeAmigavel": "Descrição da infração", "sensibilidade": "Texto livre" },
-        "Local": { "nomeAmigavel": "Local" },
-        "Responsavel": { "nomeAmigavel": "Agente responsável", "sensibilidade": "Dado pessoal (nome)" },
-        "Status": { "nomeAmigavel": "Situação da ocorrência" },
-        "CondutorId": { "nomeAmigavel": "Condutor" },
-        "TransportadoraId": { "nomeAmigavel": "Transportadora" },
-        "CriadoEm": { "nomeAmigavel": "Registrada em" }
+        "Nivel": {
+          "nomeAmigavel": "Nível (N1/N2/N3)"
+        },
+        "Placa": {
+          "nomeAmigavel": "Placa",
+          "sensibilidade": "Dado pessoal indireto"
+        },
+        "Descricao": {
+          "nomeAmigavel": "Descrição da infração",
+          "sensibilidade": "Texto livre"
+        },
+        "Local": {
+          "nomeAmigavel": "Local"
+        },
+        "Responsavel": {
+          "nomeAmigavel": "Agente responsável",
+          "sensibilidade": "Dado pessoal (nome)"
+        },
+        "Status": {
+          "nomeAmigavel": "Situação da ocorrência"
+        },
+        "CondutorId": {
+          "nomeAmigavel": "Condutor"
+        },
+        "TransportadoraId": {
+          "nomeAmigavel": "Transportadora"
+        },
+        "CriadoEm": {
+          "nomeAmigavel": "Registrada em"
+        }
       }
     },
     "ParametrosOperacionais": {
@@ -249,16 +544,34 @@
       "finalidade": "Limites e metas usados pelos indicadores e alertas (linha única).",
       "origem": "Valores iniciais da migration; alterados pelo Gestor em Configurações › Limites e metas.",
       "responsavel": "Gestor",
-      "consumidores": ["Indicadores", "Alertas", "Estimativa das próximas horas", "Análise 360°"],
+      "consumidores": [
+        "Indicadores",
+        "Alertas",
+        "Estimativa das próximas horas",
+        "Análise 360°"
+      ],
       "retencao": "Linha única; histórico de alterações na auditoria.",
       "situacao": "Valores iniciais são pontos de partida, não normas do porto (a validar)",
       "campos": {
-        "DiasSemDadosAlerta": { "nomeAmigavel": "Dias sem dados para alertar" },
-        "LimiteEsperaLongaHoras": { "nomeAmigavel": "Espera longa (h)" },
-        "LimiteEsperaMedianaHoras": { "nomeAmigavel": "Limite da espera mediana (h)" },
-        "LimiteRazaoChegadaLiberacao": { "nomeAmigavel": "Limite de risco de fila (×)" },
-        "MetaLiberadas24hPct": { "nomeAmigavel": "Meta de liberadas em até 24 h (%)" },
-        "AtualizadoPor": { "nomeAmigavel": "Atualizado por", "sensibilidade": "Dado pessoal (nome e e-mail)" }
+        "DiasSemDadosAlerta": {
+          "nomeAmigavel": "Dias sem dados para alertar"
+        },
+        "LimiteEsperaLongaHoras": {
+          "nomeAmigavel": "Espera longa (h)"
+        },
+        "LimiteEsperaMedianaHoras": {
+          "nomeAmigavel": "Limite da espera mediana (h)"
+        },
+        "LimiteRazaoChegadaLiberacao": {
+          "nomeAmigavel": "Limite de risco de fila (×)"
+        },
+        "MetaLiberadas24hPct": {
+          "nomeAmigavel": "Meta de liberadas em até 24 h (%)"
+        },
+        "AtualizadoPor": {
+          "nomeAmigavel": "Atualizado por",
+          "sensibilidade": "Dado pessoal (nome e e-mail)"
+        }
       }
     },
     "Terminais": {
@@ -266,14 +579,27 @@
       "finalidade": "Terminais atendidos (Unitapajós, TGPM, Hidrovias) e suas capacidades quando informadas.",
       "origem": "Migration (cadastro inicial); capacidade informada pelo Gestor.",
       "responsavel": "Gestor (capacidade)",
-      "consumidores": ["Todas as telas com filtro de terminal", "Indicadores (ocupação)", "Agendamentos", "Vínculo de usuários"],
+      "consumidores": [
+        "Todas as telas com filtro de terminal",
+        "Indicadores (ocupação)",
+        "Agendamentos",
+        "Vínculo de usuários"
+      ],
       "retencao": "Cadastro permanente.",
       "situacao": "Extraído do código; capacidades ainda não informadas pelo porto",
       "campos": {
-        "Id": { "nomeAmigavel": "Identificador (slug)" },
-        "Nome": { "nomeAmigavel": "Nome do terminal" },
-        "CapacidadeDiariaCarretas": { "nomeAmigavel": "Capacidade diária (carretas)" },
-        "CapacidadeHoraria": { "nomeAmigavel": "Capacidade por hora (carretas)" }
+        "Id": {
+          "nomeAmigavel": "Identificador (slug)"
+        },
+        "Nome": {
+          "nomeAmigavel": "Nome do terminal"
+        },
+        "CapacidadeDiariaCarretas": {
+          "nomeAmigavel": "Capacidade diária (carretas)"
+        },
+        "CapacidadeHoraria": {
+          "nomeAmigavel": "Capacidade por hora (carretas)"
+        }
       }
     },
     "Transportadoras": {
@@ -281,12 +607,22 @@
       "finalidade": "Empresa dona das carretas. Situação de negativação é calculada (negativada se tiver ao menos um veículo negativado).",
       "origem": "Cadastro manual (tela Cadastros). Hoje só registros fictícios de demonstração.",
       "responsavel": "Operador ou Gestor; exclusão só Gestor.",
-      "consumidores": ["Tela Cadastros", "Negativação", "Agendamentos", "Portal do Transportador (escopo do usuário)"],
+      "consumidores": [
+        "Tela Cadastros",
+        "Negativação",
+        "Agendamentos",
+        "Portal do Transportador (escopo do usuário)"
+      ],
       "retencao": "Sem expurgo.",
       "situacao": "Extraído do código; dados atuais são demonstração",
       "campos": {
-        "Nome": { "nomeAmigavel": "Razão social / nome" },
-        "Cnpj": { "nomeAmigavel": "CNPJ", "observacao": "Dado de pessoa jurídica (validado por dígito verificador)." }
+        "Nome": {
+          "nomeAmigavel": "Razão social / nome"
+        },
+        "Cnpj": {
+          "nomeAmigavel": "CNPJ",
+          "observacao": "Dado de pessoa jurídica (validado por dígito verificador)."
+        }
       }
     },
     "Usuarios": {
@@ -294,27 +630,74 @@
       "finalidade": "Contas internas (Operador, Gestor, Auditor) e do Portal (Transportadora): credenciais, MFA, papel, vínculo de terminal e preferências.",
       "origem": "Criado pelo Gestor (tela/endpoint de usuários) ou pela CLI do servidor; seed de usuários de teste só em Development.",
       "responsavel": "Gestor; o próprio usuário altera senha, MFA e preferências.",
-      "consumidores": ["Login e sessão", "Configurações › Acesso por terminal", "Minhas preferências", "Auditoria (autor)"],
+      "consumidores": [
+        "Login e sessão",
+        "Configurações › Acesso por terminal",
+        "Minhas preferências",
+        "Auditoria (autor)"
+      ],
       "retencao": "Desativação em vez de exclusão.",
       "situacao": "Extraído do código",
       "campos": {
-        "Nome": { "nomeAmigavel": "Nome", "sensibilidade": "Dado pessoal" },
-        "Email": { "nomeAmigavel": "E-mail (login)", "sensibilidade": "Dado pessoal" },
-        "SenhaHash": { "nomeAmigavel": "Hash da senha", "sensibilidade": "Credencial — nunca exposta pela API" },
-        "MfaSegredoCifrado": { "nomeAmigavel": "Segredo do MFA (cifrado)", "sensibilidade": "Credencial — nunca exposta pela API" },
-        "MfaUltimoPassoUsado": { "nomeAmigavel": "Último código MFA aceito", "sensibilidade": "Dado de segurança" },
-        "Papel": { "nomeAmigavel": "Perfil" },
-        "TerminalId": { "nomeAmigavel": "Terminal de acesso (vínculo)", "observacao": "Permissão, definida pelo Gestor." },
-        "TelaInicial": { "nomeAmigavel": "Tela ao entrar (preferência)" },
-        "TerminalPreferido": { "nomeAmigavel": "Terminal preferido (preferência)" },
-        "TransportadoraId": { "nomeAmigavel": "Transportadora (usuário do Portal)" },
-        "VersaoToken": { "nomeAmigavel": "Versão do token", "sensibilidade": "Dado de segurança" },
-        "FalhasLoginConsecutivas": { "nomeAmigavel": "Falhas de login seguidas", "sensibilidade": "Dado de segurança" },
-        "BloqueadoAte": { "nomeAmigavel": "Bloqueado até" },
-        "UltimoLoginEm": { "nomeAmigavel": "Último login" },
-        "DeveTrocarSenha": { "nomeAmigavel": "Senha provisória" },
-        "Ativo": { "nomeAmigavel": "Ativo" },
-        "MfaAtivo": { "nomeAmigavel": "MFA ativo" }
+        "Nome": {
+          "nomeAmigavel": "Nome",
+          "sensibilidade": "Dado pessoal"
+        },
+        "Email": {
+          "nomeAmigavel": "E-mail (login)",
+          "sensibilidade": "Dado pessoal"
+        },
+        "SenhaHash": {
+          "nomeAmigavel": "Hash da senha",
+          "sensibilidade": "Credencial — nunca exposta pela API"
+        },
+        "MfaSegredoCifrado": {
+          "nomeAmigavel": "Segredo do MFA (cifrado)",
+          "sensibilidade": "Credencial — nunca exposta pela API"
+        },
+        "MfaUltimoPassoUsado": {
+          "nomeAmigavel": "Último código MFA aceito",
+          "sensibilidade": "Dado de segurança"
+        },
+        "Papel": {
+          "nomeAmigavel": "Perfil"
+        },
+        "TerminalId": {
+          "nomeAmigavel": "Terminal de acesso (vínculo)",
+          "observacao": "Permissão, definida pelo Gestor."
+        },
+        "TelaInicial": {
+          "nomeAmigavel": "Tela ao entrar (preferência)"
+        },
+        "TerminalPreferido": {
+          "nomeAmigavel": "Terminal preferido (preferência)"
+        },
+        "TransportadoraId": {
+          "nomeAmigavel": "Transportadora (usuário do Portal)"
+        },
+        "VersaoToken": {
+          "nomeAmigavel": "Versão do token",
+          "sensibilidade": "Dado de segurança"
+        },
+        "FalhasLoginConsecutivas": {
+          "nomeAmigavel": "Falhas de login seguidas",
+          "sensibilidade": "Dado de segurança"
+        },
+        "BloqueadoAte": {
+          "nomeAmigavel": "Bloqueado até"
+        },
+        "UltimoLoginEm": {
+          "nomeAmigavel": "Último login"
+        },
+        "DeveTrocarSenha": {
+          "nomeAmigavel": "Senha provisória"
+        },
+        "Ativo": {
+          "nomeAmigavel": "Ativo"
+        },
+        "MfaAtivo": {
+          "nomeAmigavel": "MFA ativo"
+        }
       }
     },
     "Veiculos": {
@@ -322,18 +705,52 @@
       "finalidade": "Carreta identificada pela placa: transportadora, terminal, situação de negativação e situação de portaria.",
       "origem": "Cadastro manual (tela Cadastros); situação de portaria informada manualmente na Portaria. Hoje só registros fictícios de demonstração.",
       "responsavel": "Operador ou Gestor",
-      "consumidores": ["Portaria", "Frota", "Cadastros", "Negativação", "Agendamentos (validação da placa)", "Portal do Transportador"],
+      "consumidores": [
+        "Portaria",
+        "Frota",
+        "Cadastros",
+        "Negativação",
+        "Agendamentos (validação da placa)",
+        "Portal do Transportador"
+      ],
       "retencao": "Sem expurgo.",
       "situacao": "Extraído do código; dados atuais são demonstração; situação de portaria é registrada, não confirmada por evento",
       "campos": {
-        "Placa": { "nomeAmigavel": "Placa", "sensibilidade": "Dado pessoal indireto" },
-        "Modelo": { "nomeAmigavel": "Modelo" },
-        "StatusNegativacao": { "nomeAmigavel": "Situação de negativação" },
-        "StatusPortaria": { "nomeAmigavel": "Situação na portaria (informada)", "observacao": "Registrada manualmente; não há leitura de placa, cancela ou checkpoint integrado." },
-        "StatusPortariaDesde": { "nomeAmigavel": "Na situação desde" },
-        "TerminalId": { "nomeAmigavel": "Terminal" },
-        "TransportadoraId": { "nomeAmigavel": "Transportadora" }
+        "Placa": {
+          "nomeAmigavel": "Placa",
+          "sensibilidade": "Dado pessoal indireto"
+        },
+        "Modelo": {
+          "nomeAmigavel": "Modelo"
+        },
+        "StatusNegativacao": {
+          "nomeAmigavel": "Situação de negativação"
+        },
+        "StatusPortaria": {
+          "nomeAmigavel": "Situação na portaria (informada)",
+          "observacao": "Registrada manualmente; não há leitura de placa, cancela ou checkpoint integrado."
+        },
+        "StatusPortariaDesde": {
+          "nomeAmigavel": "Na situação desde"
+        },
+        "TerminalId": {
+          "nomeAmigavel": "Terminal"
+        },
+        "TransportadoraId": {
+          "nomeAmigavel": "Transportadora"
+        }
       }
+    },
+    "RelatoriosGerados": {
+      "nomeLogico": "Relatório emitido",
+      "finalidade": "Histórico da central de relatórios: cada PDF ou Excel emitido, com código impresso no rodapé, filtros usados (para emitir de novo), autor, data e resumo SHA-256 do arquivo entregue.",
+      "origem": "Gravado pela API a cada exportação (POST /api/v1/relatorios/exportar e reemitir). O arquivo em si não é guardado.",
+      "responsavel": "Sistema grava; qualquer usuário interno consulta (usuário vinculado vê só os do seu terminal).",
+      "consumidores": [
+        "Tela Relatórios (relatórios emitidos)",
+        "Auditoria (emissão registrada)"
+      ],
+      "retencao": "Sem expurgo definido (prazo de retenção ainda não decidido — ver LGPD/registro de decisões)."
     }
   }
 }

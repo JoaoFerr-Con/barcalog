@@ -172,7 +172,7 @@ async function lerErro(resposta) {
  */
 export async function requisicao(metodo, caminho, opcoes = {}) {
   const { parametros, corpo, formulario, idempotencia, sinal, resposta: tipoResposta = "json" } = opcoes;
-  const cabecalhos = { Accept: tipoResposta === "blob" ? "*/*" : "application/json" };
+  const cabecalhos = { Accept: tipoResposta === "blob" || tipoResposta === "arquivo" ? "*/*" : "application/json" };
   // FormData (upload): o navegador define Content-Type com o boundary do multipart.
   if (corpo !== undefined && !formulario) cabecalhos["Content-Type"] = "application/json";
   if (sessao?.token) cabecalhos.Authorization = `Bearer ${sessao.token}`;
@@ -207,6 +207,11 @@ export async function requisicao(metodo, caminho, opcoes = {}) {
     throw erro;
   }
   if (tipoResposta === "blob") return resposta.blob();
+  if (tipoResposta === "arquivo") {
+    const disp = resposta.headers.get("Content-Disposition") || "";
+    const m = /filename\*=UTF-8''([^;]+)/i.exec(disp) || /filename="?([^";]+)"?/i.exec(disp);
+    return { blob: await resposta.blob(), nome: m ? decodeURIComponent(m[1]) : null, codigo: resposta.headers.get("X-Relatorio-Codigo") };
+  }
   if (resposta.status === 204 || tipoResposta === "vazia") return null;
   return resposta.json();
 }
@@ -232,6 +237,27 @@ export async function buscarTodos(caminho, parametros = {}, limitePaginas = 20) 
     if (itens.length >= total || r.itens.length === 0) break;
   }
   return { itens, total, truncado: itens.length < total };
+}
+
+/**
+ * POST que devolve um arquivo (ex.: relatório PDF/Excel): baixa com o nome enviado pelo servidor.
+ * Devolve { nome, codigo }.
+ */
+export async function baixarArquivoPost(caminho, parametros, corpo, nomePadrao) {
+  const { blob, nome, codigo } = await requisicao("POST", caminho, { parametros, corpo, resposta: "arquivo" });
+  salvarBlob(blob, nome || nomePadrao);
+  return { nome: nome || nomePadrao, codigo };
+}
+
+function salvarBlob(blob, nomeArquivo) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nomeArquivo;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /** Baixa um arquivo autenticado (ex.: CSV) e dispara o download no navegador. */

@@ -4,7 +4,7 @@
 > (modelo do EF Core, enums, ApiExplorer e comentários XML) e de `docs/dicionario-de-dados/curadoria.json`.
 > Não edite à mão: o CI recusa o arquivo se ele divergir do código.
 
-133 endpoints · 136 contratos. Erros e políticas de acesso comuns a todos: `../api.md`.
+138 endpoints · 147 contratos. Erros e políticas de acesso comuns a todos: `../api.md`.
 
 Acesso: `Leitura` = Operador, Gestor ou Auditor · `Escrita` = Operador ou Gestor · `Gestao` = Gestor · `Autenticado` = qualquer token válido (inclusive restrito) · `Portal` = usuário de transportadora · `Integracao` = `X-Api-Key`.
 
@@ -1612,6 +1612,79 @@ Contagem da frota por status de portaria ("Operação agora").
 - Acesso: **Leitura**
 - Respostas: 200 `OperacaoAgoraDto`
 
+## Relatorios
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| POST | `/api/v1/relatorios/exportar` | Leitura | Emite o relatório em PDF (padrão) ou Excel (formato=xlsx), registra no histórico com código e resumo SHA-256 e devolve o arquivo. Período sem movimentações = 422. |
+| GET | `/api/v1/relatorios/historico` | Leitura | Relatórios emitidos, do mais recente para o mais antigo (usuário vinculado vê só os do seu terminal). |
+| POST | `/api/v1/relatorios/historico/{id}/reemitir` | Leitura | Emite de novo um relatório do histórico com os mesmos filtros (novo código; números refletem os dados atuais). |
+| GET | `/api/v1/relatorios/opcoes` | Leitura | Tipos de relatório, terminais (com o período coberto), operadores, cargas, meses com dados e o período padrão (último mês completo). |
+| GET | `/api/v1/relatorios/previa` | Leitura | Prévia: o documento completo (seções e blocos já com os números formatados), sem código e sem registro no histórico. Sem datas: o último mês completo com dados. |
+
+### POST `/api/v1/relatorios/exportar`
+
+Emite o relatório em PDF (padrão) ou Excel (formato=xlsx), registra no histórico com código e resumo SHA-256 e devolve o arquivo. Período sem movimentações = 422.
+
+- Acesso: **Leitura**
+- Corpo: `FiltroRelatorio`
+- Limite de taxa: `exportacao`
+- Respostas: 200 `FileContentResult`
+
+| Parâmetro | Em | Tipo | Obrigatório | Regras | Descrição |
+|---|---|---|---|---|---|
+| `formato` | consulta | texto | não |  |  |
+
+### GET `/api/v1/relatorios/historico`
+
+Relatórios emitidos, do mais recente para o mais antigo (usuário vinculado vê só os do seu terminal).
+
+- Acesso: **Leitura**
+- Paginado: `pagina` e `tamanhoPagina` na consulta; resposta `Pagina<…>` com `itens`, `total`, `numeroPagina`, `tamanhoPagina`
+- Respostas: 200 `Pagina<RelatorioGeradoDto>`
+
+| Parâmetro | Em | Tipo | Obrigatório | Regras | Descrição |
+|---|---|---|---|---|---|
+| `pagina` | consulta | inteiro | não |  |  |
+| `tamanho` | consulta | inteiro | não |  |  |
+
+### POST `/api/v1/relatorios/historico/{id}/reemitir`
+
+Emite de novo um relatório do histórico com os mesmos filtros (novo código; números refletem os dados atuais).
+
+- Acesso: **Leitura**
+- Limite de taxa: `exportacao`
+- Respostas: 200 `FileContentResult`
+
+| Parâmetro | Em | Tipo | Obrigatório | Regras | Descrição |
+|---|---|---|---|---|---|
+| `id` | rota | inteiro | sim | int |  |
+| `formato` | consulta | texto | não |  |  |
+
+### GET `/api/v1/relatorios/opcoes`
+
+Tipos de relatório, terminais (com o período coberto), operadores, cargas, meses com dados e o período padrão (último mês completo).
+
+- Acesso: **Leitura**
+- Respostas: 200 `OpcoesRelatorioDto`
+
+### GET `/api/v1/relatorios/previa`
+
+Prévia: o documento completo (seções e blocos já com os números formatados), sem código e sem registro no histórico. Sem datas: o último mês completo com dados.
+
+- Acesso: **Leitura**
+- Respostas: 200 `DocumentoRelatorio`
+
+| Parâmetro | Em | Tipo | Obrigatório | Regras | Descrição |
+|---|---|---|---|---|---|
+| `tipo` | consulta | texto | não | obrigatório; formato `^(gerencial\|operacional\|analise360)$` | gerencial \| operacional \| analise360. |
+| `de` | consulta | data? | não |  | Início do período (data de marcação). Sem datas: o último mês completo com dados. |
+| `ate` | consulta | data? | não |  |  |
+| `terminalId` | consulta | texto | não | até 32 caracteres |  |
+| `operador` | consulta | texto | não | até 50 caracteres |  |
+| `carga` | consulta | texto | não | até 50 caracteres |  |
+| `detalhamento` | consulta | texto | não | formato `^(resumido\|completo)$` | resumido \| completo (completo inclui tabelas diárias, convênios e rankings maiores). |
+
 ## Terminais
 
 | Método | Rota | Acesso | Descrição |
@@ -2145,6 +2218,12 @@ Quantas linhas novas/complementares entram com cada sinal de qualidade.
 | `possivelRemarcacao` | inteiro | não |  |  |
 | `convenioNovo` | inteiro | não |  |  |
 
+### BlocoRelatorio
+
+Um bloco de conteúdo. O campo "tipo" no JSON diz qual é.
+
+(sem campos públicos)
+
 ### CapacidadeDia
 
 | Campo | Tipo | Nulo | Regras | Descrição |
@@ -2337,6 +2416,27 @@ Relatório LGPD dos dados pessoais de um condutor.
 | `rotulo` | texto | não |  |  |
 | `total` | inteiro | não |  |  |
 
+### DocumentoRelatorio
+
+Documento de relatório já composto: a MESMA estrutura alimenta a prévia na tela, o PDF e o Excel, por isso nenhum número muda entre a visualização e a exportação. Textos e valores chegam formatados (pt-BR); tabelas e gráficos trazem também os valores numéricos brutos para o Excel.
+
+| Campo | Tipo | Nulo | Regras | Descrição |
+|---|---|---|---|---|
+| `tipo` | texto | não |  |  |
+| `titulo` | texto | não |  |  |
+| `subtitulo` | texto | não |  |  |
+| `de` | data | não |  |  |
+| `ate` | data | não |  |  |
+| `periodoRotulo` | texto | não |  |  |
+| `abrangencia` | texto | não |  |  |
+| `filtros` | lista de ItemRotulado | não |  |  |
+| `geradoEm` | data e hora | não |  |  |
+| `organizacao` | texto | sim |  |  |
+| `fonteDados` | texto | não |  |  |
+| `semDados` | booleano | não |  |  |
+| `secoes` | lista de SecaoRelatorio | não |  |  |
+| `codigo` | texto | sim |  | Preenchido quando o documento é emitido (registrado no histórico); a prévia não tem código. |
+
 ### EmpresaTotal
 
 | Campo | Tipo | Nulo | Regras | Descrição |
@@ -2449,6 +2549,20 @@ Fila virtual da portaria.
 | `congestionado` | booleano | não |  | NoPatio ≥ limite. |
 | `fila` | lista de ItemFilaVirtualDto | não |  | Carretas No pátio ou Aguardando, em ordem. |
 | `tempoTipico` | lista de TempoTipicoTerminalDto | não |  | Tempo típico de espera por terminal usado nas estimativas. |
+
+### FiltroRelatorio
+
+Pedido de relatório: tipo, período (datas de marcação) e recorte.
+
+| Campo | Tipo | Nulo | Regras | Descrição |
+|---|---|---|---|---|
+| `tipo` | texto | não | obrigatório; formato `^(gerencial\|operacional\|analise360)$` | gerencial \| operacional \| analise360. |
+| `de` | data? | sim |  | Início do período (data de marcação). Sem datas: o último mês completo com dados. |
+| `ate` | data? | sim |  |  |
+| `terminalId` | texto | sim | até 32 caracteres |  |
+| `operador` | texto | sim | até 50 caracteres |  |
+| `carga` | texto | sim | até 50 caracteres |  |
+| `detalhamento` | texto | não | formato `^(resumido\|completo)$` | resumido \| completo (completo inclui tabelas diárias, convênios e rankings maiores). |
 
 ### FluxoHorarioDto
 
@@ -2564,6 +2678,13 @@ Carreta na fila virtual (situação No pátio ou Aguardando).
 | `tempoTipicoTerminalHoras` | número? | sim |  | Mediana da espera no terminal (marcação → liberação), últimos 30 dias com dados. |
 | `minutosRestantesEstimados` | inteiro? | sim |  | Tempo típico − decorrido (mínimo 0); nulo sem histórico. |
 | `alemDoTempoTipico` | booleano | não |  | Já passou do tempo típico do terminal. |
+
+### ItemRotulado
+
+| Campo | Tipo | Nulo | Regras | Descrição |
+|---|---|---|---|---|
+| `rotulo` | texto | não |  |  |
+| `valor` | texto | não |  |  |
 
 ### JanelaDistribuicao
 
@@ -2734,6 +2855,16 @@ Movimento com a rastreabilidade completa: arquivo de origem e quantas carretas f
 | `diasOperados` | inteiro | não |  |  |
 | `mediaDiaria` | número | não |  |  |
 
+### MesDisponivelDto
+
+| Campo | Tipo | Nulo | Regras | Descrição |
+|---|---|---|---|---|
+| `chave` | texto | não |  |  |
+| `rotulo` | texto | não |  |  |
+| `de` | data | não |  |  |
+| `ate` | data | não |  |  |
+| `completo` | booleano | não |  |  |
+
 ### MesTotal
 
 | Campo | Tipo | Nulo | Regras | Descrição |
@@ -2800,6 +2931,22 @@ Por que a confiabilidade não é "confiável", o que isso muda e o que fazer.
 | `veiculoBloqueado` | booleano | não |  |  |
 | `condutorBloqueado` | booleano | não |  |  |
 | `veiculoCadastrado` | booleano | não |  |  |
+
+### OpcoesRelatorioDto
+
+O que a central de relatórios oferece para o usuário (já no escopo dele).
+
+| Campo | Tipo | Nulo | Regras | Descrição |
+|---|---|---|---|---|
+| `tipos` | lista de TipoRelatorioDto | não |  |  |
+| `terminais` | lista de TerminalRelatorioDto | não |  |  |
+| `operadores` | lista de texto | não |  |  |
+| `cargas` | lista de texto | não |  |  |
+| `meses` | lista de MesDisponivelDto | não |  |  |
+| `padraoDe` | data? | sim |  |  |
+| `padraoAte` | data? | sim |  |  |
+| `terminalVinculado` | texto | sim |  |  |
+| `referenciaDiariaCarretas` | inteiro | não |  |  |
 
 ### OperacaoAgoraDto
 
@@ -2903,6 +3050,16 @@ Por que a confiabilidade não é "confiável", o que isso muda e o que fazer.
 | Campo | Tipo | Nulo | Regras | Descrição |
 |---|---|---|---|---|
 | `itens` | lista de OcorrenciaDto | não |  |  |
+| `total` | inteiro | não |  |  |
+| `numeroPagina` | inteiro | não |  |  |
+| `tamanhoPagina` | inteiro | não |  |  |
+| `totalPaginas` | inteiro | não |  |  |
+
+### Pagina<RelatorioGeradoDto>
+
+| Campo | Tipo | Nulo | Regras | Descrição |
+|---|---|---|---|---|
+| `itens` | lista de RelatorioGeradoDto | não |  |  |
 | `total` | inteiro | não |  |  |
 | `numeroPagina` | inteiro | não |  |  |
 | `tamanhoPagina` | inteiro | não |  |  |
@@ -3088,6 +3245,24 @@ Linha de marcação já liberada, no formato consumido pelas fórmulas (equivale
 | `esperaHoras` | número | não |  |  |
 | `terminalId` | texto | não |  |  |
 | `terminalNome` | texto | não |  |  |
+
+### RelatorioGeradoDto
+
+| Campo | Tipo | Nulo | Regras | Descrição |
+|---|---|---|---|---|
+| `id` | inteiro | não |  |  |
+| `codigo` | texto | não |  |  |
+| `tipo` | texto | não |  |  |
+| `titulo` | texto | não |  |  |
+| `de` | data | não |  |  |
+| `ate` | data | não |  |  |
+| `periodo` | texto | não |  |  |
+| `abrangencia` | texto | não |  |  |
+| `formato` | texto | não |  |  |
+| `geradoPor` | texto | não |  |  |
+| `geradoEm` | data e hora | não |  |  |
+| `tamanhoBytes` | inteiro longo | não |  |  |
+| `hashSha256` | texto | não |  |  |
 
 ### ResponderContestacaoRequest
 
@@ -3283,6 +3458,16 @@ Números de um período (todos observados nos registros; nada estimado).
 | `desvio` | número | não |  |  |
 | `score` | inteiro | não |  |  |
 
+### SecaoRelatorio
+
+Uma seção numerada do relatório.
+
+| Campo | Tipo | Nulo | Regras | Descrição |
+|---|---|---|---|---|
+| `id` | texto | não |  |  |
+| `titulo` | texto | não |  |  |
+| `blocos` | lista de BlocoRelatorio | não |  |  |
+
 ### SenhaProvisoriaDto
 
 Senha provisória gerada pelo Gestor — mostrada uma única vez.
@@ -3322,11 +3507,28 @@ Capacidades nulas = ainda não configuradas pelo porto.
 | `capacidadeDiariaCarretas` | inteiro? | sim |  |  |
 | `capacidadeHoraria` | inteiro? | sim |  |  |
 
+### TerminalRelatorioDto
+
+| Campo | Tipo | Nulo | Regras | Descrição |
+|---|---|---|---|---|
+| `id` | texto | não |  |  |
+| `nome` | texto | não |  |  |
+| `primeiraMarcacao` | data | não |  |  |
+| `ultimaMarcacao` | data | não |  |  |
+
 ### TextoAlertaRequest
 
 | Campo | Tipo | Nulo | Regras | Descrição |
 |---|---|---|---|---|
 | `texto` | texto | sim | até 1000 caracteres; TextoSimples |  |
+
+### TipoRelatorioDto
+
+| Campo | Tipo | Nulo | Regras | Descrição |
+|---|---|---|---|---|
+| `id` | texto | não |  |  |
+| `titulo` | texto | não |  |  |
+| `descricao` | texto | não |  |  |
 
 ### TmaTerminal
 

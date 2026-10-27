@@ -1,0 +1,54 @@
+{
+  "Relatorios": {
+    "ContextoExterno": [
+      {
+        "Tema": "soja",
+        "Texto": "A colheita de soja em Mato Grosso, maior estado produtor, concentra grande parte do volume em janeiro e fevereiro.",
+        "Fonte": "Revista Cultivar, com dados do Boletim Logístico da Conab",
+        "Url": "https://revistacultivar.com.br/noticias/colheita-de-soja-eleva-precos-do-frete-nas-principais-rotas-do-pais",
+        "Publicacao": "02/03/2026",
+        "ConsultadoEm": "27/10/2026"
+      },
+      {
+        "Tema": "soja",
+        "Texto": "Em 2026, a colheita da soja elevou o preço do frete em Mato Grosso em março e abril, segundo o Boletim Logístico da Conab.",
+        "Fonte": "Agência Gov (EBC), Boletim Logístico da Conab",
+        "Url": "https://agenciagov.ebc.com.br/noticias/202608/exportacoes-de-graos-crescem-e-fretes-oscilam-nos-principais-corredores-logisticos-do-pais",
+        "Publicacao": "28/08/2026",
+        "ConsultadoEm": "27/10/2026"
+      },
+      {
+        "Tema": "soja",
+        "Texto": "Em fevereiro de 2026 foram registradas filas de mais de 25 km de carretas de soja vindas de Mato Grosso em Miritituba (Itaituba-PA), na rota de escoamento pelo Arco Norte.",
+        "Fonte": "Brasilagro",
+        "Url": "https://www.brasilagro.com.br/conteudo/filas-de-carretas-de-soja-atingem-25-km-em-porto-do-para.html",
+        "Publicacao": "25/02/2026",
+        "ConsultadoEm": "27/10/2026"
+      },
+      {
+        "Tema": "milho",
+        "Texto": "A colheita do milho de segunda safra pressiona o frete no meio do ano: em 2025, o preço atingiu o pico em julho e recuou em agosto, com o fim da colheita. Os portos do Arco Norte são o principal eixo de escoamento do cereal.",
+        "Fonte": "Conexão Tocantins, com dados da Conab",
+        "Url": "https://conexaoto.com.br/2025/09/30/encerramento-da-segunda-safra-reflete-em-precos-de-frete-aponta-a-conab",
+        "Publicacao": "30/09/2025",
+        "ConsultadoEm": "27/10/2026"
+      },
+      {
+        "Tema": "arco-norte",
+        "Texto": "De janeiro a julho de 2026, os portos do Arco Norte responderam por 46,12% das exportações brasileiras de milho.",
+        "Fonte": "Agência Gov (EBC), Boletim Logístico da Conab",
+        "Url": "https://agenciagov.ebc.com.br/noticias/202608/exportacoes-de-graos-crescem-e-fretes-oscilam-nos-principais-corredores-logisticos-do-pais",
+        "Publicacao": "28/08/2026",
+        "ConsultadoEm": "27/10/2026"
+      },
+      {
+        "Tema": "barcarena",
+        "Texto": "A Conab apontou que Barcarena movimentou cerca de 20% do milho e 10% da soja exportados pelo país em 2021 (dado mais recente com esse recorte encontrado).",
+        "Fonte": "Revista Cultivar, Boletim Logístico da Conab",
+        "Url": "https://revistacultivar.com.br/noticias/porto-de-barcarena-movimenta-cerca-20percent-do-milho-exportado",
+        "Publicacao": "22/12/2021",
+        "ConsultadoEm": "27/10/2026"
+      }
+    ]
+  }
+}

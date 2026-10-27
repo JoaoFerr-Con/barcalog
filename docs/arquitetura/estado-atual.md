@@ -46,10 +46,11 @@ funcionam, mas os dados do banco são fictícios porque a fonte real não existe
 
 | Módulo | Situação | Dados | O que existe | O que falta | Testes |
 |---|---|---|---|---|---|
-| Visão Geral (indicadores) | Concluído | Reais (planilhas) | Resumo, comparação, por terminal, volume mensal, fluxo horário, frescor, relatório imprimível | Capacidades dos terminais não informadas → sem ocupação | Integração (cálculo manual) + unitários |
+| Visão Geral (indicadores) | Concluído | Reais (planilhas) | Resumo, comparação, por terminal, volume mensal, fluxo horário, frescor, atalho para a central de relatórios | Capacidades dos terminais não informadas → sem ocupação | Integração (cálculo manual) + unitários |
 | Movimentações — lista | Concluído | Reais | Filtros, ordenação, origem da linha, detalhe, CSV | — | Integração |
 | Movimentações — Análise 360° | Concluído | Reais | Resumo × período anterior, série, hora, dia da semana, dimensões, qualidade, detalhamento | Remarcações e lotes sem filtro de lista | Integração + unitários |
 | Importação de planilhas | Concluído | Reais | Análise, revisão (novo/completa/conflito/rejeitada), decisão, confirmação transacional, relatório | — | Integração |
+| Central de relatórios | Concluído | Reais | Gerencial, operacional e Análise 360° com prévia, PDF timbrado, Excel, histórico e reemissão; contexto de safra com fontes | Mapa de ocorrências (sem coordenadas); projeção suprimida enquanto o teste com o histórico falhar | Integração + unitários |
 | Gargalos e alertas | Concluído | Reais | Regras, tratamento, Reavaliar com registro, confiabilidade em 4 classes, estimativa 6 h | Erro da estimativa ~50% (backtest); só indicativa | Integração + unitários + backtest |
 | Configurações | Concluído | Reais | Capacidade, limites, convênios, acesso por terminal | Capacidades ainda não informadas pelo porto | Integração |
 | Usuários, perfis e escopo | Concluído | Reais | Papéis, MFA, vínculo a terminal, preferências | Tela de criação de usuários (hoje via API/CLI) | Integração |

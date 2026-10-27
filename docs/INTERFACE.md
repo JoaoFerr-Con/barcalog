@@ -48,8 +48,8 @@ inteiro; comparação com o mês anterior (opcional). Barra "Dados disponíveis 
 terminal. Cinco indicadores (movimentações, espera mediana, P90, liberadas ≤ 24 h,
 esperas longas), alertas que exigem atenção, situação de hoje (registros manuais),
 comparação entre terminais, histórico mensal (meses parciais com `*`), chegadas ×
-liberações por hora e últimos registros. Exporta CSV e gera relatório para PDF
-(impressão do navegador) com os mesmos números.
+liberações por hora e últimos registros. Exporta CSV e abre a central de relatórios
+(PDF/Excel gerados no servidor) com o mesmo período e terminal.
 
 **Gargalos e alertas.** Faixa das próximas 6 horas (estimativa pelo padrão dos
 últimos 30 dias com dados), abas por tipo, lista e detalhe com evidência, limite,
