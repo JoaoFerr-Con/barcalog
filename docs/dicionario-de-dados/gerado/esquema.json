@@ -1,5 +1,5 @@
 {
-  "UltimaMigration": "20261021135006_VinculoTerminalEPreferenciasUsuario",
+  "UltimaMigration": "20261027120120_CentralRelatorios",
   "Tabelas": [
     {
       "Nome": "Agendamentos",
@@ -1764,6 +1764,121 @@
           "Sql": "[Id] = 1"
         }
       ]
+    },
+    {
+      "Nome": "RelatoriosGerados",
+      "Entidade": "RelatorioGerado",
+      "Descricao": "Registro de um relatório emitido pela central de relatórios. O arquivo não é guardado: guarda-se o que é preciso para emitir de novo com os mesmos filtros (os números podem mudar se os dados do período forem corrigidos depois) e o resumo SHA-256 do arquivo entregue, para conferir uma cópia que circular.",
+      "ChavePrimaria": [
+        "Id"
+      ],
+      "Colunas": [
+        {
+          "Nome": "Id",
+          "Tipo": "int",
+          "Nulo": false,
+          "Geracao": "identidade (gerado pelo banco)"
+        },
+        {
+          "Nome": "Abrangencia",
+          "Tipo": "nvarchar(200)",
+          "Nulo": false,
+          "Tamanho": 200,
+          "Descricao": "Terminal ou \"Todos os terminais\", com operador/carga quando filtrados."
+        },
+        {
+          "Nome": "Ate",
+          "Tipo": "date",
+          "Nulo": false
+        },
+        {
+          "Nome": "Codigo",
+          "Tipo": "nvarchar(32)",
+          "Nulo": false,
+          "Tamanho": 32,
+          "Descricao": "Código impresso no rodapé do documento (ex.: RL-20261027-0007)."
+        },
+        {
+          "Nome": "De",
+          "Tipo": "date",
+          "Nulo": false
+        },
+        {
+          "Nome": "Filtros",
+          "Tipo": "nvarchar(2000)",
+          "Nulo": false,
+          "Tamanho": 2000,
+          "Descricao": "Filtros usados, em JSON (para emitir de novo)."
+        },
+        {
+          "Nome": "Formato",
+          "Tipo": "nvarchar(10)",
+          "Nulo": false,
+          "Tamanho": 10,
+          "Descricao": "pdf | xlsx."
+        },
+        {
+          "Nome": "GeradoEm",
+          "Tipo": "datetime2",
+          "Nulo": false,
+          "Fuso": "UTC"
+        },
+        {
+          "Nome": "GeradoPor",
+          "Tipo": "nvarchar(200)",
+          "Nulo": false,
+          "Tamanho": 200
+        },
+        {
+          "Nome": "HashSha256",
+          "Tipo": "varchar(64)",
+          "Nulo": false,
+          "Tamanho": 64
+        },
+        {
+          "Nome": "TamanhoBytes",
+          "Tipo": "bigint",
+          "Nulo": false
+        },
+        {
+          "Nome": "TerminalId",
+          "Tipo": "nvarchar(32)",
+          "Nulo": true,
+          "Tamanho": 32
+        },
+        {
+          "Nome": "Tipo",
+          "Tipo": "nvarchar(30)",
+          "Nulo": false,
+          "Tamanho": 30,
+          "Descricao": "gerencial | operacional | analise360."
+        },
+        {
+          "Nome": "Titulo",
+          "Tipo": "nvarchar(200)",
+          "Nulo": false,
+          "Tamanho": 200
+        }
+      ],
+      "ChavesEstrangeiras": [],
+      "Indices": [
+        {
+          "Nome": "IX_RelatoriosGerados_Codigo",
+          "Colunas": [
+            "Codigo"
+          ],
+          "Unico": true
+        },
+        {
+          "Nome": "IX_RelatoriosGerados_TerminalId_GeradoEm",
+          "Colunas": [
+            "TerminalId",
+            "GeradoEm"
+          ],
+          "Unico": false
+        }
+      ],
+      "Restricoes": []
     },
     {
       "Nome": "Terminais",
@@ -6900,6 +7015,179 @@
       "Paginado": false
     },
     {
+      "Metodo": "POST",
+      "Rota": "/api/v1/relatorios/exportar",
+      "Controlador": "Relatorios",
+      "Acao": "Exportar",
+      "Descricao": "Emite o relatório em PDF (padrão) ou Excel (formato=xlsx), registra no histórico com código e resumo SHA-256 e devolve o arquivo. Período sem movimentações = 422.",
+      "Acesso": "Leitura",
+      "CorpoTipo": "FiltroRelatorio",
+      "Parametros": [
+        {
+          "Nome": "formato",
+          "Origem": "consulta",
+          "Tipo": "texto",
+          "Obrigatorio": false
+        }
+      ],
+      "Respostas": [
+        {
+          "Status": 200,
+          "Tipo": "FileContentResult"
+        }
+      ],
+      "Idempotente": false,
+      "LimiteTaxa": "exportacao",
+      "Paginado": false
+    },
+    {
+      "Metodo": "GET",
+      "Rota": "/api/v1/relatorios/historico",
+      "Controlador": "Relatorios",
+      "Acao": "Historico",
+      "Descricao": "Relatórios emitidos, do mais recente para o mais antigo (usuário vinculado vê só os do seu terminal).",
+      "Acesso": "Leitura",
+      "Parametros": [
+        {
+          "Nome": "pagina",
+          "Origem": "consulta",
+          "Tipo": "inteiro",
+          "Obrigatorio": false
+        },
+        {
+          "Nome": "tamanho",
+          "Origem": "consulta",
+          "Tipo": "inteiro",
+          "Obrigatorio": false
+        }
+      ],
+      "Respostas": [
+        {
+          "Status": 200,
+          "Tipo": "Pagina<RelatorioGeradoDto>"
+        }
+      ],
+      "Idempotente": false,
+      "Paginado": true
+    },
+    {
+      "Metodo": "POST",
+      "Rota": "/api/v1/relatorios/historico/{id}/reemitir",
+      "Controlador": "Relatorios",
+      "Acao": "Reemitir",
+      "Descricao": "Emite de novo um relatório do histórico com os mesmos filtros (novo código; números refletem os dados atuais).",
+      "Acesso": "Leitura",
+      "Parametros": [
+        {
+          "Nome": "id",
+          "Origem": "rota",
+          "Tipo": "inteiro",
+          "Obrigatorio": true,
+          "Regras": "int"
+        },
+        {
+          "Nome": "formato",
+          "Origem": "consulta",
+          "Tipo": "texto",
+          "Obrigatorio": false
+        }
+      ],
+      "Respostas": [
+        {
+          "Status": 200,
+          "Tipo": "FileContentResult"
+        }
+      ],
+      "Idempotente": false,
+      "LimiteTaxa": "exportacao",
+      "Paginado": false
+    },
+    {
+      "Metodo": "GET",
+      "Rota": "/api/v1/relatorios/opcoes",
+      "Controlador": "Relatorios",
+      "Acao": "Opcoes",
+      "Descricao": "Tipos de relatório, terminais (com o período coberto), operadores, cargas, meses com dados e o período padrão (último mês completo).",
+      "Acesso": "Leitura",
+      "Parametros": [],
+      "Respostas": [
+        {
+          "Status": 200,
+          "Tipo": "OpcoesRelatorioDto"
+        }
+      ],
+      "Idempotente": false,
+      "Paginado": false
+    },
+    {
+      "Metodo": "GET",
+      "Rota": "/api/v1/relatorios/previa",
+      "Controlador": "Relatorios",
+      "Acao": "Previa",
+      "Descricao": "Prévia: o documento completo (seções e blocos já com os números formatados), sem código e sem registro no histórico. Sem datas: o último mês completo com dados.",
+      "Acesso": "Leitura",
+      "Parametros": [
+        {
+          "Nome": "tipo",
+          "Origem": "consulta",
+          "Tipo": "texto",
+          "Obrigatorio": false,
+          "Regras": "obrigatório; formato `^(gerencial|operacional|analise360)$`",
+          "Descricao": "gerencial | operacional | analise360."
+        },
+        {
+          "Nome": "de",
+          "Origem": "consulta",
+          "Tipo": "data?",
+          "Obrigatorio": false,
+          "Descricao": "Início do período (data de marcação). Sem datas: o último mês completo com dados."
+        },
+        {
+          "Nome": "ate",
+          "Origem": "consulta",
+          "Tipo": "data?",
+          "Obrigatorio": false
+        },
+        {
+          "Nome": "terminalId",
+          "Origem": "consulta",
+          "Tipo": "texto",
+          "Obrigatorio": false,
+          "Regras": "até 32 caracteres"
+        },
+        {
+          "Nome": "operador",
+          "Origem": "consulta",
+          "Tipo": "texto",
+          "Obrigatorio": false,
+          "Regras": "até 50 caracteres"
+        },
+        {
+          "Nome": "carga",
+          "Origem": "consulta",
+          "Tipo": "texto",
+          "Obrigatorio": false,
+          "Regras": "até 50 caracteres"
+        },
+        {
+          "Nome": "detalhamento",
+          "Origem": "consulta",
+          "Tipo": "texto",
+          "Obrigatorio": false,
+          "Regras": "formato `^(resumido|completo)$`",
+          "Descricao": "resumido | completo (completo inclui tabelas diárias, convênios e rankings maiores)."
+        }
+      ],
+      "Respostas": [
+        {
+          "Status": 200,
+          "Tipo": "DocumentoRelatorio"
+        }
+      ],
+      "Idempotente": false,
+      "Paginado": false
+    },
+    {
       "Metodo": "GET",
       "Rota": "/api/v1/terminais",
       "Controlador": "Terminais",
@@ -8166,6 +8454,11 @@
       ]
     },
     {
+      "Nome": "BlocoRelatorio",
+      "Descricao": "Um bloco de conteúdo. O campo \"tipo\" no JSON diz qual é.",
+      "Campos": []
+    },
+    {
       "Nome": "CapacidadeDia",
       "Campos": [
         {
@@ -8696,6 +8989,83 @@
       ]
     },
     {
+      "Nome": "DocumentoRelatorio",
+      "Descricao": "Documento de relatório já composto: a MESMA estrutura alimenta a prévia na tela, o PDF e o Excel, por isso nenhum número muda entre a visualização e a exportação. Textos e valores chegam formatados (pt-BR); tabelas e gráficos trazem também os valores numéricos brutos para o Excel.",
+      "Campos": [
+        {
+          "Nome": "tipo",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "titulo",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "subtitulo",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "de",
+          "Tipo": "data",
+          "Nulo": false
+        },
+        {
+          "Nome": "ate",
+          "Tipo": "data",
+          "Nulo": false
+        },
+        {
+          "Nome": "periodoRotulo",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "abrangencia",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "filtros",
+          "Tipo": "lista de ItemRotulado",
+          "Nulo": false
+        },
+        {
+          "Nome": "geradoEm",
+          "Tipo": "data e hora",
+          "Nulo": false
+        },
+        {
+          "Nome": "organizacao",
+          "Tipo": "texto",
+          "Nulo": true
+        },
+        {
+          "Nome": "fonteDados",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "semDados",
+          "Tipo": "booleano",
+          "Nulo": false
+        },
+        {
+          "Nome": "secoes",
+          "Tipo": "lista de SecaoRelatorio",
+          "Nulo": false
+        },
+        {
+          "Nome": "codigo",
+          "Tipo": "texto",
+          "Nulo": true,
+          "Descricao": "Preenchido quando o documento é emitido (registrado no histórico); a prévia não tem código."
+        }
+      ]
+    },
+    {
       "Nome": "EmpresaTotal",
       "Campos": [
         {
@@ -9077,6 +9447,55 @@
       ]
     },
     {
+      "Nome": "FiltroRelatorio",
+      "Descricao": "Pedido de relatório: tipo, período (datas de marcação) e recorte.",
+      "Campos": [
+        {
+          "Nome": "tipo",
+          "Tipo": "texto",
+          "Nulo": false,
+          "Regras": "obrigatório; formato `^(gerencial|operacional|analise360)$`",
+          "Descricao": "gerencial | operacional | analise360."
+        },
+        {
+          "Nome": "de",
+          "Tipo": "data?",
+          "Nulo": true,
+          "Descricao": "Início do período (data de marcação). Sem datas: o último mês completo com dados."
+        },
+        {
+          "Nome": "ate",
+          "Tipo": "data?",
+          "Nulo": true
+        },
+        {
+          "Nome": "terminalId",
+          "Tipo": "texto",
+          "Nulo": true,
+          "Regras": "até 32 caracteres"
+        },
+        {
+          "Nome": "operador",
+          "Tipo": "texto",
+          "Nulo": true,
+          "Regras": "até 50 caracteres"
+        },
+        {
+          "Nome": "carga",
+          "Tipo": "texto",
+          "Nulo": true,
+          "Regras": "até 50 caracteres"
+        },
+        {
+          "Nome": "detalhamento",
+          "Tipo": "texto",
+          "Nulo": false,
+          "Regras": "formato `^(resumido|completo)$`",
+          "Descricao": "resumido | completo (completo inclui tabelas diárias, convênios e rankings maiores)."
+        }
+      ]
+    },
+    {
       "Nome": "FluxoHorarioDto",
       "Descricao": "Média de marcações (chegadas) e de liberações por dia, numa hora do dia.",
       "Campos": [
@@ -9453,6 +9872,21 @@
           "Tipo": "booleano",
           "Nulo": false,
           "Descricao": "Já passou do tempo típico do terminal."
+        }
+      ]
+    },
+    {
+      "Nome": "ItemRotulado",
+      "Campos": [
+        {
+          "Nome": "rotulo",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "valor",
+          "Tipo": "texto",
+          "Nulo": false
         }
       ]
     },
@@ -10062,6 +10496,36 @@
       ]
     },
     {
+      "Nome": "MesDisponivelDto",
+      "Campos": [
+        {
+          "Nome": "chave",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "rotulo",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "de",
+          "Tipo": "data",
+          "Nulo": false
+        },
+        {
+          "Nome": "ate",
+          "Tipo": "data",
+          "Nulo": false
+        },
+        {
+          "Nome": "completo",
+          "Tipo": "booleano",
+          "Nulo": false
+        }
+      ]
+    },
+    {
       "Nome": "MesTotal",
       "Campos": [
         {
@@ -10249,6 +10713,57 @@
         {
           "Nome": "veiculoCadastrado",
           "Tipo": "booleano",
+          "Nulo": false
+        }
+      ]
+    },
+    {
+      "Nome": "OpcoesRelatorioDto",
+      "Descricao": "O que a central de relatórios oferece para o usuário (já no escopo dele).",
+      "Campos": [
+        {
+          "Nome": "tipos",
+          "Tipo": "lista de TipoRelatorioDto",
+          "Nulo": false
+        },
+        {
+          "Nome": "terminais",
+          "Tipo": "lista de TerminalRelatorioDto",
+          "Nulo": false
+        },
+        {
+          "Nome": "operadores",
+          "Tipo": "lista de texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "cargas",
+          "Tipo": "lista de texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "meses",
+          "Tipo": "lista de MesDisponivelDto",
+          "Nulo": false
+        },
+        {
+          "Nome": "padraoDe",
+          "Tipo": "data?",
+          "Nulo": true
+        },
+        {
+          "Nome": "padraoAte",
+          "Tipo": "data?",
+          "Nulo": true
+        },
+        {
+          "Nome": "terminalVinculado",
+          "Tipo": "texto",
+          "Nulo": true
+        },
+        {
+          "Nome": "referenciaDiariaCarretas",
+          "Tipo": "inteiro",
           "Nulo": false
         }
       ]
@@ -10544,6 +11059,36 @@
         {
           "Nome": "itens",
           "Tipo": "lista de OcorrenciaDto",
+          "Nulo": false
+        },
+        {
+          "Nome": "total",
+          "Tipo": "inteiro",
+          "Nulo": false
+        },
+        {
+          "Nome": "numeroPagina",
+          "Tipo": "inteiro",
+          "Nulo": false
+        },
+        {
+          "Nome": "tamanhoPagina",
+          "Tipo": "inteiro",
+          "Nulo": false
+        },
+        {
+          "Nome": "totalPaginas",
+          "Tipo": "inteiro",
+          "Nulo": false
+        }
+      ]
+    },
+    {
+      "Nome": "Pagina<RelatorioGeradoDto>",
+      "Campos": [
+        {
+          "Nome": "itens",
+          "Tipo": "lista de RelatorioGeradoDto",
           "Nulo": false
         },
         {
@@ -11107,6 +11652,76 @@
         },
         {
           "Nome": "terminalNome",
+          "Tipo": "texto",
+          "Nulo": false
+        }
+      ]
+    },
+    {
+      "Nome": "RelatorioGeradoDto",
+      "Campos": [
+        {
+          "Nome": "id",
+          "Tipo": "inteiro",
+          "Nulo": false
+        },
+        {
+          "Nome": "codigo",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "tipo",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "titulo",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "de",
+          "Tipo": "data",
+          "Nulo": false
+        },
+        {
+          "Nome": "ate",
+          "Tipo": "data",
+          "Nulo": false
+        },
+        {
+          "Nome": "periodo",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "abrangencia",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "formato",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "geradoPor",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "geradoEm",
+          "Tipo": "data e hora",
+          "Nulo": false
+        },
+        {
+          "Nome": "tamanhoBytes",
+          "Tipo": "inteiro longo",
+          "Nulo": false
+        },
+        {
+          "Nome": "hashSha256",
           "Tipo": "texto",
           "Nulo": false
         }
@@ -11735,6 +12350,27 @@
       ]
     },
     {
+      "Nome": "SecaoRelatorio",
+      "Descricao": "Uma seção numerada do relatório.",
+      "Campos": [
+        {
+          "Nome": "id",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "titulo",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "blocos",
+          "Tipo": "lista de BlocoRelatorio",
+          "Nulo": false
+        }
+      ]
+    },
+    {
       "Nome": "SenhaProvisoriaDto",
       "Descricao": "Senha provisória gerada pelo Gestor — mostrada uma única vez.",
       "Campos": [
@@ -11829,6 +12465,31 @@
       ]
     },
     {
+      "Nome": "TerminalRelatorioDto",
+      "Campos": [
+        {
+          "Nome": "id",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "nome",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "primeiraMarcacao",
+          "Tipo": "data",
+          "Nulo": false
+        },
+        {
+          "Nome": "ultimaMarcacao",
+          "Tipo": "data",
+          "Nulo": false
+        }
+      ]
+    },
+    {
       "Nome": "TextoAlertaRequest",
       "Campos": [
         {
@@ -11836,6 +12497,26 @@
           "Tipo": "texto",
           "Nulo": true,
           "Regras": "até 1000 caracteres; TextoSimples"
+        }
+      ]
+    },
+    {
+      "Nome": "TipoRelatorioDto",
+      "Campos": [
+        {
+          "Nome": "id",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "titulo",
+          "Tipo": "texto",
+          "Nulo": false
+        },
+        {
+          "Nome": "descricao",
+          "Tipo": "texto",
+          "Nulo": false
         }
       ]
     },

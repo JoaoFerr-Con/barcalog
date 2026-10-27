@@ -21,6 +21,7 @@ const Agendamentos = lazy(() => import("./pages/Agendamentos.jsx"));
 const Configuracoes = lazy(() => import("./pages/Configuracoes.jsx"));
 const Movimentacoes = lazy(() => import("./pages/Movimentacoes.jsx"));
 const Importacao = lazy(() => import("./pages/Importacao.jsx"));
+const Relatorios = lazy(() => import("./pages/Relatorios.jsx"));
 
 // Painel interno (equipe do porto). A autenticação é feita na API
 // (/api/v1/auth/login, JWT); aqui só guardamos o token e mostramos as telas.
@@ -47,7 +48,9 @@ const GRUPOS_NAV = [
     { chave: "movimentacoes", rotulo: "Movimentações", icone: "swap_horiz", cabecalhoProprio: true,
       descricao: "Cada marcação e liberação, com filtros, sinais de qualidade e origem do registro." },
     { chave: "importacao", rotulo: "Importação", icone: "upload_file", cabecalhoProprio: true,
-      descricao: "Planilhas dos terminais: análise, conflitos, confirmação e histórico." }
+      descricao: "Planilhas dos terminais: análise, conflitos, confirmação e histórico." },
+    { chave: "relatorios", rotulo: "Relatórios", icone: "description", cabecalhoProprio: true,
+      descricao: "Relatórios gerencial, operacional e de análise 360° com prévia e exportação em PDF timbrado ou Excel." }
   ]},
   { nome: "Controle", itens: [
     { chave: "negativacao", demonstracao: true, rotulo: "Negativação", icone: "gpp_maybe", titulo: "Negativação", sub: "Ocorrências N1/N2/N3, bloqueio automático N3 e contestações",
@@ -381,6 +384,7 @@ export default function Aplicativo({ aoAbrirPortal }) {
     "agendamentos": <Agendamentos papel={papel} />,
     "movimentacoes": <Movimentacoes />,
     "importacao": <Importacao papel={papel} irPara={irPara} />,
+    "relatorios": <Relatorios />,
     "configuracoes": <Configuracoes papel={papel} />
   };
   return (

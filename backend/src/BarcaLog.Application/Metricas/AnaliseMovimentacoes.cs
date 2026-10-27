@@ -153,14 +153,16 @@ public static class AnaliseMovimentacoes
     {
         var esperas = entradas.Where(r => r.EsperaHoras is not null).Select(r => r.EsperaHoras!.Value).OrderBy(x => x).ToList();
         return new ResumoPeriodo(entradas.Count, saidas, esperas.Count, entradas.Count - esperas.Count, Math.Round(entradas.Count / (double)dias, 1),
-            esperas.Count == 0 ? null : Math.Round(esperas.Average(), 2),
+            esperas.Count == 0 ? null : Math.Round(esperas.Average(), 6),
             Arred(Indicadores.Percentil(esperas, 0.5)), Arred(Indicadores.Percentil(esperas, 0.9)),
             esperas.Count == 0 ? null : Math.Round(esperas.Count(e => e <= 24) * 100.0 / esperas.Count, 1),
             esperas.Count(e => e > limite),
             entradas.Count(r => string.IsNullOrWhiteSpace(r.CodConvenio) || remarcacoes.Contains(r.MovimentoId)));
     }
 
-    private static double? Arred(double? v) => v is null ? null : Math.Round(v.Value, 2);
+    // Horas sem arredondar a 2 casas: a tela formata em minutos ("13h44"), e arredondar duas vezes
+    // (0,01 h e depois minuto) deslocava a espera em 1 minuto em alguns casos.
+    private static double? Arred(double? v) => v is null ? null : Math.Round(v.Value, 6);
 
     private static AnaliseDimensao Dimensao(string nome, List<RegistroAnalise> entradas, Func<RegistroAnalise, string> chave,
         Func<RegistroAnalise, string> rotulo, double limite)

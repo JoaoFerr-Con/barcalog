@@ -49,6 +49,8 @@ public static class DependencyInjection
         services.AddScoped<IImportacaoRepositorio, ImportacaoRepositorio>();
         services.AddScoped<IConvenioRepositorio, ConvenioRepositorio>();
         services.AddScoped<IAlertaRepositorio, AlertaRepositorio>();
+        services.AddScoped<Application.Relatorios.IRelatorioGeradoRepositorio, RelatorioGeradoRepositorio>();
+        services.AddSingleton<Application.Relatorios.IRenderizadorRelatorio, Relatorios.RenderizadorRelatorio>();
         services.AddHostedService<Alertas.AvaliacaoPeriodicaAlertas>();
         services.AddSingleton<ILeitorPlanilha, Importacao.LeitorPlanilha>();
 

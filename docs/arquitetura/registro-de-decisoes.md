@@ -46,7 +46,11 @@ e apresentação; (4) diretrizes novas, sem presumir que estejam implementadas.
 | DEC-027 | Desnegativação manual sem motivo; N3 em placa não cadastrada | Pendente | Negócio |
 | DEC-028 | Retenção de auditoria, avaliações e dados pessoais (LGPD) | Pendente | Cliente (controlador) |
 | DEC-029 | Capacidade dos terminais | Pendente | Porto |
-| DEC-030 | Endpoints analíticos legados não usados pelo portal | Em avaliação | Responsável pelo produto |
+| DEC-030 | Endpoints analíticos legados não usados pelo portal | Em avaliação (parte reaproveitada nos relatórios, DEC-031) | Responsável pelo produto |
+| DEC-031 | Central de relatórios: PDF e Excel gerados no servidor, sem impressão do navegador | Decidido (27/10/2026) | Responsável pelo produto |
+| DEC-032 | Referência diária provisória de 1.000 carretas por terminal | Decidido como provisório (27/10/2026) | Responsável pelo produto; valor oficial com o porto (DEC-029) |
+| DEC-033 | Sem "análise preditiva": só histórico e projeção testada | Decidido (27/10/2026) | Responsável pelo produto |
+| DEC-034 | Mapa de ocorrências só com coordenadas reais | Decidido (27/10/2026); depende de DEC-014 | Responsável pelo produto |
 
 ---
 
@@ -271,3 +275,42 @@ Pendente com o porto. Sem capacidade, ocupação e comparação da agenda com li
 
 Em avaliação. Cerca de 35 endpoints de `/api/v1/marcacoes/*` não são usados pelo portal atual (15
 marcados como descontinuados). Opções: manter para integração ou remover em `/api/v2`.
+Em 27/10/2026 a central de relatórios (DEC-031) passou a reaproveitar, revisados, o ranking de maiores
+esperas, os totais por operador e carga, os dias de maior movimento, os dias acima da referência e o
+histórico mensal. Os endpoints antigos continuam como estavam; os relatórios usam
+`Application/Relatorios`, sobre os mesmos registros da Análise 360°.
+
+## Relatórios (27/10/2026)
+
+### DEC-031 — Central de relatórios
+
+Relatórios gerencial, operacional e de análise 360° em `/api/v1/relatorios` (opções, prévia,
+exportar, histórico, reemitir). A prévia é o mesmo documento que vira PDF (PDFsharp, MIT) e Excel
+(ClosedXML, MIT), então os números não mudam entre tela e arquivo. Os indicadores vêm da Análise 360°
+(`AnaliseMovimentacoes.Calcular`). O relatório imprimível da Visão Geral (impressão do navegador) foi
+removido; o botão "Relatório" abre a central com o mesmo período e terminal. Cada emissão grava
+`RelatoriosGerados` (código, filtros, autor, SHA-256 do arquivo) e um evento de auditoria; o arquivo
+não é guardado. Fontes Inter e Space Grotesk (OFL) embutidas no assembly. O contexto externo de safra
+fica em `backend/src/BarcaLog.Api/Relatorios/contexto-externo.json`, atualizável sem recompilar.
+
+### DEC-032 — Referência diária de 1.000 carretas
+
+Usada em "dias acima da referência diária", por terminal, enquanto o terminal não tem capacidade
+cadastrada (DEC-029). Configurável em `Relatorios:ReferenciaDiariaCarretas`. O relatório diz sempre
+que é referência de comparação, não capacidade oficial, e não soma referências entre terminais.
+Observação com os dados reais (dez/2025 a set/2026): o maior volume diário de um terminal foi 331
+(TGPM, 18/04/2026) e o maior dia somando os três terminais, 836 (17/04/2026). Com 1.000 por terminal,
+nenhum dia aparece acima da referência.
+
+### DEC-033 — Projeção de volume
+
+A "análise preditiva" (tendência com faixa de confiança não validada) não é usada. O relatório mostra
+histórico, tendência recente e uma estimativa simples (média dos três meses completos anteriores) só
+quando o teste com o histórico dá erro médio de até 15%. Com os dados atuais o erro foi de 28,1%,
+então não há projeção publicada. A estimativa de 6 horas dos alertas não foi alterada.
+
+### DEC-034 — Mapa de ocorrências
+
+As ocorrências não têm latitude/longitude (só texto do local) e são de demonstração. O relatório
+explica a limitação em vez de distribuir pontos no mapa. A localização do Posto Mirian (PA-483) pode
+ser referência visual, mas não substitui a coordenada de cada ocorrência. Depende de DEC-014.

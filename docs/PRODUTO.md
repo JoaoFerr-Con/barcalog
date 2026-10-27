@@ -85,7 +85,7 @@ Maturidade detalhada por módulo: [estado-atual.md §2](arquitetura/estado-atual
 | Agendamentos (janelas, autorizações, capacidade, confirmação) | `Agendamentos` (demonstração; D0–D3 pendente — DEC-011) |
 | Eventos e movimentações (chegada, entrada, passagem, atendimento, saída) | `Marcacoes` (marcação → liberação, real); `StatusPortaria` manual |
 | Regras e conformidade (restrições, evidências, recursos, auditoria) | N1/N2/N3, contestação, auditoria |
-| Indicadores e relatórios | Visão Geral, Análise 360°, alertas, relatório imprimível |
+| Indicadores e relatórios | Visão Geral, Análise 360°, alertas, central de relatórios (PDF e Excel) |
 
 | Operação especializada (proposto) | Hoje |
 |---|---|

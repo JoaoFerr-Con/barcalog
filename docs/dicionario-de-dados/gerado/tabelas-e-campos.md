@@ -4,7 +4,7 @@
 > (modelo do EF Core, enums, ApiExplorer e comentários XML) e de `docs/dicionario-de-dados/curadoria.json`.
 > Não edite à mão: o CI recusa o arquivo se ele divergir do código.
 
-Modelo na migration `20261021135006_VinculoTerminalEPreferenciasUsuario` · 18 tabelas · 204 colunas.
+Modelo na migration `20261027120120_CentralRelatorios` · 19 tabelas · 218 colunas.
 
 Legenda: **Nulo** = aceita NULL no banco. **Fuso**: *UTC* = gravado e lido em UTC; *sem fuso no modelo* = o banco guarda a data/hora como recebida (ver descrição). Textos marcados *a validar* ainda não foram confirmados com o negócio.
 
@@ -26,6 +26,7 @@ Legenda: **Nulo** = aceita NULL no banco. **Fuso**: *UTC* = gravado e lido em UT
 | [Marcacoes](#marcacoes) | Movimentação (marcação → liberação) | Registro de cada carreta marcada num terminal e de sua liberação. Fonte de todos os indicadores de volume e espera, dos alertas e da Análise 360°. | Campos vindos das planilhas; significado de SENHA, CICLO e 'liberação' a confirmar com o porto (docs/PROTHEUS.md) |
 | [Ocorrencias](#ocorrencias) | Ocorrência (Matriz de Disciplina N1/N2/N3) | Infração registrada contra uma placa. N3 negativa automaticamente o veículo (e o condutor, se identificado); N1 e N2 não bloqueiam. | Regra N3 confirmada na documentação original; dados atuais são demonstração |
 | [ParametrosOperacionais](#parametrosoperacionais) | Parâmetros operacionais | Limites e metas usados pelos indicadores e alertas (linha única). | Valores iniciais são pontos de partida, não normas do porto (a validar) |
+| [RelatoriosGerados](#relatoriosgerados) | Relatório emitido | Histórico da central de relatórios: cada PDF ou Excel emitido, com código impresso no rodapé, filtros usados (para emitir de novo), autor, data e resumo SHA-256 do arquivo entregue. | a validar |
 | [Terminais](#terminais) | Terminal portuário | Terminais atendidos (Unitapajós, TGPM, Hidrovias) e suas capacidades quando informadas. | Extraído do código; capacidades ainda não informadas pelo porto |
 | [Transportadoras](#transportadoras) | Transportadora | Empresa dona das carretas. Situação de negativação é calculada (negativada se tiver ao menos um veículo negativado). | Extraído do código; dados atuais são demonstração |
 | [Usuarios](#usuarios) | Usuário | Contas internas (Operador, Gestor, Auditor) e do Portal (Transportadora): credenciais, MFA, papel, vínculo de terminal e preferências. | Extraído do código |
@@ -81,7 +82,7 @@ Legenda: **Nulo** = aceita NULL no banco. **Fuso**: *UTC* = gravado e lido em UT
 - **Finalidade:** Problema identificado por regra (histórico, operacional, previsão, dados) com evidência, limite, origem, ação recomendada e estado de tratamento.
 - **Origem dos registros:** Calculado pelo sistema (RegrasAlerta) a cada 10 min, após importação e em Reavaliar agora.
 - **Quem cria/atualiza:** Sistema cria e atualiza; Operador/Gestor tratam (assumir, registrar ação, resolver, descartar, reabrir).
-- **Consumida por:** Tela Gargalos e alertas; Visão Geral (alertas abertos); Relatório do período; Contador de alertas no menu
+- **Consumida por:** Tela Gargalos e alertas; Visão Geral (alertas abertos); Central de relatórios; Contador de alertas no menu
 - **Retenção/histórico:** Sem expurgo; alerta que deixa de ocorrer fica com Ativo = false.
 - **Chave primária:** `Id`
 
@@ -457,7 +458,7 @@ Legenda: **Nulo** = aceita NULL no banco. **Fuso**: *UTC* = gravado e lido em UT
 - **Finalidade:** Registro de cada carreta marcada num terminal e de sua liberação. Fonte de todos os indicadores de volume e espera, dos alertas e da Análise 360°.
 - **Origem dos registros:** Carga inicial (JSON entregue com o projeto), planilhas dos terminais (Importação) e integração (POST /api/v1/integracao/eventos).
 - **Quem cria/atualiza:** Gestor (importação confirmada) e sistemas integrados (API Key)
-- **Consumida por:** Visão Geral; Movimentações (lista e Análise 360°); Gargalos e alertas; Relatório do período; Exportação CSV
+- **Consumida por:** Visão Geral; Movimentações (lista e Análise 360°); Gargalos e alertas; Central de relatórios; Exportação CSV
 - **Retenção/histórico:** Sem expurgo (histórico completo).
 - **Chave primária:** `MovimentoId`
 
@@ -568,6 +569,42 @@ Legenda: **Nulo** = aceita NULL no banco. **Fuso**: *UTC* = gravado e lido em UT
 |---|---|
 | `CK_Parametros_Faixas` | `[LimiteEsperaMedianaHoras] > 0 AND [MetaLiberadas24hPct] BETWEEN 0 AND 100 AND [LimiteEsperaLongaHoras] > 0 AND [DiasSemDadosAlerta] > 0 AND [LimiteRazaoChegadaLiberacao] > 0` |
 | `CK_Parametros_Unico` | `[Id] = 1` |
+
+## RelatoriosGerados
+
+- **Nome lógico:** Relatório emitido
+- **Entidade (código):** `RelatorioGerado`
+- **Descrição (código):** Registro de um relatório emitido pela central de relatórios. O arquivo não é guardado: guarda-se o que é preciso para emitir de novo com os mesmos filtros (os números podem mudar se os dados do período forem corrigidos depois) e o resumo SHA-256 do arquivo entregue, para conferir uma cópia que circular.
+- **Finalidade:** Histórico da central de relatórios: cada PDF ou Excel emitido, com código impresso no rodapé, filtros usados (para emitir de novo), autor, data e resumo SHA-256 do arquivo entregue.
+- **Origem dos registros:** Gravado pela API a cada exportação (POST /api/v1/relatorios/exportar e reemitir). O arquivo em si não é guardado.
+- **Quem cria/atualiza:** Sistema grava; qualquer usuário interno consulta (usuário vinculado vê só os do seu terminal).
+- **Consumida por:** Tela Relatórios (relatórios emitidos); Auditoria (emissão registrada)
+- **Retenção/histórico:** Sem expurgo definido (prazo de retenção ainda não decidido — ver LGPD/registro de decisões).
+- **Chave primária:** `Id`
+
+| Campo | Nome amigável | Tipo | Nulo | Padrão | Chave | Domínio / regra | Origem | Sensibilidade | Descrição |
+|---|---|---|---|---|---|---|---|---|---|
+| `Id` | Id | int | não |  | PK | identidade (gerado pelo banco) | Gravado pela API a cada exportação (POST /api/v1/relatorios/exportar e reemitir). O arquivo em si não é guardado. |  | a validar |
+| `Abrangencia` | Abrangencia | nvarchar(200) | não |  |  |  | Gravado pela API a cada exportação (POST /api/v1/relatorios/exportar e reemitir). O arquivo em si não é guardado. |  | Terminal ou "Todos os terminais", com operador/carga quando filtrados. |
+| `Ate` | Ate | date | não |  |  |  | Gravado pela API a cada exportação (POST /api/v1/relatorios/exportar e reemitir). O arquivo em si não é guardado. |  | a validar |
+| `Codigo` | Codigo | nvarchar(32) | não |  | único |  | Gravado pela API a cada exportação (POST /api/v1/relatorios/exportar e reemitir). O arquivo em si não é guardado. |  | Código impresso no rodapé do documento (ex.: RL-20261027-0007). |
+| `De` | De | date | não |  |  |  | Gravado pela API a cada exportação (POST /api/v1/relatorios/exportar e reemitir). O arquivo em si não é guardado. |  | a validar |
+| `Filtros` | Filtros | nvarchar(2000) | não |  |  |  | Gravado pela API a cada exportação (POST /api/v1/relatorios/exportar e reemitir). O arquivo em si não é guardado. |  | Filtros usados, em JSON (para emitir de novo). |
+| `Formato` | Formato | nvarchar(10) | não |  |  |  | Gravado pela API a cada exportação (POST /api/v1/relatorios/exportar e reemitir). O arquivo em si não é guardado. |  | pdf \| xlsx. |
+| `GeradoEm` | Gerado em | datetime2 | não |  |  | fuso: UTC | Gravado pela API a cada exportação (POST /api/v1/relatorios/exportar e reemitir). O arquivo em si não é guardado. |  | a validar |
+| `GeradoPor` | Gerado por | nvarchar(200) | não |  |  |  | Gravado pela API a cada exportação (POST /api/v1/relatorios/exportar e reemitir). O arquivo em si não é guardado. |  | a validar |
+| `HashSha256` | Hash sha256 | varchar(64) | não |  |  |  | Gravado pela API a cada exportação (POST /api/v1/relatorios/exportar e reemitir). O arquivo em si não é guardado. |  | a validar |
+| `TamanhoBytes` | Tamanho bytes | bigint | não |  |  |  | Gravado pela API a cada exportação (POST /api/v1/relatorios/exportar e reemitir). O arquivo em si não é guardado. |  | a validar |
+| `TerminalId` | Terminal id | nvarchar(32) | sim |  |  |  | Gravado pela API a cada exportação (POST /api/v1/relatorios/exportar e reemitir). O arquivo em si não é guardado. |  | a validar |
+| `Tipo` | Tipo | nvarchar(30) | não |  |  |  | Gravado pela API a cada exportação (POST /api/v1/relatorios/exportar e reemitir). O arquivo em si não é guardado. |  | gerencial \| operacional \| analise360. |
+| `Titulo` | Titulo | nvarchar(200) | não |  |  |  | Gravado pela API a cada exportação (POST /api/v1/relatorios/exportar e reemitir). O arquivo em si não é guardado. |  | a validar |
+
+**Índices**
+
+| Nome | Colunas | Único | Filtro |
+|---|---|---|---|
+| `IX_RelatoriosGerados_Codigo` | Codigo | sim |  |
+| `IX_RelatoriosGerados_TerminalId_GeradoEm` | TerminalId, GeradoEm | não |  |
 
 ## Terminais
 

@@ -5,7 +5,6 @@ import { useApi } from "../hooks/useApi.js";
 import { useAcao } from "../hooks/useAcao.js";
 import { Carregando, ErroCarga, Vazio } from "../components/EstadoCarga.jsx";
 import { CabecalhoPagina, Cartao, Kpi, Selo, Icone, Aviso, Campo, HEX_TERMINAL } from "../components/ui.jsx";
-import RelatorioPeriodo from "../components/RelatorioPeriodo.jsx";
 import { terminalVinculado, terminalInicial, opcoesTerminal } from "../auth/escopo.js";
 import AvisoDemonstracao from "../components/AvisoDemonstracao.jsx";
 import {
@@ -44,7 +43,6 @@ export default function VisaoGeral({ irPara }) {
   const vinculado = terminalVinculado();
   const [comparar, setComparar] = useState("anterior");
   const [executar, exportando] = useAcao();
-  const [imprimir, setImprimir] = useState(false);
 
   const meses = useMemo(() => [...new Set((mensalTodos.dados || []).map(m => m.mes))].sort().reverse(), [mensalTodos.dados]);
   const mes = escolha?.mes ?? (escolha ? null : mesPadrao(frescor.dados));
@@ -105,8 +103,10 @@ export default function VisaoGeral({ irPara }) {
           onClick={() => executar(() => baixarArquivo("/api/v1/marcacoes/exportar", { terminalId, de, ate }, `marcacoes_${terminalId || "todos"}_${de}_${ate}.csv`), { sucesso: "CSV gerado." })}>
           <Icone nome="download" /> CSV
         </button>
-        <button type="button" className="botao botao--secundario" disabled={!a} onClick={() => setImprimir(true)}>
-          <Icone nome="print" /> PDF
+        <button type="button" className="botao botao--secundario" disabled={!de || !ate}
+          title="Abre a central de relatórios com este período e terminal"
+          onClick={() => { const qs = new URLSearchParams({ tipo: "gerencial", de, ate, ...(terminalId ? { terminalId } : {}) }); window.location.hash = `/relatorios?${qs}`; }}>
+          <Icone nome="description" /> Relatório
         </button>
       </CabecalhoPagina>
 
@@ -264,12 +264,6 @@ export default function VisaoGeral({ irPara }) {
         )}
       </Cartao>
 
-      {imprimir && a && (
-        <RelatorioPeriodo aoFechar={() => setImprimir(false)} periodo={rotuloPeriodo} comparacao={rotuloComparacao}
-          terminal={terminalId ? (frescor.dados || []).find(t => t.terminalId === terminalId)?.terminal : null}
-          resumo={resumo.dados} terminais={terminais.dados || []} mensal={(mensalTodos.dados || []).filter(m => !terminalId || m.terminalId === terminalId)}
-          alertas={alertas.dados?.itens || []} frescor={frescor.dados || []} />
-      )}
     </>
   );
 }

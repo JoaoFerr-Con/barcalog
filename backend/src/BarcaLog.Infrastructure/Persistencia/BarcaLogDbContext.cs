@@ -24,6 +24,7 @@ public class BarcaLogDbContext(DbContextOptions<BarcaLogDbContext> options) : Db
     public DbSet<ParametrosOperacionais> Parametros => Set<ParametrosOperacionais>();
     public DbSet<LoteImportacao> LotesImportacao => Set<LoteImportacao>();
     public DbSet<LinhaImportacao> LinhasImportacao => Set<LinhaImportacao>();
+    public DbSet<RelatorioGerado> RelatoriosGerados => Set<RelatorioGerado>();
 
     public Task<int> SalvarAsync(CancellationToken ct = default) => SaveChangesAsync(ct);
 
